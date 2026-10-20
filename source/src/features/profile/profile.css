@@ -1,0 +1,29 @@
+/* Profile — Electric Glass Pro. Sections are glass groups; hero card with initials avatar. */
+.pwrap{padding:0 0 var(--s6)}
+.phero{margin:var(--s2) var(--gutter) 0;padding:var(--s4);display:flex;align-items:center;gap:var(--s3)}
+.pav{width:56px;height:56px;border-radius:50%;flex:none;display:grid;place-items:center;font:700 var(--t-20)/1 var(--f);color:var(--on-accent);background:var(--cta);box-shadow:0 0 0 3px rgba(252,211,77,.18),0 8px 24px -8px rgba(251,146,60,.6)}
+.phero b{display:block;font:700 var(--t-17)/1.3 var(--f)}
+.phero small{display:block;font-size:var(--t-12);color:var(--mu)}
+.pstat{text-align:center;padding-inline-start:var(--s3);border-inline-start:1px solid var(--edge-soft)}
+.pstat .num{display:block;font:700 var(--t-17)/1.2 var(--f);color:var(--pro)}
+.psec{padding:var(--s5) var(--gutter) 0}
+.psec>h2{display:flex;align-items:center;gap:var(--s2);font:700 var(--t-14)/1.2 var(--f);color:var(--mu);margin-bottom:var(--s3)}
+.psec>h2 svg.i{width:18px;height:18px;color:var(--violet)}
+.psec .hint{font-size:var(--t-12);color:var(--mu-2);margin:var(--s2) 0 var(--s3)}
+.psec>.sheet-card{margin:0 0 var(--s3)}
+.pform{padding:var(--s4)}
+.pform .field:last-child,.pform .field:only-child{margin-bottom:0}
+.pform .hint:last-child{margin-bottom:0}
+.plist{padding:0 var(--s4)}
+.tblock{padding:var(--s3) 0 var(--s4);border-bottom:1px solid var(--edge-soft)}
+.tblock:last-child{border-bottom:0}
+.tblock h3{font:700 var(--t-14)/1 var(--f);padding:var(--s2) 0 var(--s3)}
+.tnote{font-size:var(--t-12);color:var(--mu);margin:var(--s3) 0}
+.tnote.warn{color:var(--cal);font-weight:500} .tnote.over{color:var(--danger-tx)}
+.btn-row.wrap{flex-wrap:wrap}
+.btn-row.wrap>*{flex:1 1 auto}
+.psec .chip{min-height:var(--tap);padding:0 var(--s4);font-size:var(--t-14)}
+.psec .chip::after{inset:0}
+.pal-chip{gap:var(--s2)}
+.pal-sw{width:16px;height:16px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
+.pal-chip[aria-checked="true"] .pal-sw{box-shadow:0 0 0 2px var(--on-accent)}

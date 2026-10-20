@@ -1,0 +1,22 @@
+/* 4-day plan: time budget chips + autopilot diff, new-plan card, mesocycle line, Zone 2 step (tokens only). */
+.wk-budget{margin-top:var(--s3,12px)}
+.wk-budget-q{font:600 var(--t-14,14px)/1.4 var(--f,inherit);color:var(--tx,#F7F5FF);margin-bottom:var(--s2,8px)}
+.wk-budget .chips{display:flex;flex-wrap:wrap;gap:var(--s2,8px)}
+.wk-budget .chip{min-height:44px;min-width:64px;justify-content:center}
+.wk-diff{margin-top:var(--s3,12px);padding:10px 12px;border-radius:var(--r-inner,16px);background:var(--glass,rgba(255,255,255,.065));border:1px solid var(--edge-soft,rgba(255,255,255,.08))}
+.wk-diff>p{font:600 var(--t-12,12px)/1.4 var(--f,inherit);color:var(--mu,#C4BFE3);margin-bottom:6px}
+.wk-diff ul{display:flex;flex-direction:column;gap:6px;padding-inline-start:16px;font-size:var(--t-14,14px);line-height:1.45;color:var(--tx,#F7F5FF)}
+.wk-diff li::marker{color:var(--mu-3,#9C96C4)}
+.wk-diff li.c-balance,.wk-diff li.c-carry{color:var(--carb,#86EFAC)}
+.wk-diff li.c-carried{color:var(--pro,#BAE6FD)}
+.wk-newplan .wk-np-list{display:flex;flex-direction:column;gap:6px;margin:var(--s3,12px) 0;padding-inline-start:18px;font-size:var(--t-14,14px);line-height:1.45}
+.wk-newplan .btn-row{display:flex;flex-wrap:wrap;gap:var(--s2,8px);margin-top:var(--s3,12px)}
+.wk-top-mid .wk-meso{display:block;color:var(--amber,#FCD34D);font:600 var(--t-12,12px)/1.4 var(--f,inherit);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wk-planfold li{color:var(--mu,#C4BFE3)}
+.wk-warmnote{padding:0 14px 8px;font-size:var(--t-12,12px)}
+.wk-z2{margin-top:var(--s3,12px)}
+.wk-z2 .wk-muted+.wk-muted{margin-top:6px}
+.wk-z2 .btn{margin-top:var(--s3,12px)}
+.wk-exh-row .wk-exthumb{flex:none;align-self:center;width:44px;height:44px;border-radius:12px;overflow:hidden;background:var(--glass-2,rgba(255,255,255,.10))}
+.wk-exh-row .wk-exthumb img{display:block;width:100%;height:100%;object-fit:contain}
+.wk-exh-row h2{flex:1;min-width:0}

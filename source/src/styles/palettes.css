@@ -1,0 +1,91 @@
+/* Alternative colour palettes for Electric Glass Pro — same layout, same glass, only colours.
+   Opt-in: nothing applies unless <html data-palette="emerald|ember|ocean"> is set (Profile → «ألوان البرنامج»).
+   Each block overrides the tokens in tokens.css; the shared block at the bottom re-tints the few rules
+   that use raw rgba() of the default amber/violet instead of tokens. Macro colours (cal/pro/carb/fat) stay his.
+   Contrast: /home/claude/palettes/contrast.py (all text tokens ≥4.5:1 on the worst glass, CTA text ≥4.5:1). */
+
+/* 1 — Midnight Emerald: deep navy/teal ground, emerald→mint energy (health / heart) */
+:root[data-palette="emerald"]{
+  --g1:#03121A; --g2:#06252E; --g3:#073039;
+  --field-a:rgba(16,185,129,.22); --field-b:rgba(34,211,238,.12);
+  --amber:#6EE7B7; --orange:#10B981; --on-accent:#022C22;
+  --cta-glow:0 10px 26px -8px rgba(16,185,129,.6);
+  --violet:#22D3EE; --pink:#FB7185; --violet-tx:#A5F3FC; --pink-tx:#FDB4BF;
+  --violet-grad:linear-gradient(135deg,rgba(34,211,238,.32),rgba(16,185,129,.22));
+  --tx:#F1FBF8; --mu:#BCD8D2; --mu-2:#BAD5CF; --mu-3:#7DA29B;
+  --nav-bg:rgba(3,22,28,.74); --sheet-bg:#072B33; --paper:rgba(3,20,26,.92);
+  --warn:#FDBA74;
+  --a-rgb:110,231,183; --b-rgb:16,185,129; --v-rgb:34,211,238; --p-rgb:251,113,133; --g1-rgb:3,18,26;
+  --sheet-top:#0C4450; --fab-a:#059669; --fab-b:#0E7490;
+}
+
+/* 2 — Carbon Ember: near-black graphite, ember orange→red (strength / power) */
+:root[data-palette="ember"]{
+  --g1:#09090B; --g2:#141416; --g3:#251917;
+  --field-a:rgba(239,68,68,.24); --field-b:rgba(251,146,60,.14);
+  --amber:#FF9A5C; --orange:#F2452E; --on-accent:#1C0703;
+  --cta-glow:0 10px 26px -8px rgba(242,69,46,.6);
+  --violet:#FBBF24; --pink:#F43F5E; --violet-tx:#FDDA8A; --pink-tx:#FDA4B4;
+  --violet-grad:linear-gradient(135deg,rgba(242,69,46,.32),rgba(251,191,36,.18));
+  --tx:#FAF7F5; --mu:#CCC4BF; --mu-2:#C9C1BC; --mu-3:#8C827C;
+  --nav-bg:rgba(18,16,16,.78); --sheet-bg:#1A1514; --paper:rgba(14,12,12,.92);
+  --warn:#FDBA74;
+  --a-rgb:255,154,92; --b-rgb:242,69,46; --v-rgb:251,191,36; --p-rgb:244,63,94; --g1-rgb:9,9,11;
+  --sheet-top:#2E1C18; --fab-a:#C2410C; --fab-b:#B91C1C;
+}
+
+/* 3 — Ocean Neon: deep ocean blue, electric cyan→blue with a lime highlight (modern / sporty) */
+:root[data-palette="ocean"]{
+  --g1:#020A1C; --g2:#061D42; --g3:#0A2A5E;
+  --field-a:rgba(34,211,238,.17); --field-b:rgba(163,230,53,.10);
+  --amber:#22D3EE; --orange:#3B82F6; --on-accent:#021226;
+  --cta-glow:0 10px 26px -8px rgba(59,130,246,.65);
+  --violet:#A3E635; --pink:#A3E635; --violet-tx:#D9F99D; --pink-tx:#D9F99D;
+  --violet-grad:linear-gradient(135deg,rgba(59,130,246,.34),rgba(163,230,53,.16));
+  --tx:#F3F8FF; --mu:#BED0EC; --mu-2:#BCCDE9; --mu-3:#7C93BA;
+  --nav-bg:rgba(3,14,38,.76); --sheet-bg:#071D44; --paper:rgba(3,12,32,.92);
+  --warn:#FDBA74;
+  --a-rgb:34,211,238; --b-rgb:59,130,246; --v-rgb:163,230,53; --p-rgb:163,230,53; --g1-rgb:2,10,28;
+  --sheet-top:#0D3577; --fab-a:#1D4ED8; --fab-b:#0891B2;
+}
+
+/* ── shared re-tints (only under a palette) ── */
+:root[data-palette] .tabs::before{background:rgba(var(--a-rgb),.10);box-shadow:inset 0 0 0 1px rgba(var(--a-rgb),.2)}
+:root[data-palette] .tabs a[aria-current] svg.i{filter:drop-shadow(0 0 8px rgba(var(--a-rgb),.6))}
+:root[data-palette] .btn:active{box-shadow:0 4px 14px -6px rgba(var(--b-rgb),.6)}
+:root[data-palette] .srow.cur{border-color:rgba(var(--a-rgb),.55);box-shadow:0 0 0 4px rgba(var(--a-rgb),.1)}
+:root[data-palette] .wk-sets .srow.cur{border-color:rgba(var(--a-rgb),.45);background:rgba(var(--a-rgb),.06)}
+:root[data-palette] .dock{background:linear-gradient(to top,rgba(var(--g1-rgb),.96) 55%,rgba(var(--g1-rgb),.72))}
+:root[data-palette] .done-btn,:root[data-palette] .wk-cta{box-shadow:0 14px 30px -8px rgba(var(--b-rgb),.65)}
+:root[data-palette] .wk-cta,:root[data-palette] .td-go{color:var(--on-accent)}
+:root[data-palette] .rest .fill{background:linear-gradient(90deg,rgba(var(--v-rgb),.26),rgba(186,230,253,.2))}
+:root[data-palette] .field select,:root[data-palette] .wk-schedrow select{background-color:var(--sheet-bg)}
+:root[data-palette] .field input:focus-visible,:root[data-palette] .field select:focus-visible,:root[data-palette] .field textarea:focus-visible{box-shadow:0 0 0 3px rgba(var(--v-rgb),.35)}
+:root[data-palette] .bsheet{background:linear-gradient(180deg,var(--sheet-top) 0%,var(--sheet-bg) 40%)}
+:root[data-palette] .toast button{background:rgba(var(--a-rgb),.14)}
+:root[data-palette] .coach-fab{background:linear-gradient(135deg,var(--fab-a),var(--fab-b));box-shadow:0 12px 28px -10px rgba(var(--b-rgb),.75)}
+:root[data-palette] .pav{box-shadow:0 0 0 3px rgba(var(--a-rgb),.18),0 8px 24px -8px rgba(var(--b-rgb),.6)}
+:root[data-palette] .wk-apply{background:rgba(var(--a-rgb),.1)}
+:root[data-palette] .wk-rx-steps li.cur{border-color:rgba(var(--a-rgb),.5)}
+:root[data-palette] .wk-tag,:root[data-palette] .wk-ss{background:rgba(var(--v-rgb),.14);border-color:rgba(var(--v-rgb),.35)}
+:root[data-palette] .td-aibtn,:root[data-palette] .pg-aibtn,:root[data-palette] .nu-alert.is-adapt,:root[data-palette] .nu-adapt{border-color:rgba(var(--v-rgb),.45)}
+:root[data-palette] .nu-alert,:root[data-palette] .nu-fast{border-color:rgba(var(--a-rgb),.45)}
+:root[data-palette] .pg-yl span{background:linear-gradient(90deg,transparent,rgba(var(--g1-rgb),.6))}
+:root[data-palette] .pg-dbar{fill:rgba(var(--v-rgb),.55)}
+:root[data-palette] .pg-key .k-bar,:root[data-palette] .nu-bar-track .fill{background:rgba(var(--v-rgb),.55)}
+:root[data-palette] .pg-col i{background:linear-gradient(180deg,var(--violet-tx),rgba(var(--v-rgb),.35));box-shadow:0 0 14px -2px rgba(var(--v-rgb),.55)}
+:root[data-palette] .pg-shade td{background:rgba(var(--v-rgb),calc(var(--a,0) * .55))}
+:root[data-palette] #wk-rg stop[offset="1"]{stop-color:var(--violet)}
+:root[data-palette] #nu-cta-grad stop[offset="0"]{stop-color:var(--amber)}
+:root[data-palette] #nu-cta-grad stop[offset="1"]{stop-color:var(--orange)}
+/* keep "warning / hold" semantics orange even where the accent is cyan or emerald */
+:root[data-palette] .wk-intel b.low,:root[data-palette] .wk-livebar .wk-down,:root[data-palette] .wk-upby.minus,:root[data-palette] .hk-z.hard b{color:var(--warn)}
+:root[data-palette] .wk-fold>summary svg{color:var(--amber)}
+:root[data-palette] .wk-rirc.z1[aria-pressed="true"]{background:var(--warn);color:#2A1300}
+:root[data-palette] .wk-zone.t-hold,:root[data-palette] .wk-injrow.sev2{border-color:var(--warn)}
+/* Ocean Neon: lime is the "you are here / live" highlight (active tab, live timer) so it reads, not just tints the ground */
+:root[data-palette="ocean"] .tabs::before{background:rgba(163,230,53,.10);box-shadow:inset 0 0 0 1px rgba(163,230,53,.28)}
+:root[data-palette="ocean"] .tabs a[aria-current] svg.i{color:var(--violet);filter:drop-shadow(0 0 8px rgba(163,230,53,.55))}
+:root[data-palette="ocean"] .tabs a[aria-current]{color:var(--violet-tx)}
+:root[data-palette="ocean"] .wk-live{color:var(--violet-tx);background:rgba(163,230,53,.12)}
+:root[data-palette="ocean"] .wk-live::before{background:var(--violet)}

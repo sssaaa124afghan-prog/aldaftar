@@ -1,0 +1,66 @@
+/* Electric Glass Pro (direction B) — design tokens. Dark only. Source: comps/b.html.
+   New names first; legacy "ledger" names kept at the bottom as aliases so older feature CSS keeps working. */
+:root{
+  /* ground: indigo → violet, plus two drifting light fields (base.css body::before) */
+  --g1:#0D0B2E; --g2:#1E1257; --g3:#3A1B78;
+  --ground:linear-gradient(160deg,var(--g1) 0%,var(--g2) 45%,var(--g3) 100%);
+  --field-a:rgba(124,92,255,.36); --field-b:rgba(236,72,153,.18);  /* capped so muted text keeps AA */
+
+  /* glass surfaces */
+  --glass:rgba(255,255,255,.065); --glass-2:rgba(255,255,255,.10); --glass-3:rgba(255,255,255,.16);
+  --edge:rgba(255,255,255,.13); --edge-soft:rgba(255,255,255,.08); --edge-strong:rgba(255,255,255,.22);
+  --well:rgba(0,0,0,.25);                 /* input / number wells inside glass */
+  --sheet-bg:#1A1145;                     /* opaque violet for bottom sheet, toast fallback */
+  --nav-bg:rgba(20,14,52,.72);
+  --blur:blur(20px) saturate(140%);
+  --glass-hi:inset 0 1px 0 rgba(255,255,255,.08);
+
+  /* text */
+  --tx:#F7F5FF; --mu:#C4BFE3; --mu-2:#C4C0DC;   /* all text tokens ≥4.5:1 on the worst glass (scratch contrast.py) */
+  --mu-3:#9C96C4;                               /* NON-TEXT only: axes, idle tracks, decorative dots */
+  --on-accent:#1A1033;                    /* dark text on amber/orange, macro chips, ok */
+
+  /* macro colours (his) */
+  --cal:#FDE68A; --pro:#BAE6FD; --carb:#86EFAC; --fat:#FBCFE8;
+
+  /* accents */
+  --amber:#FCD34D; --orange:#FB923C; --violet:#A78BFA; --pink:#F472B6;
+  --ok-c:#4ADE80; --danger:#FB7185;
+  /* text-safe versions of the saturated accents (use for words; the base ones for fills, strokes, icons) */
+  --violet-tx:#CAB9FC; --pink-tx:#F9ADD5; --danger-tx:#FDAEB9;
+  --cta:linear-gradient(135deg,var(--amber),var(--orange));
+  --cta-glow:0 10px 26px -8px rgba(251,146,60,.6);
+  --violet-grad:linear-gradient(135deg,rgba(167,139,250,.35),rgba(244,114,182,.25));
+  --gold-grad:linear-gradient(120deg,rgba(253,230,138,.22),rgba(251,207,232,.18));
+
+  /* type — Readex Pro only (Latin + Arabic subsets) */
+  --f:"Readex Pro",system-ui,sans-serif;
+  --t-11:12px; --t-12:12px; --t-14:14px; --t-16:16px; --t-17:17px; --t-20:20px; --t-24:24px; --t-28:28px; --t-34:34px; --t-40:40px;
+  --lh-tight:1.15; --lh:1.5;
+
+  /* space (4/8) */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px;
+  --gutter:18px;
+  --r-card:24px; --r-inner:16px; --r-sm:12px; --r-pill:999px;
+  --tap:48px; --tap-lg:64px;
+  --shadow:0 18px 40px -18px rgba(5,3,20,.7);
+
+  /* motion */
+  --ease:cubic-bezier(.22,.9,.24,1);
+  --ease-out:cubic-bezier(.16,1,.3,1);
+  --d-press:150ms; --d-fast:120ms; --d:200ms; --d-route:180ms; --d-slow:320ms; --d-ring:1100ms;
+  --stagger:50ms;
+
+  /* ───── legacy aliases (ledger names) → B values. Do not use in new CSS. ───── */
+  --paper:rgba(16,12,52,.92); --paper-2:var(--glass); --sheet:var(--glass);   /* --paper = opaque-ish ground for sticky bars */
+  --rule:var(--edge-soft); --rule-strong:var(--edge-strong);
+  --ink:var(--tx); --ink-2:var(--mu); --ink-3:var(--mu-2);
+  --bind:var(--amber); --bind-2:var(--orange); --bind-ink:var(--on-accent); --bind-ink-2:#3B2A00;
+  --red-ink:var(--danger-tx); --brass:var(--cal); --ok:var(--ok-c); --focus:var(--violet);
+  --s-protein:var(--pro); --s-carb:var(--carb); --s-fat:var(--fat); --s-kcal:var(--cal);
+  --f-label:var(--f); --f-body:var(--f); --f-fig:var(--f);
+  --radius:var(--r-inner); --radius-lg:var(--r-card);
+  --lift:var(--glass-hi);
+  color-scheme:dark;
+}
+@media (prefers-reduced-motion:reduce){:root{--d-press:0ms;--d-fast:0ms;--d:0ms;--d-route:0ms;--d-slow:0ms;--d-ring:0ms;--stagger:0ms}}

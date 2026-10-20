@@ -1,0 +1,19 @@
+{
+  "name": "fitness-companion",
+  "version": "0.1.0",
+  "description": "Unified training + nutrition PWA (Arabic RTL). Data layer phase 1.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build -c vite.single.config.js && node scripts/precache.mjs",
+    "preview": "vite preview",
+    "test": "TZ=Asia/Dubai node --test tests/*.test.js",
+    "build:split": "vite build && node scripts/precache.mjs"
+  },
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "vite": "8.3.4",
+    "vite-plugin-singlefile": "^2.3.4"
+  },
+  "private": true,
+  "type": "module"
+}

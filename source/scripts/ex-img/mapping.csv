@@ -1,0 +1,85 @@
+our_id,our_ar,our_en,source,src_id,src_title,confidence,start_image,note,auto_best_ek,auto_best_title,auto_score
+ex1,بنش بريس بالبار,Barbell Bench Press,everkinetic,0042,Bench Press: Barbell,high,tension,,0042,Bench Press: Barbell,1.25
+ex2,ضغط دمبل مائل,Incline DB Press,everkinetic,0061,Bench Press: Dumbbell (Incline),high,tension,,0080,Incline Dumbbell Press,1.25
+ex3,بنش سفلي بالبار,Decline Bench Press,everkinetic,0051,Bench Press: Barbell (Decline),high,tension,,0051,Bench Press: Barbell (Decline),1.25
+exFDP,ضغط دمبل مسطّح,Flat DB Press,everkinetic,0055,Bench Press: Dumbbell,high,tension,,0055,Bench Press: Dumbbell,0.58
+exMDP,ضغط سفلي بالجهاز,Machine Decline Press,everkinetic,0085,Decline Chest Press,high,relaxation,decline chest press machine,0085,Decline Chest Press,0.92
+ex4,كروس أوفر بالكابل,Cable Crossover,everkinetic,0048,Cable Crossover,high,relaxation,,0048,Cable Crossover,1.25
+ex5,فتح بالدمبل,Dumbbell Fly,everkinetic,0056,Dumbbell Flys,high,tension,,0053,Decline Dumbbell Fly's,0.75
+ex6,ضغط أرضي,Push-Ups,everkinetic,0077,Push Up: Body Weight,high,tension,,0076,Push Up: Exercise ball,0.45
+ex7,متوازي للصدر,Chest Dips,everkinetic,0054,Chest Dips,high,tension,,0054,Chest Dips,1.25
+ex8,فراشة بالجهاز,Pec Deck Fly,free-exercise-db,Butterfly,Butterfly,high,1.jpg,pec-deck machine; EK rejected: 0047 butterfly machine has no drawing in the repo,0053,Decline Dumbbell Fly's,0.25
+ex9,لاندماين بريس,Landmine Press,,,,unmapped,,"no landmine press; fedb Landmine_Linear_Jammer is a squat-to-press jammer, not a landmine press",0042,Bench Press: Barbell,0.58
+ex11,ديدليفت,Deadlift,everkinetic,0099,Dead Lifts: Barbell,high,relaxation,,0004,Seated Military Press,0.25
+ex12,عقلة,Pull-Ups,everkinetic,0087,Pull Ups,high,relaxation,,0087,Pull Ups,1.0
+exWPU,عقلة بوزن مضاف,Weighted Pull-Up,everkinetic,0087,Pull Ups,medium,relaxation,same pull-up; drawing has no added weight,0076,Push Up: Exercise ball,0.42
+ex13,تجديف بالبار,Barbell Row,free-exercise-db,Bent_Over_Barbell_Row,Bent Over Barbell Row,high,0.jpg,overhand bent-over barbell row; EK rejected: 0298 has no drawing; 0026 is reverse (underhand) grip,0086,Body Row,0.75
+ex14,سحب أمامي بالكابل,Lat Pulldown,free-exercise-db,Wide-Grip_Lat_Pulldown,Wide-Grip Lat Pulldown,high,0.jpg,wide overhand grip to the front; EK rejected: 0097 wide-grip pulldown has no drawing; 0093/0095 are underhand close grip,0008,Front Cable Raises,0.25
+ex15,تجديف كابل جالس,Seated Cable Row,everkinetic,0025,Seated Cable Rows,high,relaxation,,0015,Upright Cable Row,0.58
+ex16,تجديف T-بار,T-Bar Row,everkinetic,0029,T-Bar Rows,high,relaxation,standing T-bar row,0086,Body Row,0.58
+exCSTB,تجديف T-بار بسند صدر,Chest-Supported T-Bar Row,free-exercise-db,Lying_T-Bar_Row,Lying T-Bar Row,high,0.jpg,"chest-supported T-bar machine; EK rejected: 0029 is standing, not chest-supported",0085,Decline Chest Press,0.42
+ex17,تجديف دمبل بإيد واحدة,1-Arm DB Row,everkinetic,0024,Rear Deltoid Row Dumbbell,medium,relaxation,EK title says rear-delt row but drawing/steps are the 1-arm bench-supported DB row,0039,Upright Row: Dumbbell (One Arm),0.75
+ex18,سحب بذراع مفرود,Straight Arm Pulldown,everkinetic,0092,Straight Arm Push Down,high,relaxation,,0092,Straight Arm Push Down,0.65
+ex20,ظهر سفلي (هايبر),Hyperextension,everkinetic,0103,Hyperextensions,high,relaxation,,0066,Bench Press: Machine,0.25
+ex21,ضغط كتف بالبار,Overhead Press,free-exercise-db,Standing_Military_Press,Standing Military Press,high,0.jpg,"standing barbell press; EK rejected: 0004 is seated, ours is standing",0042,Bench Press: Barbell,0.58
+ex22,ضغط كتف بالدمبل,DB Shoulder Press,free-exercise-db,Dumbbell_Shoulder_Press,Dumbbell Shoulder Press,high,0.jpg,seated DB press; EK rejected: 0012 has no drawing; 0038 is one-arm standing,0031,Incline Shoulder Press Dumbbell,0.92
+ex26,أرنولد بريس,Arnold Press,free-exercise-db,Arnold_Dumbbell_Press,Arnold Dumbbell Press,high,0.jpg,EK rejected: 0006 has no drawing,0055,Bench Press: Dumbbell,0.58
+ex23,رفرفة جانبي بالدمبل,Lateral Raises,everkinetic,0018,Lateral Dumbbell Raises,high,relaxation,,0018,Lateral Dumbbell Raises,1.25
+ex27,رفرفة جانبي بالكابل,Cable Lateral Raise,free-exercise-db,Lateral_Raise_-_With_Bands,Lateral Raise - With Bands,medium,0.jpg,"standing two-arm lateral raise with bands (ours: cable), same line of pull from below; EK rejected: 0017 is a bent-over rear-delt cable raise",0035,Seated Rear Lateral Cable Raise,0.75
+ex28,سحب عمودي بالبار,Upright Row,everkinetic,0014,Upright Barbell Rows,high,relaxation,,0015,Upright Cable Row,1.0
+ex24,فيس بول,Face Pull,free-exercise-db,Face_Pull,Face Pull,high,0.jpg,"rope to the face, high pulley; EK rejected: no face pull",0093,Pull Down: Underhand,0.5
+ex25,رفرفة خلفي بالدمبل,Rear Delt Fly,everkinetic,0032,Bent Over Rear Deltoid Raise With Head On Bench,medium,relaxation,"bent-over rear-delt raise, head supported on bench",0053,Decline Dumbbell Fly's,0.5
+exRPD,فراشة عكسي,Reverse Pec-Dec,free-exercise-db,Reverse_Machine_Flyes,Reverse Machine Flyes,high,0.jpg,rear-delt machine fly; EK rejected: no reverse pec-deck,0066,Bench Press: Machine,0.25
+ex29,بايسبس بالبار,Barbell Curl,everkinetic,0211,Biceps Curl: Barbell,high,relaxation,,0211,Biceps Curl: Barbell,0.75
+ex34b,بايسبس بار EZ,EZ-Bar Curl,everkinetic,0226,EZ Bar Curl with Barbell,high,relaxation,,0226,EZ Bar Curl with Barbell,1.25
+ex30,هامر بالدمبل,Hammer Curl,everkinetic,0227,Biceps Curl: Dumbbell (Hammer),high,relaxation,,0213,Alternating Hammer Curl with Dumbbell,0.92
+ex31,بايسبس دمبل على بنش مائل,Incline DB Curl,everkinetic,0214,Alternating Incline Curl with Dumbbell,high,relaxation,alternating arms,0214,Alternating Incline Curl with Dumbbell,0.92
+ex32,بايسبس على المسند,Preacher Curl,everkinetic,0236,Preacher Curl: Machine,high,relaxation,machine preacher,0236,Preacher Curl: Machine,1.25
+ex33,بايسبس بالكابل,Cable Curl,everkinetic,0212,Standing Biceps Curl with Cable,high,relaxation,,0217,Preacher Curl: Cable,0.75
+ex34,بايسبس تركيز,Concentration Curl,everkinetic,0220,Concentration Curls with Dumbbell,high,relaxation,,0220,Concentration Curls with Dumbbell,0.58
+exSPC,سبايدر كيرل,Spider Curl,everkinetic,0225,Prone Incline Biceps Curl with Dumbbell,high,relaxation,prone incline DB curl = spider curl,0245,Spider Curl with Barbell,1.0
+ex35,بنش قبضة ضيقة,Close Grip Bench Press,everkinetic,0049,Bench Press: Barbell (Close Grip),high,tension,,0049,Bench Press: Barbell (Close Grip),1.25
+ex36,ترايسبس بالحبل,Rope Pushdown,everkinetic,0206,Triceps Pushdown: Cable (Rope),high,relaxation,,0206,Triceps Pushdown: Cable (Rope),0.92
+ex40,ترايسبس بالبار على الكابل,Bar Pushdown,everkinetic,0205,Triceps Pushdown: Cable,high,relaxation,,0207,Triceps Pushdown: Cable (V-Bar),0.92
+ex37,ترايسبس فوق الراس بالدمبل,Overhead Tricep Extension,everkinetic,0198,Triceps Extension: Dumbbell (Standing),high,tension,standing two-hand DB,0260,Biceps Curl: Stability Ball with Dumbbell (Overhead Extension),0.54
+exOCT,ترايسبس كابل فوق الراس,Overhead Cable Triceps Ext,everkinetic,0177,Triceps Extension: Cable (Kneeling),medium,relaxation,kneeling overhead cable extension (elbows on bench),0205,Triceps Pushdown: Cable,0.5
+ex38,سكل كراشر,Skull Crushers,everkinetic,0183,Lying Triceps Press with Barbell,high,tension,lying barbell triceps press,0168,Decline Close Grip Bench to Skull Crusher,0.39
+ex39,متوازي للترايسبس,Tricep Dips,everkinetic,0172,Triceps Dips: Body Weight,high,tension,,0054,Chest Dips,0.58
+ex81,ساعد بالبار,Wrist Curl,free-exercise-db,Seated_Palm-Up_Barbell_Wrist_Curl,Seated Palm-Up Barbell Wrist Curl,high,0.jpg,"seated, forearms on thighs; EK rejected: no wrist curl",0211,Biceps Curl: Barbell,0.58
+ex82,بايسبس عكسي,Reverse Curl,everkinetic,0257,Biceps Curl: Dumbbell (Reverse),medium,relaxation,reverse curl shown with dumbbells (ours: bar),0257,Biceps Curl: Dumbbell (Reverse),0.67
+exFW,مشية الفلاح,Farmers Walk,free-exercise-db,Farmers_Walk,Farmer's Walk,medium,0.jpg,farmer handles instead of dumbbells; start photo is the pick-up; EK rejected: no farmers walk,0005,Shoulder Shrugs: Dumbbell,0.25
+ex71,ترابيس بالبار,Barbell Shrug,everkinetic,0030,Barbell Shrugs,high,relaxation,,0004,Seated Military Press,0.25
+ex72,ترابيس بالدمبل,DB Shrug,everkinetic,0005,Shoulder Shrugs: Dumbbell,high,relaxation,,0005,Shoulder Shrugs: Dumbbell,0.25
+ex41,سكوات بالبار,Back Squat,everkinetic,0122,Barbell Squat,high,tension,,0122,Barbell Squat,0.75
+ex41b,سكوات أمامي,Front Squat,everkinetic,0138,Front Squat with Barbell,high,tension,,0138,Front Squat with Barbell,1.25
+ex45b,هاك سكوات,Hack Squat,everkinetic,0123,Hack Squat: Machine,high,tension,,0123,Hack Squat: Machine,1.25
+ex43,دفع رجل بالجهاز,Leg Press,everkinetic,0127,Leg Press,high,tension,,0127,Leg Press,1.25
+ex42,سكوات بلغاري,Bulgarian Split Squat,everkinetic,0147,One Leg Squat with Barbell,medium,tension,rear-foot-elevated split squat with barbell (ours: DB),0152,Pile Squat with Dumbbell,0.5
+ex44,رجل أمامي بالجهاز,Leg Extension,everkinetic,0142,Leg Extensions,high,relaxation,,0127,Leg Press,0.58
+ex47,ديدليفت روماني,Romanian Deadlift,everkinetic,0118,Romanian Dead Lift,high,tension,,0118,Romanian Dead Lift,0.5
+ex45,رجل خلفي نايم,Lying Leg Curl,everkinetic,0117,Lying Leg Curl Machine,high,relaxation,,0117,Lying Leg Curl Machine,1.25
+ex48,رجل خلفي جالس,Seated Leg Curl,everkinetic,0119,Seated Leg Curl,high,relaxation,,0119,Seated Leg Curl,1.25
+ex49,نورديك,Nordic Curl,free-exercise-db,Natural_Glute_Ham_Raise,Natural Glute Ham Raise,high,0.jpg,"nordic curl, ankles anchored under a pad; EK rejected: no nordic curl",0211,Biceps Curl: Barbell,0.33
+ex50,رفع جلوت هامسترينج,Glute Ham Raise,free-exercise-db,Glute_Ham_Raise,Glute Ham Raise,high,0.jpg,"GHD machine, starts from the bottom; EK rejected: no glute-ham raise",0279,Seated Calf Raise using Machine,0.45
+ex46,هيب ثرست,Hip Thrust,free-exercise-db,Barbell_Hip_Thrust,Barbell Hip Thrust,high,0.jpg,"upper back on bench; EK rejected: 0109 is a floor glute bridge, not a bench hip thrust",0135,Hip Adduction,0.33
+ex46c,ديدليفت سومو,Sumo Deadlift,free-exercise-db,Sumo_Deadlift,Sumo Deadlift,high,0.jpg,EK rejected: no sumo deadlift,0004,Seated Military Press,0.25
+ex46b,ركلة خلفية بالكابل,Cable Kickback,everkinetic,0112,One Legged Cable Kickback,high,relaxation,,0112,One Legged Cable Kickback,0.58
+ex46d,ركلة خلفية على الأرض,Donkey Kick,free-exercise-db,Glute_Kickback,Glute Kickback,high,0.jpg,"quadruped kickback on the floor; EK rejected: 0111 is a standing leg kick, not quadruped",0275,Donkey Calf Raises,0.5
+ex51,سمانة واقف,Standing Calf Raise,everkinetic,0282,Standing Calf Raises using Machine,high,relaxation,,0281,Standing Barbell Calf Raise,1.0
+ex52,سمانة جالس,Seated Calf Raise,everkinetic,0279,Seated Calf Raise using Machine,high,relaxation,,0279,Seated Calf Raise using Machine,1.25
+ex53,سمانة رجل واحدة,Single Leg Calf Raise,,,,unmapped,,"no single-leg standing calf raise; fedb calf raises are two-legged (Calf_Raise_On_A_Dumbbell, Standing_Dumbbell_Calf_Raise)",0276,Seated One Leg Calf Raise with Dumbbell,0.5
+ex61,بلانك,Plank,free-exercise-db,Plank,Plank,medium,0.jpg,"start photo is the kneeling set-up, end is the plank hold; EK rejected: only side plank (0113)",0113,Side Plank,0.75
+exWPL,بلانك بوزن,Weighted Plank,free-exercise-db,Plank,Plank,medium,0.jpg,plain forearm plank (no plate shown); EK rejected: only side plank (0113),0113,Side Plank,0.58
+ex62,كرانش بالكابل,Cable Crunch,everkinetic,0288,Seated Ab Crunch with Cable,medium,relaxation,seated (not kneeling) rope cable crunch,0288,Seated Ab Crunch with Cable,0.58
+ex63,رفع رجلين,Leg Raises,everkinetic,0021,Flat Bench Leg Raises,high,relaxation,lying leg raise,0021,Flat Bench Leg Raises,0.75
+ex65,رفع رجلين معلّق,Hanging Leg Raise,free-exercise-db,Hanging_Leg_Raise,Hanging Leg Raise,medium,0.jpg,photo shows bent-knee raise from a bar; EK rejected: no hanging leg raise,0111,Body Leg Lifts,0.45
+ex64,عجلة البطن,Ab Wheel Rollout,everkinetic,0286,Ab Rollout on Knees with Barbell,medium,relaxation,kneeling rollout with a barbell instead of a wheel,0285,Ab Rollout with Barbell,0.67
+ex66,لف روسي,Russian Twist,free-exercise-db,Russian_Twist,Russian Twist,high,0.jpg,with a plate; EK rejected: no russian twist,0001,Static Neck Flexion and Extension,0.25
+exWC,حطّاب بالكابل,Cable Woodchopper,free-exercise-db,Standing_Cable_Wood_Chop,Standing Cable Wood Chop,high,0.jpg,high-to-low chop; EK rejected: no woodchop,0008,Front Cable Raises,0.25
+exBAY,بايسبس كابل باييزيان,Bayesian Cable Curl,,,,unmapped,,0247 faces the stack (not behind-body Bayesian); fedb Standing_One-Arm_Cable_Curl faces the stack (not behind-body Bayesian),0217,Preacher Curl: Cable,0.58
+exADD,جهاز الضامة,Hip Adduction Machine,everkinetic,0157,Thigh Adductor,high,relaxation,thigh adductor machine,0135,Hip Adduction,1.0
+exWCH,وودشوب كابل من فوق لتحت,High-to-Low Cable Woodchop,free-exercise-db,Standing_Cable_Wood_Chop,Standing Cable Wood Chop,high,0.jpg,high-to-low chop; EK rejected: no woodchop,0229,High Cable Curls,0.5
+exPAL,بالوف بريس,Pallof Press,free-exercise-db,Pallof_Press,Pallof Press,medium,0.jpg,end photo is a close-up of the press-out; EK rejected: no pallof press,0042,Bench Press: Barbell,0.33
+exRWC,ساعد عكسي,Reverse Wrist Curl,free-exercise-db,Seated_Palms-Down_Barbell_Wrist_Curl,Seated Palms-Down Barbell Wrist Curl,high,0.jpg,"seated, forearms on thighs; EK rejected: no reverse wrist curl",0211,Biceps Curl: Barbell,0.5
+exMHT,هيب ثرست سميث/جهاز,Smith or Machine Hip Thrust,free-exercise-db,Barbell_Hip_Thrust,Barbell Hip Thrust,medium,0.jpg,free barbell instead of Smith/machine; same hip thrust; EK rejected: 0109 is a floor glute bridge,0066,Bench Press: Machine,0.25
+exNECK,تمرين رقبة (اختياري),Neck Flexion/Extension,free-exercise-db,Lying_Face_Up_Plate_Neck_Resistance,Lying Face Up Plate Neck Resistance,medium,0.jpg,"plate-loaded neck flexion on a bench (extension is the face-down version); EK rejected: 0001 is an isometric hand-resisted hold, ours is a loaded dynamic movement",0001,Static Neck Flexion and Extension,0.75
