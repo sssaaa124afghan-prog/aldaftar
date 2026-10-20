@@ -6,8 +6,8 @@ import { pop, haptic } from '../../../ui/anim.js';
 import { addDays } from '../../../core/date.js';
 import { setTargets, validateTargets, kcalFromMacros } from '../../../core/targets.js';
 import { DEFAULT_TARGETS } from '../../../core/schema.js';
-import { DIET_MODES, dietModeTargets, adaptiveSuggestion, applyAdjustment, bmr, tdee, ACTIVITY_LEVELS, macroRanges, waterGoalMl } from '../logic.js';
-import { kvGet, kvPatch, loadProfile, loadTargets, saveTargets, DAY_TYPE_LABEL } from '../data.js';
+import { DIET_MODES, dietModeTargets, applyAdjustment, bmr, tdee, ACTIVITY_LEVELS, macroRanges, waterGoalMl } from '../logic.js';
+import { kvGet, kvPatch, loadProfile, loadTargets, saveTargets, DAY_TYPE_LABEL, weightSuggestion } from '../data.js';
 import { reminderSettings, MAX_REMINDERS } from '../reminders.js';
 import { I, n0, topBar, card, field, segChips } from '../ui.js';
 
@@ -23,29 +23,30 @@ export async function targetsScreen(el, ctx) {
     const blocks = [];
 
     // ── adaptive engine ──
-    const sug = adaptiveSuggestion(profile.weights, nkv.adjustmentHistory || [], { today, snoozeUntil: nkv.adaptiveSnoozeUntil || null });
+    const sug = await weightSuggestion(ctx, profile, nkv, today);
     const hist = (nkv.adjustmentHistory || []).filter((x) => x && x.date).sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 6);
     if (sug) {
-      const next = applyAdjustment(targets, sug.delta);
+      // a body-weight suggestion carries full targets; a gain step moves kcal by ±150 (carbs absorb it)
+      const next = sug.targets ? { ...targets, ...sug.targets, isDefault: false } : applyAdjustment(targets, sug.delta);
       const apply = h('button', { type: 'button', class: 'btn nu-cta' }, I('check'), 'طبّق التعديل');
       apply.addEventListener('click', async () => {
-        const ok = await ctx.confirm({ title: sug.title, text: `يوم التمرين ${fmt(targets.training.kcal)} → ${fmt(next.training.kcal)} · يوم الراحة ${fmt(targets.rest.kcal)} → ${fmt(next.rest.kcal)} سعرة. الكارب بيتعدّل بالفرق والبروتين زي ما هو.`, confirmLabel: 'طبّق التعديل' });
+        const ok = await ctx.confirm({ title: sug.title, text: `يوم التمرين ${fmt(targets.training.kcal)} → ${fmt(next.training.kcal)} · يوم الراحة ${fmt(targets.rest.kcal)} → ${fmt(next.rest.kcal)} سعرة. ${sug.targets ? 'الأهداف الجديدة لوزنك (بروتين وكارب ودهون).' : 'الكارب بيتعدّل بالفرق والبروتين زي ما هو.'}`, confirmLabel: 'طبّق التعديل' });
         if (!ok) return;
         try {
           await saveTargets(ctx, next);
-          await kvPatch(ctx.db, 'nutrition', (n) => ({ ...n, adjustmentHistory: [...(n.adjustmentHistory || []), { date: today, change: sug.delta, reason: sug.reason, weeklyChange: sug.change, newCal: next.training.kcal, newCalRest: next.rest.kcal }], lastAdaptiveRun: today }));
+          await kvPatch(ctx.db, 'nutrition', (n) => ({ ...n, adjustmentHistory: [...(n.adjustmentHistory || []), { date: today, change: sug.delta, reason: sug.reason, weeklyChange: sug.change, newCal: next.training.kcal, newCalRest: next.rest.kcal }], lastAdaptiveRun: today, ...(sug.targets ? { targetSuggestion: null } : {}) }));
           haptic(); ctx.toast(`اتعدّلت الأهداف: ${sug.delta > 0 ? '+' : '−'}${Math.abs(sug.delta)} سعرة`);
         } catch { ctx.toast('ماقدرناش نحفظ الأهداف. جرّب تاني.'); }
         render();
       });
       const later = h('button', { type: 'button', class: 'btn ghost', onclick: async () => {
-        await kvPatch(ctx.db, 'nutrition', (n) => ({ ...n, adaptiveSnoozeUntil: addDays(today, 7) })).catch(() => {});
+        await kvPatch(ctx.db, 'nutrition', (n) => ({ ...n, ...(sug.targets ? { targetSuggestion: { ...n.targetSuggestion, dismissed: today } } : { adaptiveSnoozeUntil: addDays(today, 7) }) })).catch(() => {});
         ctx.toast('تمام. هنراجع تاني بعد أسبوع.'); render();
       } }, 'مش دلوقتي');
-      blocks.push(card({ cls: 'nu-adapt', title: h('span', {}, I('trend', { size: 18 }), ' اقتراح من وزنك'), aside: h('small', {}, 'مراجعة أسبوعية') },
+      blocks.push(card({ cls: 'nu-adapt', title: h('span', {}, I('trend', { size: 18 }), ' اقتراح من وزنك'), aside: h('small', {}, sug.targets ? 'على وزنك' : 'كل أسبوعين') },
         h('p', { class: 'nu-adapt-big' }, sug.title),
         h('p', {}, sug.reason),
-        h('p', { class: 'nu-fine' }, 'الوزن ', n0(sug.from, 1), ' → ', n0(sug.to, 1), ' كجم · يوم التمرين ', n0(targets.training.kcal), ' → ', n0(next.training.kcal), ' · يوم الراحة ', n0(targets.rest.kcal), ' → ', n0(next.rest.kcal)),
+        h('p', { class: 'nu-fine' }, ...(sug.from != null ? ['الوزن ', n0(sug.from, 1), ' → ', n0(sug.to, 1), ' كجم · '] : []), 'يوم التمرين ', n0(targets.training.kcal), ' → ', n0(next.training.kcal), ' · يوم الراحة ', n0(targets.rest.kcal), ' → ', n0(next.rest.kcal)),
         h('div', { class: 'nu-row' }, apply, later)));
     } else {
       blocks.push(card({ cls: 'nu-adapt is-quiet', title: h('span', {}, I('trend', { size: 18 }), ' المراجعة الأسبوعية') },

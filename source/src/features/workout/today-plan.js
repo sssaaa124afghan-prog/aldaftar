@@ -3,7 +3,8 @@
 import { h, N, ico, safeWrite } from './view.js';
 import * as L from './logic.js';
 import { NEW_PROGRAM, PROGRAMS } from './exercises.js';
-import { loadProgram, saveProgram, patchTraining } from './store.js';
+import { loadAll, loadProgram, saveProgram, loadTraining, patchTraining } from './store.js';
+import { weekday } from '../../core/date.js';
 import './plan.css';
 
 export const BUDGETS = [30, 45, 60, 75];
@@ -13,17 +14,61 @@ export const OLD_NAME = 'برنامجي القديم';
 export function weekOf(program, today) {
   return L.programFlags(program).meso ? L.mesoWeek(program.startDay, today) : null;
 }
+/** Re-entry block info for that day (logic.js), or null when the export is missing / not set. */
+export const reentryOf = (ctx, day) => { try { return typeof L.reentryInfo === 'function' ? L.reentryInfo(ctx.settings, day) : null; } catch { return null; } };
 
 /**
  * Everything startSession needs, from the same pure functions the preview uses.
  * → {items, plan:{budget, minutes, baseMinutes, changes}, carryNext, week, deload}
  */
 export function prepareStart(ctx, { program, sessions, training, dayId, budget = 60, today }) {
+  const reentry = reentryOf(ctx, today);
   const e = L.dayEstimate({ program, sessions, today, dayId, training, budgetMin: budget,
-    weekStartDow: ctx.settings.get('weekStart') ?? 1, trainingDays: ctx.settings.get('trainingDays') || null });
+    weekStartDow: ctx.settings.get('weekStart') ?? 1, trainingDays: ctx.settings.get('trainingDays') || null, reentry });
   const r = e.plan;
-  return { items: r.items, week: e.week, deload: e.deload, carryNext: r.carryNext,
+  return { items: r.items, week: e.week, deload: e.deload, carryNext: r.carryNext, reentry: reentry && reentry.active ? reentry : null,
     plan: { budget, minutes: r.minutes, z2: e.z2, total: e.total, baseMinutes: r.baseMinutes, fits: r.fits !== false, changes: r.changes.map(({ code, text }) => ({ code, text })) } };
+}
+
+// ══ "What is planned today?" — ONE answer for Today and the Workout overview (UX B6) ══
+/** Training days when the user never set them: the 4-day plan's Mon/Tue/Thu/Fri (same default as Today). */
+export const DEFAULT_TRAINING_DAYS = Object.freeze([1, 2, 4, 5]);
+const trainingDaysOf = (ctx) => { const d = ctx.settings.get('trainingDays'); return Array.isArray(d) && d.length ? d : [...DEFAULT_TRAINING_DAYS]; };
+
+/**
+ * Sync core of todayPlan for callers that already hold the data (the overview).
+ * → {day, kind, dayId, name, exercises, minutes, z2, total, week, deload, isTrainDay, heartDay, trainingDays, live, doneToday, prep, program}
+ *   kind: 'active' (a session is running) | 'done' (lifting finished today) | 'training' | 'heart' (Heart Day) | 'rest'
+ *   dayId/name: the planned program day (`dayId` param overrides it, e.g. the overview's ?day=); minutes = lifting incl. warm-up
+ *   after weekly balance + the «معاك كام دقيقة؟» budget; z2 = Zone 2 finisher; total = minutes + z2.
+ */
+export function planForDay(ctx, { program, sessions = [], training = {}, day = ctx.today(), dayId = null, budget = null }) {
+  const all = (sessions || []).filter((s) => s && typeof s === 'object');
+  const done = L.finished(all);
+  const live = all.filter(L.isActive).sort((a, b) => (b.startedMs || 0) - (a.startedMs || 0))[0] || null;
+  const trainingDays = trainingDaysOf(ctx);
+  const dow = weekday(day);
+  const isTrainDay = trainingDays.includes(dow);
+  const { heartDow } = L.programFlags(program);
+  const heartDay = heartDow !== null && heartDow !== undefined && dow === heartDow && !isTrainDay;
+  const id = program.days[dayId] ? dayId : L.nextDayId(program, done, day);
+  const d = program.days[id];
+  const prep = d ? prepareStart(ctx, { program, sessions: done, training, dayId: id, budget: budget || L.budgetFor(day), today: day }) : null;
+  const doneToday = done.filter((s) => s.day === day && !s.kind).pop() || null;
+  const kind = live ? 'active' : doneToday ? 'done' : isTrainDay ? 'training' : heartDay ? 'heart' : 'rest';
+  return { day, kind, dayId: id, name: d ? d.name : '', exercises: d ? d.items.length : 0,
+    minutes: prep ? prep.plan.minutes : 0, z2: prep ? prep.plan.z2 || 0 : 0, total: prep ? prep.plan.total || prep.plan.minutes : 0,
+    week: prep ? prep.week ?? null : null, deload: !!prep?.deload, isTrainDay, heartDay, trainingDays, live, doneToday, prep, program };
+}
+
+/**
+ * todayPlan(ctx, day = ctx.today()) → Promise<TodayPlan> (shape: planForDay above). Stable contract for Today (B2):
+ * reads programs/current, sessions and kv training itself, never throws (falls back to the default program).
+ */
+export async function todayPlan(ctx, day = ctx.today()) {
+  const [{ all }, { program }, training] = await Promise.all([
+    loadAll(ctx.db).catch(() => ({ all: [] })), loadProgram(ctx.db).catch(() => ({ program: L.normalizeProgram(null) })), loadTraining(ctx.db).catch(() => ({}))]);
+  return planForDay(ctx, { program, sessions: all, training, day });
 }
 
 /** «معاك كام دقيقة؟» chips + the diff of what the autopilot changed. onPick(budget) re-renders the caller. */

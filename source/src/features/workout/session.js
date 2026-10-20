@@ -4,13 +4,14 @@
 import { fill } from '../../ui/dom.js';
 import { h, N, ico, safeWrite, canVibrate, setsReps, bidiRanges } from './view.js';
 import * as L from './logic.js';
-import { loadAll, loadProgram, saveProgram, putSession, deleteSession, loadTraining, patchTraining } from './store.js';
+import { loadAll, loadProgram, saveProgram, putSession, deleteSession, loadTraining, patchTraining, loadGateInputs } from './store.js';
+import * as EA from './entry-assist.js';
 import { pickExercise } from './picker.js';
 import { parseNum, countText } from '../../ui/num.js';
 import { ring } from '../../ui/ring.js';
 import { pop, haptic, countUp, reduced } from '../../ui/anim.js';
 import { nextTrainLabel } from './overview.js';
-import { spark, tone, speak, notifyRestEnd, loadCoach, pref, prefSwitch, askNotifyPermission, coachingFor } from './kit.js';
+import { spark, tone, speak, loadCoach, pref, prefSwitch, askNotifyPermission, coachingFor } from './kit.js';
 import { STRETCH_PROTOCOLS } from './content.js';
 import { libById } from './exercises.js';
 import * as V from './voice.js';
@@ -21,7 +22,7 @@ const PRESETS = [30, 60, 90, 120, 150, 180];
 const HERO = 132, HERO_STROKE = 10;
 
 export async function renderSession(el, ctx) {
-  const [{ all, live: found }, training] = await Promise.all([loadAll(ctx.db), loadTraining(ctx.db)]);
+  const [{ all, live: found }, training, gi] = await Promise.all([loadAll(ctx.db), loadTraining(ctx.db), loadGateInputs(ctx.db, ctx.today()).catch(() => ({ bw: [] }))]);
   if (!found) {
     el.appendChild(h('div', { class: 'empty-state' },
       h('h2', {}, 'مفيش جلسة شغّالة'),
@@ -37,6 +38,19 @@ export async function renderSession(el, ctx) {
   const prior = (e) => { const k = L.exKey(e) + '|' + e.exId; if (!priorCache.has(k)) priorCache.set(k, L.bests(history, e, { excludeId: live.id })); return priorCache.get(k); };
   const recentBest = (e) => L.recentBestE1rm(history, e, 15, { excludeId: live.id });
   const lastVol = L.lastDayVolume(history, live.dayKey, live.id);
+  // body weight for the calibration ramp (latest entry; the owner's 72 kg when none is logged yet)
+  const bwKg = [...(gi.bw || [])].filter((x) => x && +x.kg > 0 && x.day).sort((a, b) => String(a.day).localeCompare(String(b.day))).pop()?.kg || 72;
+  // re-entry («أسبوع رجوع»): logic.js reentryInfo when engineer A's export exists, else the 7+ day gap flag on the session
+  const reentry = (() => {
+    if (live.reentry) return true;
+    try {
+      if (typeof L.reentryInfo === 'function') {
+        const r = L.reentryInfo(ctx.settings, ctx.today());
+        if (r === true || (r && (r.active || r.on || r.reentry))) return true;
+      }
+    } catch { /* optional export */ }
+    return !!live.lighter;
+  })();
   if (!live.cur || !live.exercises[live.cur.ex]) live.cur = L.nextOpen(live) || { ex: 0, set: 0 };
   // coach bridge contract: one prefill per fresh program-day session, applied before the first render (optional module)
   if (!live.coachPf && live.dayKey && !L.liveProgress(live).done) {
@@ -58,7 +72,7 @@ export async function renderSession(el, ctx) {
   el.append(root, announcer);
   let clockEl = null, closed = false, hero = null, dock = null, justSet = null;
   // inline entry state: typing updates the model + the touched bits only (never a full re-render under the finger)
-  let rowUI = [], stepUI = null, rirBox = null, typeChip = null, volEl = null, bestW = 0, apply = null, saveT = 0, redrawLater = false, lastTap = { ev: null, k: '', t: -1 };
+  let rowUI = [], stepUI = null, needHint = null, rirBox = null, typeChip = null, volEl = null, bestW = 0, apply = null, saveT = 0, redrawLater = false, lastTap = { ev: null, k: '', t: -1 };
   let lastUndo = null; // the latest «تراجع» of a logged set (voice «امسح» runs it)
   const vc = V.createVoiceUI({ h, ico, onInput: (alts) => onVoice(alts) });
 
@@ -93,7 +107,9 @@ export async function renderSession(el, ctx) {
     const e = curEx(), t = curSet();
     if (!e || !t) return;
     if (t.done) { live.cur = L.nextOpen(live, live.cur.ex) || live.cur; await save(); return draw(); }
+    if (EA.needsWeight(e, t)) { focusWeight(live.cur.set); return; } // loaded lift at 0 kg never logs (UX B3)
     if (!(+t.r > 0)) return;
+    carryAcc = null; clearTimeout(carryT); // the carried values are on screen; the set toast takes the one toast slot
     const was = { cur: { ...live.cur }, rest: live.rest };
     t.done = true; t.at = Date.now();
     if ((t.rir === null || t.rir === undefined) && Number.isFinite(t.rirEst)) t.rirEst = L.estimateRir(t.w, t.r, recentBest(e));
@@ -141,11 +157,35 @@ export async function renderSession(el, ctx) {
     if (field === 'w') {
       if (+s.w === v) return;
       if (!apply || apply.e !== e || apply.j !== j) apply = { e, j, from: +s.w };
-      s.w = v;
+      s.w = v; s.wEd = true;
+      // carry forward: the later open sets he has not edited follow this weight (visible at once; one Undo in the toast)
+      noteCarry(e, j, EA.carryWeight(e.sets, j));
+      // a typed weight means he knows it: the guided ramp steps aside
+      if (e.calib && e.calib.locked === undefined) e.calib = { ...e.calib, skip: true };
     } else { if (+s.r === v) return; s.r = v; }
     if (s.done) recomputePR(e);
     paintLive(src); queueSave();
   }
+  // ── carry-forward Undo: one toast per edit burst (field blur, or 1.2 s after the last ± tap) ──
+  let carryAcc = null, carryT = 0;
+  function noteCarry(e, j, before) {
+    if (!before.length) return;
+    if (!carryAcc || carryAcc.e !== e || carryAcc.j !== j) { flushCarry(); carryAcc = { e, j, before: new Map() }; }
+    for (const [k, w] of before) if (!carryAcc.before.has(k)) carryAcc.before.set(k, w);
+  }
+  function flushCarry() {
+    clearTimeout(carryT); carryT = 0;
+    const c = carryAcc; carryAcc = null;
+    if (!c || closed) return;
+    const ks = [...c.before.keys()].filter((k) => c.e.sets[k] && !c.e.sets[k].done && +c.e.sets[k].w !== +c.before.get(k));
+    if (!ks.length) return;
+    const w = c.e.sets[c.j]?.w;
+    ctx.toast(`${L.fmtW(w)} كجم اتنقل ${ks.length === 1 ? 'للمجموعة' : 'للمجموعات'} ${ks.map((k) => k + 1).join(' و')}`, { action: { label: 'تراجع', run: async () => {
+      for (const k of ks) if (c.e.sets[k] && !c.e.sets[k].done) c.e.sets[k].w = c.before.get(k);
+      await save(); if (!closed) paintLive();
+    } } });
+  }
+  const carrySoon = () => { clearTimeout(carryT); carryT = setTimeout(flushCarry, 1200); };
   /** ± stepper on the current set: exact delta, guarded against a duplicated activation of the same tap. */
   function adjust(field, delta, ev) {
     // one handler (click) per button; a duplicated dispatch of the very same activation is dropped
@@ -153,6 +193,7 @@ export async function renderSession(el, ctx) {
     lastTap = { ev, k: `${field}${delta}`, t: ev?.timeStamp ?? -1 };
     const t = curSet(); if (!t) return;
     setField(live.cur.set, field, L.stepField(field, field === 'w' ? t.w : t.r, delta), null);
+    if (field === 'w') carrySoon();
   }
   const wStepNow = () => L.incFor(curSet()?.w || 0);
   /** Wire one kg / reps input: select-all on focus, model on input, Enter kg → reps, Enter reps → complete. */
@@ -172,6 +213,7 @@ export async function renderSession(el, ctx) {
     });
     el.addEventListener('blur', () => {
       flushSave();
+      if (field === 'w') flushCarry();
       const s = curEx()?.sets[jf()];
       if (s) el.value = field === 'w' ? L.fmtW(s.w) : String(s.r);
       el.removeAttribute('aria-invalid');
@@ -188,6 +230,7 @@ export async function renderSession(el, ctx) {
     const e = curEx(), s = e?.sets[j];
     if (!s) return;
     live.cur = { ex: live.cur.ex, set: j };
+    if (EA.needsWeight(e, s)) { paintLive(); focusWeight(j); return; }
     if (!(+s.r > 0)) { paintLive(); ctx.toast('اكتب عدد العدّات الأول.'); rowUI[j]?.r.focus(); return; }
     return complete();
   }
@@ -202,18 +245,19 @@ export async function renderSession(el, ctx) {
       s.done = true; s.at = was.at; recomputePR(e); live.cur = was.cur; live.rest = was.rest; await save(); draw();
     } } });
   }
-  /** «طبّق على الباقي»: the only way a weight reaches other sets — one explicit tap, with Undo. */
+  /** «طبّق على الباقي»: for later sets he edited himself (untouched ones already follow by carry-forward) — one tap, Undo. */
   function applyRest(j) {
     const e = curEx();
     if (!apply || apply.e !== e || apply.j !== j) return;
-    const peers = L.applyPeers(e.sets, j, apply.from);
+    const peers = EA.editedPeers(e.sets, j);
     apply = null;
     if (!peers.length) { paintLive(); return; }
     const before = L.applyWeight(e.sets, j, peers);
+    for (const k of peers) delete e.sets[k].wEd; // they follow set j again from now on
     rowUI[j]?.ck.focus({ preventScroll: true });
     save(); paintLive();
     ctx.toast(`اتطبّق ${L.fmtW(e.sets[j].w)} كجم على ${countText(peers.length, 'set')} كمان`, { action: { label: 'تراجع', run: async () => {
-      for (const [k, w] of before) if (e.sets[k]) e.sets[k].w = w;
+      for (const [k, w] of before) if (e.sets[k]) { e.sets[k].w = w; e.sets[k].wEd = true; }
       await save(); if (!closed) paintLive();
     } } });
   }
@@ -243,6 +287,8 @@ export async function renderSession(el, ctx) {
   async function logAsPlanned() {
     const e = curEx();
     if (!e) return;
+    const zero = e.sets.findIndex((t) => !t.done && EA.needsWeight(e, t));
+    if (zero >= 0) { focusWeight(zero); return; }
     const was = { cur: { ...live.cur }, rest: live.rest };
     const idx = L.logRemaining(e.sets, Date.now());
     if (!idx.length) return;
@@ -259,6 +305,64 @@ export async function renderSession(el, ctx) {
     if (!e.sets.some((t) => !t.done)) afterExercise(e);
     if (!L.nextOpen(live)) announce('خلصت كل المجموعات.');
   }
+  /** 0-kg guard target: select set j and put the cursor in the kg field (the big stepper field when it is the current set). */
+  function focusWeight(j = live.cur.set) {
+    if (live.cur.set !== j) { live.cur = { ex: live.cur.ex, set: j }; paintLive(); }
+    const el = stepUI?.w || rowUI[j]?.w;
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    try { el.scrollIntoView({ block: 'center', behavior: reduced() ? 'auto' : 'smooth' }); } catch { /* ignore */ }
+    announce('اكتب الوزن الأول. التمرين ده بوزن.');
+  }
+
+  // ── first-session calibration: guided ramp, three answers, no typing (UX #10) ──
+  const calibOn = (e = curEx()) => !!e && EA.needsCalibration(e) && !!curSet() && !curSet().done;
+  function calibState(e) {
+    if (!e.calib || e.calib.locked !== undefined || e.calib.skip) e.calib = EA.calibStart(e, bwKg, { reentry, reps: L.parseReps(e.reps)?.lo || 8 });
+    return e.calib;
+  }
+  async function calibAnswer(feel) {
+    const e = curEx(); if (!e || !calibOn(e)) return;
+    const prev = calibState(e);
+    const nx = EA.calibNext(prev, feel);
+    e.calib = nx;
+    haptic(12);
+    if (nx.locked === undefined) {
+      await save(); drawDock();
+      dock?.querySelector('[data-fk="cal-ok"]')?.focus({ preventScroll: true });
+      announce(`جرّب ${L.fmtW(nx.w)} كجم × ${nx.r}`);
+      return;
+    }
+    const before = EA.applyCalibration(e.sets, nx.locked);
+    await save(); draw('done');
+    const per = nx.eq === 'دمبل' ? ' لكل إيد' : '';
+    ctx.toast(`وزن الشغل ${L.fmtW(nx.locked)} كجم${per} · اتحط على كل المجموعات`, { action: { label: 'تراجع', run: async () => {
+      for (const [k, w] of before) if (e.sets[k] && !e.sets[k].done) e.sets[k].w = w;
+      e.calib = prev; await save(); if (!closed) draw('done');
+    } } });
+  }
+  function skipCalib() {
+    const e = curEx(); if (!e) return;
+    e.calib = { ...(e.calib || {}), skip: true };
+    save(); draw(); focusWeight(live.cur.set);
+  }
+  function calibPanel(e) {
+    const c = calibState(e);
+    const per = c.eq === 'دمبل' ? ' لكل إيد' : '';
+    const bar = c.eq === 'بار' && +c.w === 20 ? ' (البار فاضي)' : '';
+    const ok = reentry ? '3–4' : '3';
+    const chip = (feel, fk, label, sub) => h('button', { type: 'button', class: `wk-calc wk-calc-${feel}`, dataset: { fk }, onclick: () => calibAnswer(feel) },
+      h('b', {}, label), h('small', {}, bidiRanges(sub)));
+    return h('div', { class: 'wk-calib', role: 'group', 'aria-labelledby': 'wk-cal-h' },
+      h('p', { class: 'wk-cal-h', id: 'wk-cal-h' }, h('span', {}, 'أول مرة · نلاقي وزنك'), h('small', {}, 'خطوة ', N(String(c.n)), ' · مش بتتحسب في الحجم')),
+      h('p', { class: 'wk-cal-do' }, 'اعمل ', N(String(c.r)), ' عدّات بـ ', N(L.fmtW(c.w), undefined, 'wk-cal-w'), ' كجم', per, bar, '، وقولّي كانت إزاي:'),
+      h('div', { class: 'wk-cal-chips' },
+        chip('easy', 'cal-easy', 'سهل', 'فاضل 5+'),
+        chip('ok', 'cal-ok', 'مناسب', `فاضل ${ok}`),
+        chip('hard', 'cal-hard', 'تقيل', 'فاضل 2 أو أقل')),
+      h('div', { class: 'wk-cal-foot' }, h('button', { type: 'button', class: 'linkbtn wk-cal-skip', onclick: skipCalib }, 'أعرف وزني · هكتبه'), vc.mic));
+  }
+
   // ── voice / typed set logging: fills the CURRENT set in place (paintLive), never other sets ──
   async function onVoice(alts) {
     if (closed) return;
@@ -283,6 +387,7 @@ export async function renderSession(el, ctx) {
     if (!t) { vc.say('مفيش مجموعة مفتوحة دلوقتي.'); return; }
     vc.cancelPending();
     const before = { w: t.w, r: t.r, rir: t.rir ?? null };
+    const snap = e.sets.map((x) => ({ w: x.w, wEd: x.wEd })); // ✕ also takes back the carried weights
     setField(j, 'w', Math.round(res.w * 100) / 100, null);
     setField(j, 'r', res.r, null);
     if (res.rir !== null && res.rir !== undefined) { t.rir = Math.min(4, res.rir); fillRir(); }
@@ -297,7 +402,8 @@ export async function renderSession(el, ctx) {
     }, () => {
       if (!e.sets[j] || e.sets[j].done) return;
       Object.assign(e.sets[j], { w: before.w, r: before.r, rir: before.rir });
-      apply = null; paintLive(); queueSave();
+      snap.forEach((x, k) => { const t2 = e.sets[k]; if (!t2 || t2.done || k < j) return; t2.w = x.w; if (x.wEd) t2.wEd = true; else delete t2.wEd; });
+      carryAcc = null; apply = null; paintLive(); queueSave();
     });
   }
 
@@ -354,7 +460,7 @@ export async function renderSession(el, ctx) {
     let keep = false;
     const body = h('div', {},
       h('p', { class: 'wk-muted' }, 'اختار مدة الراحة. القاعدة: مركّب 2:30، عزل 1:30، وبعد جولة سوبر سِت 1:30 أو 0:40.'),
-      h('div', { class: 'chips wk-gap' }, ...PRESETS.map((s) => h('button', { type: 'button', class: 'chip', onclick: () => { api.close(); startTimer(s, { save: keep }); } }, N(L.fmtClock(s))))),
+      h('div', { class: 'chips wk-gap wk-bigchips' }, ...PRESETS.map((s) => h('button', { type: 'button', class: 'chip', onclick: () => { api.close(); startTimer(s, { save: keep }); } }, N(L.fmtClock(s))))),
       e ? h('label', { class: 'wk-switch wk-mt', for: 'wk-keep' }, h('span', {}, `خلّيها الراحة الثابتة لـ ${e.name}`),
         h('input', { type: 'checkbox', id: 'wk-keep', role: 'switch', onchange: (ev) => { keep = ev.target.checked; } }), h('i', { 'aria-hidden': 'true' })) : null);
     const api = ctx.sheet({ title: 'مؤقّت الراحة', body });
@@ -362,7 +468,7 @@ export async function renderSession(el, ctx) {
 
   function setTypeSheet(j = live.cur.set) {
     const t = curEx()?.sets[j]; if (!t) return;
-    const body = h('div', { class: 'chips', role: 'radiogroup', 'aria-label': 'نوع المجموعة' },
+    const body = h('div', { class: 'chips wk-bigchips', role: 'radiogroup', 'aria-label': 'نوع المجموعة' },
       ...TYPES.map(([k, lbl]) => h('button', { type: 'button', class: 'chip', role: 'radio', 'aria-checked': String((t.type || 'normal') === k),
         onclick: () => { if (k === 'normal') delete t.type; else t.type = k; recomputePR(curEx()); save(); api.close(); draw(); } }, lbl)));
     const api = ctx.sheet({ title: 'نوع المجموعة', body: h('div', {}, body, h('p', { class: 'wk-muted wk-mt' }, 'مجموعة الـ Drop مش بتتحسب رقم شخصي.')) });
@@ -578,7 +684,12 @@ export async function renderSession(el, ctx) {
     root.appendChild(h('header', { class: 'wk-top' },
       h('button', { type: 'button', class: 'ibtn wk-back', 'aria-label': 'رجوع للتمرين (الجلسة هتفضل شغّالة)', onclick: () => ctx.go('workout') }, ico('back')),
       h('div', { class: 'grow wk-top-mid' }, h('h1', {}, live.dayName), h('span', {}, 'التمرين ', N(String(idx + 1)), ' من ', N(String(live.exercises.length)), live.home ? ' · بيت' : ''),
-        Number.isInteger(live.week) ? h('span', { class: 'wk-meso' }, 'الأسبوع ', N(String(live.week)), ' · ', bidiRanges(L.rirPhrase(L.rirTarget(e, live.week, t && !t.done ? live.cur.set : null, e.sets.length)))) : null),
+        (() => { // «رجوع · الأسبوع 1 من 2 · سيب 4 عدّات» / «الأسبوع N · سيب X عدّات» (logic.js weekLine)
+          const si = t && !t.done ? live.cur.set : null;
+          const line = typeof L.weekLine === 'function' ? L.weekLine(live, e, si)
+            : Number.isInteger(live.week) ? `الأسبوع ${live.week} · ${L.rirPhrase(L.rirTarget(e, live.week, si, e.sets.length))}` : '';
+          return line ? h('span', { class: 'wk-meso' }, bidiRanges(line)) : null;
+        })()),
       h('span', { class: 'wk-live', 'aria-label': 'مدة الجلسة' }, clockEl),
       h('button', { type: 'button', class: 'ibtn', 'aria-label': 'خيارات الجلسة', 'aria-haspopup': 'dialog', dataset: { fk: 'menu' }, onclick: menu }, ico('more'))));
 
@@ -683,7 +794,7 @@ export async function renderSession(el, ctx) {
     justSet = null;
 
     // steppers for the current set (update in place; fixed height so nothing jumps)
-    stepUI = null; rirBox = null; typeChip = null;
+    stepUI = null; rirBox = null; typeChip = null; needHint = null;
     if (t) {
       const mk = (f) => h('input', { class: 'num wk-stepin', type: 'text', inputmode: f === 'w' ? 'decimal' : 'numeric', enterkeyhint: f === 'w' ? 'next' : 'done', autocomplete: 'off',
         value: f === 'w' ? L.fmtW(t.w) : String(t.r), 'aria-label': f === 'w' ? 'وزن المجموعة الحالية بالكيلو' : 'عدّات المجموعة الحالية', dataset: { fk: f === 'w' ? 'win' : 'rin' } });
@@ -712,6 +823,8 @@ export async function renderSession(el, ctx) {
           h('div', {}, sr, h('small', {}, 'عدّة')),
           btn('r-', 'قلّل عدّة', 'minus', (ev) => adjust('r', -1, ev)))));
       root.appendChild(plateBar);
+      needHint = h('p', { class: 'wk-needw', role: 'note', hidden: true }, ico('edit'), h('span', {}, 'اكتب الوزن · التمرين ده بوزن، مش هيتسجّل بـ 0 كجم'));
+      root.appendChild(needHint);
       // RIR with estimate (W6-W8)
       rirBox = h('div', { class: 'wk-rir', role: 'group', 'aria-labelledby': 'wk-rir-l' });
       root.appendChild(rirBox);
@@ -744,7 +857,7 @@ export async function renderSession(el, ctx) {
     root.appendChild(dock);
     drawDock();
     if (fk) {
-      const target = fk === 'done' ? dock.querySelector('button.wk-cta') : root.querySelector(`[data-fk="${CSS.escape(fk)}"]`);
+      const target = fk === 'done' ? dock.querySelector('button.wk-cta, .wk-calib [data-fk="cal-ok"]') : root.querySelector(`[data-fk="${CSS.escape(fk)}"]`);
       if (target && document.activeElement !== target) target.focus({ preventScroll: true });
     }
     if (focusKey !== 'top') window.scrollTo(0, y);
@@ -806,7 +919,11 @@ export async function renderSession(el, ctx) {
     const d = pv && !s.done ? L.round1(+s.w - +pv.w) : 0;
     u.up.hidden = !d;
     if (d) { u.up.textContent = `${d > 0 ? '+' : '−'}${L.fmtW(Math.abs(d))}`; u.up.className = `wk-upby ${d > 0 ? 'plus' : 'minus'}`; }
-    const peers = apply && apply.e === e && apply.j === j ? L.applyPeers(e.sets, j, apply.from) : [];
+    const peers = apply && apply.e === e && apply.j === j ? EA.editedPeers(e.sets, j) : [];
+    const noW = !s.done && EA.needsWeight(e, s);
+    u.ck.classList.toggle('off', noW);
+    if (noW) u.ck.setAttribute('aria-disabled', 'true'); else u.ck.removeAttribute('aria-disabled');
+    u.ck.setAttribute('aria-label', s.done ? `افتح المجموعة ${j + 1} تاني` : noW ? `اكتب الوزن الأول · المجموعة ${j + 1}` : `سجّل المجموعة ${j + 1}`);
     u.prev.hidden = peers.length > 0; u.apply.hidden = !peers.length;
     if (peers.length) u.apply.setAttribute('aria-label', `طبّق ${L.fmtW(s.w)} كجم على المجموعة ${peers.map((k) => k + 1).join(' و')}`);
   }
@@ -826,6 +943,7 @@ export async function renderSession(el, ctx) {
       stepUI.plateBar.style.visibility = +t.w > 20 ? '' : 'hidden';
     }
     if (typeChip && t) typeChip.textContent = `النوع: ${TYPE_LABEL[t.type || 'normal']}`;
+    if (needHint) needHint.hidden = !(t && !t.done && EA.needsWeight(e, t)) || calibOn(e);
     fillRir();
     if (volEl) volEl.textContent = L.fmtInt(L.liveVolume(live));
     if (!(live.rest && restLeft() > 0)) drawHero();
@@ -930,8 +1048,15 @@ export async function renderSession(el, ctx) {
     const allDone = !L.nextOpen(live);
     const t = curSet();
     const nextName = (() => { const n = L.nextAfter(live, live.cur.ex).cur; const ex = n ? live.exercises[n.ex] : null; return ex && ex !== curEx() ? ex.name : (curEx()?.name || ''); })();
+    // rest countdown pinned in the dock (thumb zone): visible even when the hero ring is scrolled away (UX #7)
+    restUI = null;
+    if (live.rest && restLeft() > 0) dock.appendChild(restBar());
+    // first time on a loaded lift: the guided ramp replaces the CTA (three answers, no keyboard)
+    if (!allDone && calibOn()) { dock.appendChild(calibPanel(curEx())); if (micFocused && vc.mic.isConnected) vc.mic.focus({ preventScroll: true }); return; }
+    const noW = !!(t && !t.done && EA.needsWeight(curEx(), t));
     let btn;
-    if (allDone && (!t || t.done) && z2On() && !live.z2.startedAt) btn = h('button', { type: 'button', class: 'btn wk-cta', onclick: startZ2 }, ico('play'), 'ابدأ ', h('bdi', { dir: 'ltr' }, 'Zone 2'), ' · ', N(String(z2Plan())), ' د');
+    if (noW) btn = h('button', { type: 'button', class: 'btn wk-cta wk-cta-w', onclick: () => focusWeight(live.cur.set) }, ico('edit'), 'اكتب الوزن');
+    else if (allDone && (!t || t.done) && z2On() && !live.z2.startedAt) btn = h('button', { type: 'button', class: 'btn wk-cta', onclick: startZ2 }, ico('play'), 'ابدأ ', h('bdi', { dir: 'ltr' }, 'Zone 2'), ' · ', N(String(z2Plan())), ' د');
     else if (allDone && (!t || t.done)) btn = h('button', { type: 'button', class: 'btn wk-cta', onclick: finish }, ico('check'), 'اقفل الجلسة');
     else if (t && t.done) btn = h('button', { type: 'button', class: 'btn wk-cta', onclick: complete }, ico('check'), 'احفظ التعديل');
     else btn = h('button', { type: 'button', class: 'btn wk-cta', disabled: !(t && +t.r > 0), onclick: complete }, ico('check'), 'سجّل المجموعة');
@@ -939,13 +1064,91 @@ export async function renderSession(el, ctx) {
       h('div', { class: 'meta' }, allDone ? (z2On() && !live.z2.doneAt ? 'آخر خطوة' : 'الجلسة') : 'الجاي', h('b', {}, allDone ? (z2On() && !live.z2.startedAt ? 'Zone 2 على العجلة' : 'جاهزة تتقفل') : nextName)), t ? vc.mic : null, btn));
     if (micFocused && vc.mic.isConnected) vc.mic.focus({ preventScroll: true });
   }
-  function focusDock() { dock?.querySelector('button')?.focus({ preventScroll: true }); }
+  function focusDock() { dock?.querySelector('button.wk-cta, .wk-calib button')?.focus({ preventScroll: true }); }
+  let restUI = null;
+  function restBar() {
+    const left = restLeft(), paused = Number.isFinite(live.rest.pausedLeft);
+    const ne = live.exercises.find((x) => x.exId === live.rest.forId);
+    const num = h('b', { class: 'num' }, L.fmtClock(left));
+    const b = (cls, label, run, ...kids) => h('button', { type: 'button', class: `wk-rb ${cls}`, 'aria-label': label, onclick: run }, ...kids);
+    const canNotify = typeof Notification !== 'undefined' && Notification.permission !== 'denied' && !pref(ctx, 'notify') && ctx.settings.get('wk.notifyAsked') !== true;
+    restUI = { num };
+    return h('div', { class: `wk-restbar${paused ? ' paused' : ''}`, role: 'timer', 'aria-label': 'الراحة' },
+      h('div', { class: 'wk-rb-t' }, h('small', {}, paused ? 'الراحة واقفة' : live.rest.ss ? 'راحة الجولة' : 'راحة', ne && ne.exId !== live.rest.fromId ? [' · ', ne.name] : ''), num),
+      b('num', 'قلّل 15 ثانية', () => shiftRest(-15), h('bdi', { dir: 'ltr' }, '−15')),
+      b('num', 'زوّد 15 ثانية', () => shiftRest(15), h('bdi', { dir: 'ltr' }, '+15')),
+      canNotify ? b('wk-rb-bell', 'نبّهني لما الراحة تخلص والشاشة مقفولة', enableNotify, ico('bell')) : null,
+      b('sk', 'تخطّي الراحة', skipRest, ico('skip'), 'تخطّي'));
+  }
+  async function enableNotify() {
+    try { await ctx.settings.set('wk.notifyAsked', true); } catch { /* best effort */ }
+    const p = await askNotifyPermission();
+    if (p === 'granted') { try { await ctx.settings.set('wk.notify', true); } catch { /* ignore */ } ctx.toast('هننبّهك لما الراحة تخلص حتى والشاشة مقفولة.'); }
+    else ctx.toast('الإشعارات مقفولة من المتصفح. تقدر تفتحها من إعدادات الجلسة.');
+    if (!closed) drawDock();
+  }
 
   function paintRest() {
+    if (live.rest && restUI) restUI.num.textContent = L.fmtClock(restLeft());
+    else if (live.rest && dock) drawDock();
     if (!live.rest || !heroNum) { drawHero(); return; }
     const left = restLeft();
     heroNum.textContent = L.fmtClock(left);
     if (heroArc) heroArc.setAttribute('stroke-dasharray', `${heroC * Math.max(0, Math.min(1, left / (live.rest.total || 1)))} ${heroC}`);
+  }
+
+  // ── lock-screen rest (UX #12): opt-in («إشعار…» in session settings, or the bell in the rest bar) + permission ──
+  // On hide: one quiet «راحة لحد 10:42» notice (absolute end time, right even if every timer freezes), then the end alert from
+  // the service worker (survives a frozen page) or a page timer when there is no SW. Same tag → never two end alerts.
+  const notice = { t: 0, armed: false, sw: false, fired: 0 };
+  const notifyOK = () => pref(ctx, 'notify') && typeof Notification !== 'undefined' && Notification.permission === 'granted';
+  async function swReg() {
+    try { return navigator.serviceWorker && navigator.serviceWorker.getRegistration ? (await navigator.serviceWorker.getRegistration()) || null : null; } catch { return null; }
+  }
+  const nextLine = () => { const e = live.exercises.find((x) => x.exId === live.rest?.forId) || curEx(); return e ? `المجموعة ${(live.rest?.forSet ?? live.cur.set) + 1} من ${e.name}` : ''; };
+  async function showNote(title, opts) {
+    const reg = await swReg();
+    if (reg && reg.showNotification) { await reg.showNotification(title, opts); return reg; }
+    new Notification(title, opts); return null;
+  }
+  async function closeNotes(tag) {
+    try { const reg = await swReg(); const list = reg && reg.getNotifications ? await reg.getNotifications({ tag }) : []; for (const n of list) n.close(); } catch { /* ignore */ }
+  }
+  async function armRestNotice() {
+    if (!notifyOK() || !live.rest || Number.isFinite(live.rest.pausedLeft)) return;
+    const ms = live.rest.endsAt - Date.now();
+    if (ms <= 500) return;
+    cancelRestNotice(false);
+    notice.armed = true;
+    const at = live.rest.endsAt;
+    const until = new Date(at).toLocaleTimeString('ar-EG', { hour: 'numeric', minute: '2-digit' });
+    const endOpts = { body: nextLine(), tag: 'wk-rest', renotify: true, requireInteraction: false, silent: false, vibrate: [200, 100, 200, 100, 300], timestamp: at, data: { url: '#/workout/session' } };
+    try {
+      const reg = await showNote(`راحة لحد ${until}`, { body: nextLine(), tag: 'wk-rest-now', silent: true, timestamp: at, data: { url: '#/workout/session' } });
+      if (reg && reg.active) { reg.active.postMessage({ type: 'wk-rest', at, title: 'الراحة خلصت', options: endOpts }); notice.sw = true; }
+    } catch { /* notifications are best effort */ }
+    // page timer: the end alert itself when there is no service worker (the SW one wins otherwise)
+    notice.t = setTimeout(() => { notice.t = 0; if (document.visibilityState !== 'visible') restEndNotice(endOpts.body, at); }, ms);
+  }
+  function cancelRestNotice(closeNow = true) {
+    clearTimeout(notice.t); notice.t = 0;
+    if (!notice.armed) return;
+    notice.armed = false; notice.sw = false;
+    swReg().then((reg) => { try { reg?.active?.postMessage({ type: 'wk-rest-cancel' }); } catch { /* ignore */ } });
+    if (closeNow) { closeNotes('wk-rest-now'); closeNotes('wk-rest'); }
+  }
+  /** The end alert (page side). Skipped when visible, when off, or when the SW already showed it. */
+  async function restEndNotice(body, at = 0) {
+    if (!notifyOK() || document.visibilityState === 'visible' || notice.sw) return false;
+    if (at && notice.fired === at) return false;
+    notice.fired = at || Date.now();
+    try {
+      const reg = await swReg();
+      if (reg && reg.getNotifications && (await reg.getNotifications({ tag: 'wk-rest' })).length) return false;
+      await showNote('الراحة خلصت', { body, tag: 'wk-rest', renotify: true, vibrate: [200, 100, 200, 100, 300], data: { url: '#/workout/session' } });
+      closeNotes('wk-rest-now');
+      return true;
+    } catch { return false; }
   }
 
   function tick() {
@@ -968,7 +1171,7 @@ export async function renderSession(el, ctx) {
         if (canVibrate()) try { navigator.vibrate([120, 80, 120]); } catch { /* optional */ }
         const e = curEx();
         const msg = e ? `الراحة خلصت · المجموعة ${live.cur.set + 1} من ${e.name}` : 'الراحة خلصت';
-        tone(ctx); speak(ctx, msg); notifyRestEnd(ctx, msg);
+        tone(ctx); speak(ctx, msg); restEndNotice(msg, rest.endsAt);
         announce(msg);
         void rest;
       } else paintRest();
@@ -979,7 +1182,7 @@ export async function renderSession(el, ctx) {
   // keep the screen awake during the session (released on leave)
   let lock = null;
   const wake = async () => { try { if ('wakeLock' in navigator && document.visibilityState === 'visible') lock = await navigator.wakeLock.request('screen'); } catch { lock = null; } };
-  const onVis = () => { if (document.visibilityState === 'visible') { tick(); wake(); } else flushSave(); };
+  const onVis = () => { if (document.visibilityState === 'visible') { cancelRestNotice(); tick(); wake(); } else { flushSave(); armRestNotice(); } };
   document.addEventListener('visibilitychange', onVis);
   wake();
 
@@ -988,6 +1191,8 @@ export async function renderSession(el, ctx) {
     if (saveT) save();
     closed = true;
     clearInterval(timer);
+    cancelRestNotice();
+    flushCarry();
     vc.destroy();
     document.removeEventListener('visibilitychange', onVis);
     try { lock && lock.release(); } catch { /* ignore */ }

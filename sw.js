@@ -1,7 +1,7 @@
 // Versioned app-shell cache. Bump VERSION on every release.
 // Cache-first for same-origin shell files; network-only for everything else (never caches
 // api.anthropic.com, openfoodfacts or any other cross-origin call).
-const VERSION = 'v3-b-2026-10-19-62357cce';
+const VERSION = 'v3-b-2026-10-19-681c769f';
 const CACHE = `shell-${VERSION}`;
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
@@ -17,7 +17,40 @@ self.addEventListener('activate', (e) => {
   })());
 });
 
-self.addEventListener('message', (e) => { if (e.data === 'skipWaiting') self.skipWaiting(); });
+// Workout rest timer on a locked phone: the page posts {type:'wk-rest', at, title, options} when it goes to the background;
+// the SW keeps itself alive until `at` and shows the end alert (tag 'wk-rest'), unless the page cancels on return.
+let restTimer = 0, restDone = null;
+const restCancel = () => { clearTimeout(restTimer); restTimer = 0; if (restDone) { restDone(); restDone = null; } };
+self.addEventListener('message', (e) => {
+  const d = e.data;
+  if (d === 'skipWaiting') { self.skipWaiting(); return; }
+  if (!d || typeof d !== 'object') return;
+  if (d.type === 'wk-rest-cancel') { restCancel(); return; }
+  if (d.type === 'wk-rest' && Number.isFinite(+d.at)) {
+    restCancel();
+    const ms = Math.max(0, Math.min(15 * 60 * 1000, +d.at - Date.now()));
+    e.waitUntil(new Promise((resolve) => {
+      restDone = resolve;
+      restTimer = setTimeout(async () => {
+        try {
+          const shown = await self.registration.getNotifications({ tag: 'wk-rest' });
+          if (!shown.length) await self.registration.showNotification(String(d.title || 'الراحة خلصت'), d.options || {});
+          for (const n of await self.registration.getNotifications({ tag: 'wk-rest-now' })) n.close();
+        } catch { /* best effort */ }
+        restTimer = 0; restDone = null; resolve();
+      }, ms);
+    }));
+  }
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || '#/workout/session';
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    const c = list[0];
+    if (c) return c.focus();
+    return self.clients.openWindow(`./${url}`);
+  }));
+});
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;

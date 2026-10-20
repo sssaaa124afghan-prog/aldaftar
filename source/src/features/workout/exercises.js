@@ -98,6 +98,9 @@ export const LIBRARY = [
   { id: 'exRWC', ar: 'ساعد عكسي', en: 'Reverse Wrist Curl', muscle: 'ساعد', kind: 'isolation', eq: 'بار' },
   { id: 'exMHT', ar: 'هيب ثرست سميث/جهاز', en: 'Smith or Machine Hip Thrust', muscle: 'مؤخرة', kind: 'compound', eq: 'جهاز' },
   { id: 'exNECK', ar: 'تمرين رقبة (اختياري)', en: 'Neck Flexion/Extension', muscle: 'رقبة', kind: 'isolation', eq: 'أداة' },
+  // exercise-selection audit swaps (plan/exercise-selection.md §3, plan v2)
+  { id: 'exLID', ar: 'ضغط دمبل مائل خفيف 15°', en: 'Low-Incline DB Press 15°', muscle: 'صدر', kind: 'compound', eq: 'دمبل' },
+  { id: 'exROE', ar: 'ترايسبس حبل فوق الراس واقف', en: 'Standing Rope Overhead Cable Ext', muscle: 'تراي', kind: 'isolation', eq: 'كابل' },
 ];
 
 /**
@@ -105,7 +108,7 @@ export const LIBRARY = [
  * Fine keys: صدر لات «ظهر علوي» «كتف أمامي» «كتف جانبي» «كتف خلفي» باي تراي ساعد كوادز هامسترينج مؤخرة ضامة سمانة بطن جوانب.
  */
 const FINE = {
-  ex1: ['صدر', ['تراي', 'كتف أمامي']], ex2: ['صدر', ['كتف أمامي', 'تراي']], ex3: ['صدر', ['تراي']], exFDP: ['صدر', ['تراي', 'كتف أمامي']],
+  ex1: ['صدر', ['تراي', 'كتف أمامي']], ex2: ['صدر', ['كتف أمامي', 'تراي']], ex3: ['صدر', ['تراي']], exFDP: ['صدر', ['تراي', 'كتف أمامي']], exLID: ['صدر', ['كتف أمامي', 'تراي']],
   exMDP: ['صدر', ['تراي']], ex4: ['صدر', []], ex5: ['صدر', []], ex6: ['صدر', ['تراي', 'كتف أمامي']], ex7: ['صدر', ['تراي', 'كتف أمامي']],
   ex8: ['صدر', []], ex9: ['صدر', ['كتف أمامي', 'تراي']],
   ex11: ['هامسترينج', ['مؤخرة', 'ظهر علوي']], ex12: ['لات', ['باي', 'ظهر علوي']], exWPU: ['لات', ['باي', 'ظهر علوي']],
@@ -117,7 +120,7 @@ const FINE = {
   ex24: ['كتف خلفي', ['ظهر علوي']], ex25: ['كتف خلفي', []], exRPD: ['كتف خلفي', []],
   ex29: ['باي', []], ex34b: ['باي', []], ex30: ['باي', ['ساعد']], ex31: ['باي', []], ex32: ['باي', []], ex33: ['باي', []], ex34: ['باي', []], exSPC: ['باي', []],
   exBAY: ['باي', []],
-  ex35: ['تراي', ['صدر']], ex36: ['تراي', []], ex40: ['تراي', []], ex37: ['تراي', []], exOCT: ['تراي', []], ex38: ['تراي', []], ex39: ['تراي', ['صدر']],
+  ex35: ['تراي', ['صدر']], ex36: ['تراي', []], ex40: ['تراي', []], ex37: ['تراي', []], exOCT: ['تراي', []], exROE: ['تراي', []], ex38: ['تراي', []], ex39: ['تراي', ['صدر']],
   ex81: ['ساعد', []], exRWC: ['ساعد', []], ex82: ['ساعد', ['باي']], exFW: ['ساعد', ['ظهر علوي']],
   ex71: ['ظهر علوي', []], ex72: ['ظهر علوي', []],
   ex41: ['كوادز', ['مؤخرة', 'ضامة']], ex41b: ['كوادز', ['مؤخرة', 'ضامة']], ex45b: ['كوادز', ['مؤخرة', 'ضامة']], ex43: ['كوادز', ['مؤخرة']],
@@ -149,7 +152,7 @@ const ALIAS = {
   'standing barbell ohp': 'ex21', 'overhead press (ohp)': 'ex21', 'deadlift conventional': 'ex11',
   'barbell hip thrust': 'ex46', 'seated db shoulder press': 'ex22', 'ez skull crusher': 'ex38', 'machine decline press': 'exMDP',
   'cable woodchopper': 'exWC', 'weighted plank': 'exWPL', 'flat db press': 'exFDP', 'incline barbell press': 'ex2',
-  'pull-ups': 'ex12', 'lateral raises': 'ex23', 't-bar row': 'ex16',
+  'pull-ups': 'ex12', 'lateral raises': 'ex23', 't-bar row': 'ex16', 'low-incline db press': 'exLID', 'rope overhead cable ext': 'exROE',
 };
 
 /** Find the library entry for any exercise name (Arabic, English, legacy "English · details"). */
@@ -166,13 +169,16 @@ export function findLib(name) {
 // [legacyId, libId, sets, reps, ss?, restS?, rir?, fill?]
 // ss = superset tag (A1/A2 share 'A'; a tri-set shares one tag). restS = rest after the full round.
 // fill = done inside the anchor's rest, one filler at a time (e.g. wrist curls on calf sets 1–3, then reverse wrist curls).
-const P = (rows) => rows.map(([id, lib, sets, reps, ss, restS, rir, fill]) => {
+// x = extras: {note} (shown under the exercise in the plan and the session), {r1} (rep range for the first 6-week block only).
+const P = (rows) => rows.map(([id, lib, sets, reps, ss, restS, rir, fill, x]) => {
   const L = BY_ID.get(lib);
   const it = { id, lib, ar: L.ar, en: L.en, muscle: L.muscle, kind: L.kind, sets, reps };
   if (ss) it.ss = ss;
   if (restS) it.restS = restS;
   if (rir) it.rir = rir;
   if (fill) it.fill = true;
+  if (x && x.note) it.note = x.note;
+  if (x && x.r1) it.r1 = x.r1;
   return it;
 });
 
@@ -242,38 +248,64 @@ PROGRAMS.fb3 = {
  * then 10–12 min Zone 2 on the bike (≤ 60 min visit). Mon UA · Tue LA · Wed rest · Thu UB · Fri LB · Sat Heart Day · Sun rest.
  * Legacy item ids are kept where the exercise is the same, so session history lines up.
  */
+export const PULLUP_NOTE = 'لما تعمل 3×8 عقلة بوزن جسمك عند RIR 2 ارجع للعقلة';
 PROGRAMS.ul4c = {
-  id: 'ul4c', name: 'أعلى/أسفل', perWeek: 4, note: 'كل عضلة مرتين · سوبر سِت · رفع ~48 د + Zone 2 · أقل من 60 دقيقة',
+  id: 'ul4c', name: 'أعلى/أسفل', version: 2, perWeek: 4, note: 'كل عضلة مرتين · سوبر سِت · رفع ~48 د + Zone 2 · أقل من 60 دقيقة',
   order: ['upperA', 'lowerA', 'upperB', 'lowerB'],
   schedule: { 1: 'upperA', 2: 'lowerA', 4: 'upperB', 5: 'lowerB' }, heartDow: HEART_DOW.ul4c, z2: true, meso: true,
   days: {
-    upperA: { name: 'Upper A', warm: [[0, 8], [60, 5], [80, 2]], warmNote: 'دقيقة تسخين عام + مجموعات البنش التمهيدية + عقلة بوزن الجسم ×5',
+    upperA: { name: 'Upper A', warm: [[0, 8], [60, 5], [80, 2]], warmNote: 'دقيقة تسخين عام + مجموعات البنش التمهيدية + سحب أمامي خفيف ×8',
       items: P([
-        ['uaFB', 'ex1', 4, '5-8', 'A', 110, '1-2'], ['ub1', 'exWPU', 4, '6-10', 'A', 110, '1-2'],
+        ['uaFB', 'ex1', 4, '5-8', 'A', 110, '1-2', false, { r1: '6-10', note: 'سيفتي البار في كل جلسة' }], ['uaLPD', 'ex14', 4, '6-10', 'A', 110, '1-2', false, { note: PULLUP_NOTE }],
         ['uaID', 'ex2', 3, '8-12', 'B', 90, '1-2'], ['uaTBR', 'exCSTB', 3, '8-12', 'B', 90, '1-2'],
         ['ua5a', 'ex27', 3, '12-20', 'C', 45, '0-1'], ['ua6a', 'exOCT', 3, '10-15', 'C', 45, '0-1'],
         ['ua6b', 'ex31', 3, '10-15', 'D', 60, '0-1'], ['ua5b', 'exRPD', 3, '12-20', 'D', 60, '0-1'], ['uaAW', 'ex64', 3, '8-15', 'D', 60, '1-2']]) },
     lowerA: { name: 'Lower A', warm: [[0, 8], [50, 5], [70, 3], [85, 1]], warmNote: 'دقيقة تسخين عام + مجموعات السكوات التمهيدية',
       items: P([
-        ['la1', 'ex41', 4, '5-8', 'A', 110, '1-2'], ['laLR', 'ex23', 4, '12-20', 'A', 110, '0-1'],
+        ['la1', 'ex41', 4, '5-8', 'A', 110, '1-2', false, { r1: '6-10' }], ['laLR', 'ex23', 4, '12-20', 'A', 110, '0-1'],
         ['la7b', 'ex48', 4, '8-12', 'B', 60, '0-1'], ['la7a', 'ex44', 4, '10-15', 'B', 60, '0-1'],
         ['la3', 'exMHT', 3, '8-12', 'C', 75, '1-2'], ['la6a', 'ex65', 3, '10-15', 'C', 75, '1-2'],
         ['la5a', 'ex51', 5, '8-15', 'D', 60, '0-1'], ['laWC', 'ex81', 3, '15-20', 'D', 60, '0-1', true], ['laRWC', 'exRWC', 2, '15-20', 'D', 60, '0-1', true]]) },
     upperB: { name: 'Upper B', warm: [[50, 8], [75, 4]], warmNote: 'دقيقة تسخين عام + مجموعات تمهيدية للدمبل والسحب',
       items: P([
-        ['ub3', 'exFDP', 4, '6-10', 'A', 90, '1-2'], ['ua4', 'ex14', 4, '8-12', 'A', 90, '1-2'],
+        ['ubLID', 'exLID', 4, '6-10', 'A', 90, '1-2', false, { note: 'نفس البنش، زاوية 15° بس (أول ثقب أو اتنين)' }], ['ua4', 'ex14', 4, '8-12', 'A', 90, '1-2'],
         ['ubSP', 'ex22', 3, '8-12', 'B', 75, '1-2'], ['ubCR', 'ex15', 3, '8-12', 'B', 75, '1-2'],
         ['ub5a', 'ex27', 3, '12-20', 'C', 45, '0-1'], ['ub5b', 'ex24', 3, '12-20', 'C', 45, '0-1'], ['ubWC', 'exWCH', 3, '10-12/جنب', 'C', 45, '1-2'],
-        ['ubBAY', 'exBAY', 3, '10-15', 'D', 45, '0-1'], ['ub6b', 'ex36', 3, '10-15', 'D', 45, '0-1']]) },
+        ['ubPRC', 'ex32', 3, '10-15', 'D', 45, '0-1', false, { note: 'جهاز أو بار EZ على المسند · ركّز على النص اللي تحت' }],
+        ['ubOCT', 'exROE', 3, '10-15', 'D', 45, '0-1', false, { note: 'لو كوعك وجعك تاني يوم ارجع لترايسبس بالحبل (pushdown)' }]]) },
     lowerB: { name: 'Lower B', warm: [[0, 8], [50, 5], [75, 3]], warmNote: 'دقيقة تسخين عام + مجموعات الروماني التمهيدية',
       items: P([
         ['la2', 'ex47', 3, '6-10', 'A', 120, '1-2'], ['lbLR', 'ex27', 3, '12-20', 'A', 120, '0-1'],
-        ['lbHACK', 'ex45b', 3, '8-12', 'B', 90, '1-2'], ['la4', 'ex45', 3, '10-15', 'B', 90, '0-1'],
+        ['lbHACK', 'ex45b', 3, '8-12', 'B', 90, '1-2'], ['lbSLC', 'ex48', 3, '10-15', 'B', 90, '0-1', false, { note: 'مِيل بجسمك لقدّام علشان الشدّ على الخلفية' }],
         ['lb2', 'ex42', 3, '8-12/رجل', 'C', 75, '1-2'], ['lb7a', 'ex62', 3, '10-15', 'C', 75, '1-2'],
-        ['lb5a', 'ex52', 5, '10-20', 'D', 60, '0-1'], ['lbADD', 'exADD', 3, '12-20', 'D', 60, '0-1', true], ['lbSH', 'ex72', 2, '10-15', 'D', 60, '0-1', true]]) },
+        ['lbSC', 'ex51', 5, '10-20', 'D', 60, '0-1', false, { note: 'ركبة مفرودة: سميث على سلّمة أو جهاز واقف أو سمانة على دفع الرجل · وقفة 2 ث تحت' }], ['lbADD', 'exADD', 3, '12-20', 'D', 60, '0-1', true], ['lbSH', 'ex72', 2, '10-15', 'D', 60, '0-1', true]]) },
   },
 };
 PROGRAMS.ul4.name = 'Upper / Lower (القديمة)';
+
+/**
+ * Template updates for users already on a template (programs.current.tv < template version). Each change names the plan
+ * item it replaces (`from`, by item id) and the new template item (`to`); `set` patches fields of an item in place.
+ * A change whose `from` item is gone (the user edited the day) is skipped. Shown as the «تحديث الخطة» card (plan.js).
+ */
+export const PLAN_UPDATES = Object.freeze({
+  ul4c: {
+    2: {
+      title: 'تمارين أحسن لنفس العضلات · نفس الوقت',
+      changes: [
+        { day: 'lowerB', from: 'lb5a', to: 'lbSC', why: 'الواقف بيكبّر السمانة، الجالس تقريبًا لأ (Kinoshita 2023)' },
+        { day: 'lowerB', from: 'la4', to: 'lbSLC', why: 'الجالس ضعف نمو الخلفية الطويلة (Maeo 2021)' },
+        { day: 'upperA', from: 'ub1', to: 'uaLPD', why: 'تحميل أدق لحد ما تعمل 3×8 عقلة بوزن جسمك' },
+        { day: 'upperB', from: 'ubBAY', to: 'ubPRC', why: 'بيغطي الجزء السفلي للباي (Kassiano 2025)' },
+        { day: 'upperB', from: 'ub6b', to: 'ubOCT', why: 'فوق الراس بيكبّر التراي كله أكتر (Maeo 2023)' },
+        { day: 'upperB', from: 'ub3', to: 'ubLID', why: 'صدر علوي أكتر، والبنش المسطّح موجود في Upper A' },
+        { day: 'upperA', id: 'uaFB', set: { r1: '6-10' }, why: 'أول 6 أسابيع: 6–10 عدّات للتكنيك، بعدها 5–8' },
+        { day: 'lowerA', id: 'la1', set: { r1: '6-10' }, why: 'أول 6 أسابيع: 6–10 عدّات للتكنيك، بعدها 5–8' },
+      ],
+      warmNote: { upperA: true },
+    },
+  },
+});
 
 /** New installs start on the compact plan; existing users switch only after the overview confirm card. */
 export const DEFAULT_PROGRAM = 'ul4c';

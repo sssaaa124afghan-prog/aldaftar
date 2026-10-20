@@ -7,6 +7,8 @@ import { kegelStage, kegelWeek, kegelSteps, kegelWeekCount, runner, loadHealth, 
 import { pelvisArt, positionsArt } from './kegel-art.js';
 
 export const KEGEL_TITLE = 'تمرين قاع الحوض';
+/** Progression levels (the last KEGEL_STAGES entry is maintenance, shown as «محافظة», not a 6th level). */
+const LEVELS = KEGEL_STAGES.filter((s) => !s.maintenance).length;
 const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.max(0, t) % 60).padStart(2, '0')}`;
 const CUE = {
   hold: ['شد', 'ارفع لجوه ولفوق · اتنفس طبيعي'],
@@ -66,11 +68,13 @@ export async function renderKegel(el, ctx) {
 
   // ── level ──
   const levelChips = h('div', { class: 'chips hk-levels', role: 'group', 'aria-label': 'اختار المستوى' },
-    ...KEGEL_STAGES.map((s) => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(s.stage === st.stage), 'aria-label': `المستوى ${s.stage}${s === auto ? ' (المقترح)' : ''}`,
+    // levels 1–5 + one «محافظة» chip (the maintenance stage after week 12), so the heading «المستوى N من 5» matches the chips (UX B5)
+    ...KEGEL_STAGES.map((s) => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(s.stage === st.stage),
+      'aria-label': `${s.maintenance ? 'مستوى المحافظة' : `المستوى ${s.stage} من ${LEVELS}`}${s === auto ? ' (المقترح)' : ''}`,
       onclick: async () => { if (await safeWrite(ctx, () => patchHealth(ctx.db, (c) => ({ ...c, kegel: { ...(c.kegel || {}), stage: s === auto ? null : s.stage } })))) rerender(); } },
-    N(String(s.stage)), s === auto ? h('small', {}, ' مقترح') : null)));
+    s.maintenance ? 'محافظة' : N(String(s.stage)), s === auto ? h('small', {}, ' مقترح') : null)));
   root.appendChild(h('section', { class: 'glass wk-card hk-level', 'aria-labelledby': 'hk-lv-h' },
-    h('h3', { id: 'hk-lv-h' }, st.maintenance ? 'مستوى المحافظة' : ['المستوى ', N(String(st.stage)), ' من ', N('5')],
+    h('h3', { id: 'hk-lv-h' }, st.maintenance ? 'مستوى المحافظة' : ['المستوى ', N(String(st.stage)), ' من ', N(String(LEVELS))],
       h('small', {}, st.maintenance ? 'بعد الأسبوع 12' : ['الأسبوع ', N(String(Math.min(week, 12))), ' من ', N('12')])),
     h('p', {}, ...stageLine(st), st.maxSet ? ' · وفي الآخر شدّة أقصى واحدة' : ''),
     h('p', { class: 'wk-muted' }, 'الأوضاع: ', st.positions.map((p) => POS[p]).join(' ← '), ' · ', st.perDay === 2 ? 'مرتين في اليوم' : 'مرة في اليوم، 5 أيام على الأقل'),

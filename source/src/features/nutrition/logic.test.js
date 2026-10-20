@@ -146,3 +146,37 @@ test('stepFor', () => {
   assert.equal(L.stepFor('جرام', 250), 25);
   assert.equal(L.stepFor('حبة', 2), 1);
 });
+
+test('search: «لبن» means milk — whole-word and synonym hits beat a prefix («لبنة») and the compound «لبن رايب»', () => {
+  const cat = L.buildCatalog(FOODS, []);
+  const top = L.searchFoods(cat, 'لبن', { limit: 5 });
+  assert.match(top[0].name, /حليب كامل/);
+  assert.ok(top.slice(0, 5).every((f) => !/لبنة|لبن رايب/.test(f.name)), top.map((f) => f.name).join(' | '));
+  const labneh = cat.find((f) => /^لبنة/.test(f.name)); const milk = top[0];
+  assert.ok(L.scoreFood(milk, 'لبن') >= 88 && L.scoreFood(labneh, 'لبن') < 88);
+  // the user's own frequent food can't lift a prefix hit above a whole-word hit …
+  const usage = L.computeUsage(Array.from({ length: 10 }, (_, i) => ({ day: `2026-10-${String(i + 1).padStart(2, '0')}`, entries: [{ foodId: labneh.id, name: labneh.name, qty: 30, section: 'breakfast' }] })));
+  assert.match(L.searchFoods(cat, 'لبن', { usage })[0].name, /حليب/);
+  // … but does rank first among whole-word hits
+  const skim = cat.find((f) => f.name === 'حليب خالي الدسم');
+  const u2 = L.computeUsage([{ day: '2026-10-18', entries: Array.from({ length: 6 }, () => ({ foodId: skim.id, name: skim.name, qty: 250, section: 'breakfast' })) }]);
+  assert.equal(L.searchFoods(cat, 'لبن', { usage: u2 })[0].id, skim.id);
+  // the specific words still win when typed
+  assert.match(L.searchFoods(cat, 'لبنة')[0].name, /^لبنة/);
+  assert.match(L.searchFoods(cat, 'لبن رايب')[0].name, /^لبن رايب/);
+  assert.ok(!L.searchFoods(cat, 'لبنة', { limit: 3 }).some((f) => /حليب/.test(f.name)), 'لبنة does not pull in milk');
+});
+
+test('search: exact / everyday meaning first for one-word queries; prefixes still find while typing', () => {
+  const cat = L.buildCatalog(FOODS, []);
+  assert.equal(L.searchFoods(cat, 'بيض')[0].name, 'بيضة كاملة');
+  assert.equal(L.searchFoods(cat, 'شوفان')[0].name, 'شوفان جاف');
+  assert.equal(L.searchFoods(cat, 'واي')[0].name, 'واي بروتين سكوب');
+  assert.match(L.searchFoods(cat, 'رز')[0].name, /أرز أبيض/);
+  assert.match(L.searchFoods(cat, 'شوف')[0].name, /^شوفان/);
+  assert.match(L.searchFoods(cat, 'صدر دجاج')[0].name, /صدر دجاج|صدور فراخ/);
+  // standard breakfast through search totals 600–800 kcal (was 1,029 with labneh)
+  const pick = (q) => L.searchFoods(cat, q)[0];
+  const sum = [['بيض', 4], ['لبن', 250], ['شوفان', 60], ['واي', 1]].reduce((a, [q, n]) => a + L.makeEntry(pick(q), n, 'breakfast').kcal, 0);
+  assert.ok(sum >= 600 && sum <= 800, String(sum));
+});

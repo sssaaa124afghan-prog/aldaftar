@@ -11,12 +11,22 @@ export const SECRET_VALUE_RE = /(sk-ant-[A-Za-z0-9_\-]{8,}|gsk_[A-Za-z0-9]{8,}|A
 
 export const DEFAULT_TRAINING_DAYS = [1, 2, 4, 5]; // Mon, Tue, Thu, Fri (Date#getDay numbering)
 
+// Defaults for the owner (72 kg, 175 cm, 27 y, male; growth-assessment.md §0.5): weekly average ≈ 2,700 = maintenance to +5 %.
+// Protein 155 g (≈ 2.15 g/kg), fat 70 g (≈ 0.97 g/kg), carbs fill the rest so kcal = 4P + 4C + 9F exactly.
 export const DEFAULT_TARGETS = Object.freeze({
+  training: Object.freeze({ kcal: 2850, p: 155, c: 400, f: 70 }),
+  rest: Object.freeze({ kcal: 2350, p: 155, c: 275, f: 70 }),
+  // Heart Day (Saturday on the 4-day plan, review S2): 30 min cardio, no lifting → between rest and training.
+  heart: Object.freeze({ kcal: 2550, p: 155, c: 325, f: 70 }),
+});
+/** The previous defaults (before 20/10/2026): stored targets still equal to these are migrated silently. */
+export const LEGACY_DEFAULT_TARGETS = Object.freeze({
   training: Object.freeze({ kcal: 2600, p: 160, c: 330, f: 70 }),
   rest: Object.freeze({ kcal: 2050, p: 160, c: 200, f: 65 }),
-  // Heart Day (Saturday on the 4-day plan, review S2): 30 min cardio, no lifting → between rest and training.
   heart: Object.freeze({ kcal: 2300, p: 160, c: 260, f: 68 }),
 });
+export const DEFAULT_HEIGHT_CM = 175;
+export const DEFAULT_BODY_KG = 72;
 export const DAY_TYPES = Object.freeze(['training', 'rest', 'heart']);
 /** Weekday (Date#getDay) of the Heart Day per program template; templates without one are absent. */
 export const HEART_DOW = Object.freeze({ ul4c: 6 });

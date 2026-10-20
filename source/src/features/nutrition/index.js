@@ -10,11 +10,11 @@ import { buildContextSummary } from '../../core/ai.js';
 import {
   SECTIONS, SECTION_LABEL, sectionForHour, sectionOf, groupBySection, makeEntry, rescaleEntry, repeatSection, dayBalance, mealFromEntries,
   macroRanges, rangeStatus, macroSplit, sumFiber, mealBudget, weightImpact, proteinPerMeal, eatingWindow, smartAlert, eodRecap,
-  smartSuggestions, adaptiveSuggestion, cupsFor, dayShareText, monthGrid, dayQuality,
+  smartSuggestions, cupsFor, dayShareText, monthGrid, dayQuality,
 } from './logic.js';
 import {
   kvGet, kvPatch, getEntries, putEntries, loadCatalog, loadUsage, dayTarget, addEntries, rememberQty, coachContext, dayLabel, relDay,
-  DAY_TYPE_LABEL, loadProfile, burnFor, waterGoalFor, dailyPatch, dailyGet, dayTargetsBulk, logRange,
+  DAY_TYPE_LABEL, loadProfile, burnFor, waterGoalFor, dailyPatch, dailyGet, dayTargetsBulk, logRange, weightSuggestion,
 } from './data.js';
 import { I, n0, card, macroTile, calorieGauge, qtySheet, itemsLine } from './ui.js';
 import { startReminders } from './reminders.js';
@@ -99,7 +99,7 @@ async function ledger(el, ctx, params) {
     // ── one alert (adaptive suggestion first) ──
     let alert = null;
     if (isToday) {
-      const adapt = adaptiveSuggestion(profile.weights, nkv.adjustmentHistory || [], { today, snoozeUntil: nkv.adaptiveSnoozeUntil || null });
+      const adapt = await weightSuggestion(ctx, profile, nkv, today);
       if (adapt) alert = h('a', { class: 'nu-alert is-adapt', href: '#/nutrition/targets' }, I('trend'), h('div', { class: 'grow' }, h('b', {}, `اقتراح للأهداف: ${adapt.title}`), h('span', {}, adapt.reason)), I('chevron', { size: 16 }));
       else {
         const prevDays = [addDays(day, -1), addDays(day, -2)];
@@ -117,9 +117,9 @@ async function ledger(el, ctx, params) {
       const [{ list: catalog }, usage] = await Promise.all([loadCatalog(ctx.db), loadUsage(ctx.db, day)]);
       if (!alive) return;
       const budget = entries.length ? mealBudget(groups, intake, t, hour) : null;
-      const sug = smartSuggestions(catalog, usage, intake, t, { dayType: t.type, favorites: nkv.favorites || {} });
+      const sec = secOf(null);
+      const sug = smartSuggestions(catalog, usage, intake, t, { dayType: t.type, favorites: nkv.favorites || {}, section: sec });
       if (budget || sug.items.length) {
-        const sec = secOf(null);
         const list = h('div', { class: 'nu-sug' });
         for (const s of sug.items) {
           const add = h('button', { type: 'button', class: 'nu-quick', 'aria-label': `سجّل ${s.food.name} ${fmt(s.qty)} ${s.food.unit || 'جرام'} في ${SECTION_LABEL[sec]}` }, I('plus'));

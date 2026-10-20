@@ -2,14 +2,46 @@
 import { h, N, ico, band, safeWrite, DAY_NAMES, setsReps } from './view.js';
 import { countWord } from '../../ui/num.js';
 import * as L from './logic.js';
-import { loadProgram, saveProgram } from './store.js';
+import { loadProgram, saveProgram, loadAll } from './store.js';
 import { pickExercise } from './picker.js';
 import { programLabel } from './overview.js';
 import { loadCoach } from './kit.js';
-import { findLib, NEW_PROGRAM } from './exercises.js';
+import { findLib, NEW_PROGRAM, PROGRAMS as TPL } from './exercises.js';
+
+const DMY = (d) => { try { const [y, m, dd] = d.split('-'); return `${+dd}/${+m}`; } catch { return d; } };
+
+/**
+ * «تحديث الخطة»: a pending template update (programs.current.tv older than the template) as a diff card with apply / keep,
+ * both with Undo. Pure diff + apply live in logic.js (planUpdate / applyPlanUpdate). Mountable from the overview too.
+ */
+export function planUpdateCard(ctx, { program, rec, onDone }) {
+  const u = L.planUpdate(program);
+  if (!u) return null;
+  const save = async (next, msg) => {
+    const before = { ...program };
+    let r1 = rec;
+    if (!(await safeWrite(ctx, async () => { r1 = await saveProgram(ctx.db, next, rec); }))) return;
+    ctx.emit('session:changed', { state: 'plan' });
+    ctx.toast(msg, { action: { label: 'تراجع', run: async () => {
+      if (await safeWrite(ctx, () => saveProgram(ctx.db, { ...before, tv: before.tv }, r1))) { ctx.emit('session:changed', { state: 'plan' }); onDone(); }
+    } } });
+    onDone();
+  };
+  return h('section', { class: 'sheet-card wk-newplan wk-planup', 'aria-labelledby': 'wk-pu-h', dataset: { fk: 'planup' } },
+    h('h3', { id: 'wk-pu-h' }, 'تحديث الخطة', h('small', {}, u.title)),
+    h('ul', { class: 'wk-np-list' }, ...u.changes.map((c) => h('li', { class: c.ok ? null : 'wk-muted' },
+      h('b', {}, c.text), c.ok ? null : ' (اتغيّر عندك، هنسيبه)', c.why ? h('small', { class: 'wk-muted' }, ' · ', c.why) : null))),
+    h('p', { class: 'wk-muted' }, 'نفس المجموعات والراحة والوقت. سجلّك القديم محفوظ.'),
+    h('div', { class: 'btn-row' },
+      h('button', { type: 'button', class: 'btn sm', dataset: { fk: 'pu-on' }, disabled: u.applicable ? null : true,
+        onclick: () => { const r = L.applyPlanUpdate(program); return save(r.program, `اتحدّثت الخطة · ${r.applied.length} تعديل`); } }, 'طبّق التحديث'),
+      h('button', { type: 'button', class: 'btn ghost sm', dataset: { fk: 'pu-keep' },
+        onclick: () => save({ ...program, tv: TPL[program.activeProgram].version }, 'خطتك زي ما هي') }, 'خلّيها زي ما هي')));
+}
 
 export async function renderPlan(el, ctx, params = {}) {
   let { program, rec } = await loadProgram(ctx.db);
+  const { done: doneSessions } = await loadAll(ctx.db);
   let dayId = program.days[params.day] ? params.day : program.order[0];
   const coach = await loadCoach(ctx);
   const root = h('div', { class: 'wk-planed' });
@@ -23,6 +55,24 @@ export async function renderPlan(el, ctx, params = {}) {
 
   function draw(focusSel) {
     root.textContent = '';
+    const today = ctx.today();
+    const re = L.reentryInfo(ctx.settings, today);
+    const block = L.programFlags(program).meso && !re?.active ? L.mesoBlock(L.blockStart(program.startDay, re), today) : null;
+    const firstBlock = L.programFlags(program).meso && (re?.active || block === null || block === 1);
+    const pu = planUpdateCard(ctx, { program, rec, onDone: async () => { ({ program, rec } = await loadProgram(ctx.db)); draw('[data-fk="add"]'); } });
+    if (pu) root.appendChild(pu);
+    // pull-up gate (exercise-selection #3): pulldown until 3×8 body-weight pull-ups at RIR 2
+    if (program.days.upperA?.items.some((x) => x.id === 'uaLPD') && L.pullupReady(doneSessions).ready) {
+      root.appendChild(h('section', { class: 'sheet-card wk-newplan', 'aria-labelledby': 'wk-pg-h' },
+        h('h3', { id: 'wk-pg-h' }, 'جاهز للعقلة بوزن', h('small', {}, 'عملت 3×8 عقلة بوزن جسمك')),
+        h('p', { class: 'wk-muted' }, 'في Upper A: سحب أمامي ← عقلة بوزن مضاف، نفس السوبر سِت والراحة.'),
+        h('div', { class: 'btn-row' }, h('button', { type: 'button', class: 'btn sm', onclick: async () => {
+          const before = program; program = L.backToPullup(program);
+          if (!(await persist())) { program = before; return; }
+          ctx.toast('رجعت العقلة بوزن في Upper A', { action: { label: 'تراجع', run: async () => { program = before; await persist(); draw(); } } });
+          draw();
+        } }, 'ارجع للعقلة بوزن'))));
+    }
     // program templates
     const tpl = h('section', { class: 'sec', 'aria-labelledby': 'wk-tpl-h' },
       h('h3', { id: 'wk-tpl-h' }, 'نوع الخطة'),
@@ -64,11 +114,18 @@ export async function renderPlan(el, ctx, params = {}) {
           } }, h('option', { value: '' }, 'بالدور'), ...program.order.map((id) => h('option', { value: id, selected: sched[String(d)] === id }, program.days[id].name)))))));
     }
 
+    // re-entry after a break (growth-assessment §0.4): 2 lighter weeks, then the 6-week block starts by itself
+    root.appendChild(h('section', { class: 'sec', 'aria-labelledby': 'wk-re-h' },
+      h('h3', { id: 'wk-re-h' }, 'راجع بعد انقطاع', h('small', {}, ' · أسبوعين أخف قبل الدورة')),
+      h('label', { class: 'wk-switch', for: 'wk-re' }, h('span', {}, 'الأسبوع الأول نص المجموعات تقريبًا ووزن 80% · التاني 75% ووزن 90% · من غير فشل ولا إنترفال'),
+        h('input', { type: 'checkbox', id: 'wk-re', role: 'switch', checked: re?.active ? true : null, onchange: (ev) => toggleReentry(ev.target.checked) }), h('i', { 'aria-hidden': 'true' })),
+      re?.active ? h('p', { class: 'wk-hint quiet', role: 'status' }, ico('trend'), h('span', {}, L.reentryHeader(re), ' · الدورة بتبدأ ', N(DMY(re.endDay)))) : null));
+
     // 6-week block built into the new plan (replaces the opt-in 4-week wave)
-    const mw = L.programFlags(program).meso ? L.mesoWeek(program.startDay, ctx.today()) : null;
+    const mw = L.programFlags(program).meso && !re?.active ? L.mesoWeek(L.blockStart(program.startDay, re), ctx.today()) : null;
     if (L.programFlags(program).meso) root.appendChild(h('section', { class: 'sec', 'aria-labelledby': 'wk-meso-h' },
-      h('h3', { id: 'wk-meso-h' }, 'دورة ٦ أسابيع', h('small', {}, 'RIR بيقرب من الفشل أسبوع ورا أسبوع')),
-      h('p', {}, mw ? ['دلوقتي: أسبوع ', N(String(mw)), ' من ', N('6'), ' · ', L.MESO_LABEL[mw], mw === 6 ? ' · نص المجموعات ووزن أقل 10%' : ''] : 'بتبدأ مع أول جلسة.')));
+      h('h3', { id: 'wk-meso-h' }, 'دورة ٦ أسابيع', h('small', {}, ' · RIR بيقرب من الفشل أسبوع ورا أسبوع')),
+      h('p', {}, mw ? ['دلوقتي: أسبوع ', N(String(mw)), ' من ', N('6'), block > 1 ? [' · الدورة ', N(String(block))] : '', ' · ', L.MESO_LABEL[mw], mw === 6 ? ' · نص المجموعات ووزن أقل 10%' : ''] : re?.active ? ['بتبدأ ', N(DMY(re.endDay)), ' بعد أسبوعين الرجوع.'] : 'بتبدأ مع أول جلسة.')));
     // periodization (W70, opt-in)
     const per = ctx.settings.get('wk.periodization') === true;
     const ph = per ? L.phaseOf(program.startDay, ctx.today()) : null;
@@ -94,12 +151,35 @@ export async function renderPlan(el, ctx, params = {}) {
     day.items.forEach((it, i) => {
       card.appendChild(h('button', { type: 'button', class: 'list-row wk-item', dataset: { fk: `it${i}` }, onclick: () => editItem(i) },
         h('span', { class: 'grow' }, h('b', {}, it.ar, it.ss ? h('small', { class: 'wk-tag' }, `سوبر ${it.ss}`) : null),
-          h('small', {}, it.muscle, ' · ', it.kind === 'compound' ? 'مركّب' : 'عزل', ' · راحة ', N(L.fmtClock(it.ss ? L.restFor(it, { superset: true }) : L.restFor(it))))),
-        setsReps(it.sets, it.reps), ico('edit')));
+          h('small', {}, it.muscle, ' · ', it.kind === 'compound' ? 'مركّب' : 'عزل', ' · راحة ', N(L.fmtClock(it.ss ? L.restFor(it, { superset: true }) : L.restFor(it))),
+            firstBlock && it.r1 ? [' · أول 6 أسابيع ', N(it.r1)] : null),
+          it.note ? h('small', { class: 'wk-muted' }, it.note) : null),
+        setsReps(it.sets, firstBlock && it.r1 ? it.r1 : it.reps), ico('edit')));
     });
     card.appendChild(h('button', { type: 'button', class: 'btn ghost wk-add', dataset: { fk: 'add' }, onclick: addItem }, ico('plus'), 'ضيف تمرين'));
     root.appendChild(card);
     if (focusSel) root.querySelector(focusSel)?.focus({ preventScroll: true });
+  }
+
+  /** «راجع بعد انقطاع»: wk.reentry = {startDay: today, weeks: 2}; the 6-week block moves to start right after it. */
+  async function toggleReentry(on) {
+    const today = ctx.today();
+    const prevSetting = ctx.settings.get('wk.reentry') ?? null;
+    const prevStart = program.startDay || null;
+    if (on) {
+      await ctx.settings.set('wk.reentry', { startDay: today, weeks: 2 });
+      if (L.programFlags(program).meso) { program.startDay = L.reentryInfo(ctx.settings, today).endDay; await persist(); }
+    } else {
+      const cur = L.reentryInfo(ctx.settings, today);
+      await ctx.settings.set('wk.reentry', null);
+      if (L.programFlags(program).meso && cur && program.startDay === cur.endDay) { program.startDay = today; await persist(); }
+    }
+    ctx.toast(on ? 'تمام · أسبوعين رجوع وبعدهم الدورة' : 'رجعنا للخطة العادية', { action: { label: 'تراجع', run: async () => {
+      await ctx.settings.set('wk.reentry', prevSetting);
+      if (prevStart) program.startDay = prevStart; else delete program.startDay;
+      await persist(); draw('#wk-re');
+    } } });
+    draw('#wk-re');
   }
 
   /** «برنامجي القديم»: swap the saved previous plan back in; the current one becomes the saved one. */

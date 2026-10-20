@@ -15,18 +15,29 @@ test('new default program: compact Upper/Lower from review.md §3 with supersets
   assert.deepEqual(p.schedule, { 1: 'upperA', 2: 'lowerA', 4: 'upperB', 5: 'lowerB' });
   assert.equal(PROGRAMS.ul4c.heartDow, 6);
   const row = (d) => p.days[d].items.map((x) => `${x.lib}:${x.sets}x${x.reps}${x.ss ? ':' + x.ss : ''}${x.restS ? '@' + x.restS : ''}${x.fill ? 'f' : ''}`);
-  assert.deepEqual(row('upperA'), ['ex1:4x5-8:A@110', 'exWPU:4x6-10:A@110', 'ex2:3x8-12:B@90', 'exCSTB:3x8-12:B@90', 'ex27:3x12-20:C@45', 'exOCT:3x10-15:C@45',
+  assert.deepEqual(row('upperA'), ['ex1:4x5-8:A@110', 'ex14:4x6-10:A@110', 'ex2:3x8-12:B@90', 'exCSTB:3x8-12:B@90', 'ex27:3x12-20:C@45', 'exOCT:3x10-15:C@45',
     'ex31:3x10-15:D@60', 'exRPD:3x12-20:D@60', 'ex64:3x8-15:D@60']);
   assert.deepEqual(row('lowerA'), ['ex41:4x5-8:A@110', 'ex23:4x12-20:A@110', 'ex48:4x8-12:B@60', 'ex44:4x10-15:B@60', 'exMHT:3x8-12:C@75', 'ex65:3x10-15:C@75',
     'ex51:5x8-15:D@60', 'ex81:3x15-20:D@60f', 'exRWC:2x15-20:D@60f']);
-  assert.deepEqual(row('upperB'), ['exFDP:4x6-10:A@90', 'ex14:4x8-12:A@90', 'ex22:3x8-12:B@75', 'ex15:3x8-12:B@75', 'ex27:3x12-20:C@45', 'ex24:3x12-20:C@45',
-    'exWCH:3x10-12/جنب:C@45', 'exBAY:3x10-15:D@45', 'ex36:3x10-15:D@45']);
-  assert.deepEqual(row('lowerB'), ['ex47:3x6-10:A@120', 'ex27:3x12-20:A@120', 'ex45b:3x8-12:B@90', 'ex45:3x10-15:B@90', 'ex42:3x8-12/رجل:C@75', 'ex62:3x10-15:C@75',
-    'ex52:5x10-20:D@60', 'exADD:3x12-20:D@60f', 'ex72:2x10-15:D@60f']);
+  assert.deepEqual(row('upperB'), ['exLID:4x6-10:A@90', 'ex14:4x8-12:A@90', 'ex22:3x8-12:B@75', 'ex15:3x8-12:B@75', 'ex27:3x12-20:C@45', 'ex24:3x12-20:C@45',
+    'exWCH:3x10-12/جنب:C@45', 'ex32:3x10-15:D@45', 'exROE:3x10-15:D@45']);
+  assert.deepEqual(row('lowerB'), ['ex47:3x6-10:A@120', 'ex27:3x12-20:A@120', 'ex45b:3x8-12:B@90', 'ex48:3x10-15:B@90', 'ex42:3x8-12/رجل:C@75', 'ex62:3x10-15:C@75',
+    'ex51:5x10-20:D@60', 'exADD:3x12-20:D@60f', 'ex72:2x10-15:D@60f']);
   // Arabic + English names come from the library; legacy ids kept where the exercise is the same
   assert.equal(p.days.upperA.items[0].id, 'uaFB');
   assert.equal(p.days.upperA.items[0].ar, 'بنش بريس بالبار');
-  assert.equal(p.days.upperB.items[7].en, 'Bayesian Cable Curl');
+  assert.equal(p.days.upperB.items[7].en, 'Preacher Curl');
+  // plan v2 swaps (exercise-selection.md §3): new item ids so history does not mix; notes + meso-1 reps survive a round trip
+  assert.equal(p.tv, 2);
+  assert.deepEqual(['upperA', 'lowerA', 'upperB', 'lowerB'].map((d) => p.days[d].items.filter((x) => ['uaLPD', 'lbSC', 'lbSLC', 'ubPRC', 'ubOCT', 'ubLID'].includes(x.id)).map((x) => x.id)),
+    [['uaLPD'], [], ['ubLID', 'ubPRC', 'ubOCT'], ['lbSLC', 'lbSC']]);
+  assert.match(p.days.upperA.items[1].note, /3×8 عقلة بوزن جسمك عند RIR 2 ارجع للعقلة/);
+  assert.equal(p.days.upperA.items[0].r1, '6-10'); assert.equal(p.days.lowerA.items[0].r1, '6-10');
+  assert.match(p.days.lowerB.items[6].note, /وقفة 2 ث/);
+  assert.match(p.days.upperB.items[8].note, /pushdown/);
+  assert.equal(p.days.upperB.items[0].en, 'Low-Incline DB Press 15°');
+  // seated leg curl pairs with the hack squat on Lower B: two different machines (the combo leg-curl/extension clash is only Lower A)
+  assert.deepEqual(p.days.lowerB.items.filter((x) => x.ss === 'B').map((x) => x.lib), ['ex45b', 'ex48']);
   // 4:30 warm-up ramps per day
   assert.deepEqual(p.days.lowerA.warm, [[0, 8], [50, 5], [70, 3], [85, 1]]);
   // survives a save/load round trip
@@ -35,10 +46,12 @@ test('new default program: compact Upper/Lower from review.md §3 with supersets
   assert.equal(back.days.upperA.items[0].rir, '1-2');
   assert.deepEqual(back.days.upperA.warm, [[0, 8], [60, 5], [80, 2]]);
   assert.deepEqual(back.schedule, p.schedule);
+  assert.equal(back.tv, 2); assert.equal(back.days.upperA.items[0].r1, '6-10'); assert.equal(back.days.upperA.items[1].note, p.days.upperA.items[1].note);
 });
 
 test('new library entries carry muscles and synergists', () => {
-  for (const id of ['exBAY', 'exADD', 'exWCH', 'exPAL', 'exRWC', 'exNECK', 'exMHT']) assert.ok(libById(id), id);
+  for (const id of ['exBAY', 'exADD', 'exWCH', 'exPAL', 'exRWC', 'exNECK', 'exMHT', 'exLID', 'exROE']) assert.ok(libById(id), id);
+  assert.equal(libById('exLID').prime, 'صدر'); assert.equal(libById('exROE').prime, 'تراي');
   assert.equal(libById('exADD').prime, 'ضامة');
   assert.equal(libById('exWCH').prime, 'جوانب');
   assert.deepEqual(libById('ex1').synergists, ['تراي', 'كتف أمامي']);
@@ -314,4 +327,127 @@ test('dayEstimate is the one time source: planSession minutes + the Zone 2 finis
   assert.ok(L.dayEstimate({ program: p, today: '2026-10-19', dayId: 'upperA' }).lift <= 45);
   assert.equal(L.budgetFor('2026-10-20'), 60);
   L.pickBudget(null, 60);
+});
+
+// ══ plan v2: swaps migration, meso-1 reps, re-entry (exercise-selection.md, growth-assessment.md §0.4) ══
+const V1 = () => {
+  // a user saved on ul4c before v2: no tv, the old rows
+  const p = P(); delete p.tv;
+  const old = { upperA: [['ub1', 'exWPU', 1]], upperB: [['ub3', 'exFDP', 0], ['ubBAY', 'exBAY', 7], ['ub6b', 'ex36', 8]], lowerB: [['la4', 'ex45', 3], ['lb5a', 'ex52', 6]] };
+  for (const [d, rows] of Object.entries(old)) for (const [id, lib, i] of rows) { const Lb = libById(lib); p.days[d].items[i] = { ...p.days[d].items[i], id, lib, ar: Lb.ar, en: Lb.en }; delete p.days[d].items[i].note; }
+  for (const d of ['upperA', 'lowerA']) delete p.days[d].items[0].r1;
+  return L.normalizeProgram({ ...p, v: 2 });
+};
+
+test('plan update: users already on ul4c get a diff card; apply swaps in place, keeps edits, sets tv; new installs have none', () => {
+  assert.equal(L.planUpdate(P()), null, 'fresh template is current');
+  const v1 = V1();
+  const u = L.planUpdate(v1);
+  assert.equal(u.from, 1); assert.equal(u.to, 2);
+  assert.equal(u.applicable, 8);
+  assert.ok(u.changes.some((c) => /سمانة جالس ← سمانة واقف/.test(c.text)), u.changes.map((c) => c.text).join('\n'));
+  // the user removed the Bayesian curl himself → that change is skipped, the rest apply
+  v1.days.upperB.items = v1.days.upperB.items.filter((x) => x.id !== 'ubBAY');
+  v1.days.lowerB.items.find((x) => x.id === 'la4').sets = 4; // his own edit on a swapped slot is replaced by the template row
+  const r = L.applyPlanUpdate(v1);
+  assert.equal(r.skipped.length, 1); assert.equal(r.applied.length, 7);
+  assert.equal(r.program.tv, 2);
+  assert.equal(L.planUpdate(r.program), null);
+  const row = (d) => r.program.days[d].items.map((x) => x.id);
+  assert.deepEqual(row('lowerB'), ['la2', 'lbLR', 'lbHACK', 'lbSLC', 'lb2', 'lb7a', 'lbSC', 'lbADD', 'lbSH']);
+  assert.deepEqual(row('upperB').slice(0, 1), ['ubLID']);
+  assert.ok(row('upperB').includes('ubOCT') && !row('upperB').includes('ubPRC'));
+  assert.equal(r.program.days.upperA.items[1].lib, 'ex14');
+  assert.equal(r.program.days.upperA.items[1].ss, 'A');
+  assert.equal(r.program.days.upperA.items[0].r1, '6-10');
+  assert.match(r.program.days.upperA.warmNote, /سحب أمامي/);
+  // the original is untouched (undo = save it back)
+  assert.equal(v1.days.lowerB.items[6].id, 'lb5a');
+  // other templates: nothing to update
+  assert.equal(L.planUpdate(L.fromTemplate('ppl6')), null);
+});
+
+test('meso 1 (and re-entry): back squat + bench run 6–10; from block 2 the template 5–8; days stay ≤ 60 min', () => {
+  const p = { ...P(), startDay: '2026-10-19' };
+  const e1 = L.dayEstimate({ program: p, sessions: [], today: '2026-10-19', dayId: 'upperA' });
+  assert.equal(e1.block, 1);
+  assert.equal(e1.plan.items[0].reps, '6-10');
+  const e2 = L.dayEstimate({ program: p, sessions: [], today: '2026-12-07', dayId: 'upperA' });
+  assert.equal(e2.block, 2);
+  assert.equal(e2.plan.items[0].reps, '5-8');
+  assert.equal(L.mesoBlock('2026-10-19', '2026-11-29'), 1); assert.equal(L.mesoBlock('2026-10-19', '2026-11-30'), 2);
+  for (const d of p.order) {
+    const m = L.estimateSeconds(L.withBlockReps(p, d).days[d].items) / 60;
+    assert.ok(m <= 49.5, `${d} ${m.toFixed(1)} min`);
+    assert.ok(Math.round(m) + L.z2Minutes(Math.round(m)) <= 60, `${d} lift + Z2 ${m}`);
+  }
+});
+
+test('re-entry: info, sets ~55% / ~75%, RIR 4/3 then 3/2, loads 80% / 90%, header, then the 6-week block starts', () => {
+  const st = { get: (k) => (k === 'wk.reentry' ? { startDay: '2026-10-19', weeks: 2 } : undefined) };
+  assert.equal(L.reentryInfo(st, '2026-10-18').active, false);
+  const w1 = L.reentryInfo(st, '2026-10-19');
+  assert.deepEqual({ a: w1.active, w: w1.week, of: w1.of, end: w1.endDay }, { a: true, w: 1, of: 2, end: '2026-11-02' });
+  assert.equal(L.reentryInfo(st, '2026-10-26').week, 2);
+  assert.equal(L.reentryInfo(st, '2026-11-02').active, false);
+  assert.equal(L.reentryInfo({}, '2026-10-19'), null);
+  assert.equal(L.reentryInfo({ 'wk.reentry': { startDay: 'bad' } }, '2026-10-19'), null);
+  assert.equal(L.isReentry({ settings: st }, '2026-10-20'), true);
+  assert.equal(L.isReentry(st, '2026-11-02'), false);
+  // sets: round(n × share), min 1, last sets dropped
+  assert.deepEqual([1, 2, 3, 4, 5].map((n) => L.reentrySets(n, w1)), [1, 1, 2, 2, 3]);
+  const w2 = L.reentryInfo(st, '2026-10-28');
+  assert.deepEqual([1, 2, 3, 4, 5].map((n) => L.reentrySets(n, w2)), [1, 2, 2, 3, 4]);
+  const pres = { sets: [{ w: 80, r: 8 }, { w: 80, r: 8 }, { w: 77.5, r: 8 }, { w: 75, r: 7 }], ready: true, inc: 2.5, from: 'last', gates: [], hold: false };
+  const a = L.reentryAdjust(pres, w1, { item: { kind: 'compound' } });
+  assert.deepEqual(a.sets, [{ w: 65, r: 8 }, { w: 65, r: 8 }]);
+  assert.equal(a.ready, false); assert.equal(a.inc, 0); assert.equal(a.gates[0], 'reentry');
+  assert.deepEqual(a.rirT, { lo: 4, hi: 4, reentry: true });
+  const b = L.reentryAdjust(pres, w2, { item: { kind: 'isolation' } });
+  assert.deepEqual(b.sets.map((t) => t.w), [72.5, 72.5, 70]);
+  assert.deepEqual(b.rirT, { lo: 2, hi: 2, reentry: true });
+  assert.equal(L.reentryAdjust({ sets: [{ w: 12, r: 12 }, { w: 0, r: 10 }] }, w1).sets.map((t) => t.w).join(), '10');
+  assert.deepEqual(L.reentryRir({ kind: 'isolation' }, w1), { lo: 3, hi: 3, reentry: true });
+  assert.deepEqual(L.reentryRir({ kind: 'compound' }, w2), { lo: 3, hi: 3, reentry: true });
+  assert.equal(L.reentryHeader(w1, { kind: 'compound' }), 'رجوع · الأسبوع 1 من 2 · سيب 4 عدّات');
+  assert.equal(L.reentryHeader(w2, { kind: 'isolation' }), 'رجوع · الأسبوع 2 من 2 · سيب 2 عدّات');
+  // day estimate: no meso week during re-entry, sets cut, shorter session, a reason line
+  const p = { ...P(), startDay: '2026-10-19' };
+  const e = L.dayEstimate({ program: p, sessions: [], today: '2026-10-19', dayId: 'upperA', reentry: w1 });
+  assert.equal(e.week, null); assert.equal(e.deload, false);
+  const total = (items) => items.reduce((n, x) => n + x.sets, 0);
+  assert.equal(total(p.days.upperA.items), 29);
+  assert.equal(total(e.plan.items), 18); // ≈ 55–62 %
+  assert.ok(e.plan.minutes < 40, `${e.plan.minutes}`);
+  assert.equal(e.plan.changes[0].code, 'reentry'); assert.match(e.plan.changes[0].text, /رجوع · الأسبوع 1 من 2/);
+  assert.equal(e.plan.items[0].reps, '6-10');
+  const e2 = L.dayEstimate({ program: p, sessions: [], today: '2026-10-26', dayId: 'upperA', reentry: w2 });
+  assert.equal(total(e2.plan.items), 20);
+  // live session: loads from the last session × 0.8, header line, no double set cut, no 7-day "lighter" on top
+  const hist = [ses('h1', '2026-07-20', [ex('ex1', [[80, 8, 2], [80, 8, 2], [80, 7, 2], [80, 6, 2]], { exId: 'uaFB' })], { dayKey: 'upperA' })];
+  const live = L.buildLive({ items: e.plan.items, dayId: 'upperA', dayName: 'Upper A', sessions: hist, lighter: true, week: 1, reentry: w1 });
+  assert.equal(live.week, undefined); assert.deepEqual(live.reentry, { week: 1, of: 2, startDay: '2026-10-19' });
+  assert.deepEqual(live.exercises[0].sets.map((t) => t.w), [65, 65]);
+  assert.equal(L.prefillReason(live.exercises[0]), L.GATES.reentry);
+  assert.equal(L.weekLine(live, live.exercises[0]), 'رجوع · الأسبوع 1 من 2 · سيب 4 عدّات');
+  assert.equal(L.weekLine({ week: 2 }, { kind: 'compound', sets: [{}, {}] }), 'الأسبوع 2 · سيب 2 عدّات');
+  // after 2 weeks the 6-week block starts on the re-entry end day, even when the plan start date was earlier
+  const after = L.reentryInfo(st, '2026-11-02');
+  assert.equal(L.blockStart('2026-10-19', after), '2026-11-02');
+  assert.equal(L.blockStart('2026-12-01', after), '2026-12-01');
+  assert.equal(L.blockStart('2026-10-19', null), '2026-10-19');
+  const e3 = L.dayEstimate({ program: p, sessions: [], today: '2026-11-02', dayId: 'upperA', reentry: after });
+  assert.equal(e3.week, 1); assert.equal(e3.block, 1);
+  assert.equal(L.dayEstimate({ program: p, sessions: [], today: '2026-11-09', dayId: 'upperA', reentry: after }).week, 2);
+});
+
+test('pull-up gate: 3×8 body-weight pull-ups at RIR ≥ 2 → back to the weighted pull-up', () => {
+  const s1 = ses('a', '2026-11-02', [ex('ex12', [[0, 8, 2], [0, 8, 2], [0, 7, 2]])]);
+  assert.equal(L.pullupReady([s1]).ready, false);
+  const s2 = ses('b', '2026-11-09', [ex('ex12', [[0, 8, 2], [0, 9, 3], [0, 8, null]])]);
+  assert.deepEqual(L.pullupReady([s1, s2]), { ready: true, day: '2026-11-09' });
+  assert.equal(L.pullupReady([ses('c', '2026-11-09', [ex('ex12', [[0, 8, 1], [0, 8, 1], [0, 8, 1]])])]).ready, false, 'RIR 1 is too close to failure');
+  const p = L.backToPullup(P());
+  assert.equal(p.days.upperA.items[1].lib, 'exWPU'); assert.equal(p.days.upperA.items[1].id, 'ub1'); assert.equal(p.days.upperA.items[1].ss, 'A');
+  assert.equal(P().days.upperA.items[1].lib, 'ex14');
 });

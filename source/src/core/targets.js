@@ -1,8 +1,8 @@
 // Day type (training/rest) from the training schedule, per-day-type targets, and portion math.
 // The only place macros are computed. Validation REPORTS problems; it never silently "fixes" numbers.
 
-import { DEFAULT_TARGETS, DEFAULT_TRAINING_DAYS, DAY_TYPES, HEART_DOW, DEFAULT_PROGRAM_ID, num } from './schema.js';
-import { weekday, isDayKey } from './date.js';
+import { DEFAULT_TARGETS, LEGACY_DEFAULT_TARGETS, DEFAULT_HEIGHT_CM, DEFAULT_BODY_KG, DEFAULT_TRAINING_DAYS, DAY_TYPES, HEART_DOW, DEFAULT_PROGRAM_ID, num } from './schema.js';
+import { weekday, isDayKey, addDays, diffDays } from './date.js';
 
 export const QTY_MIN_EXCLUSIVE = 0;
 export const QTY_MAX = 5000; // grams (or units) per logged item
@@ -146,4 +146,118 @@ export function sumEntries(entries = []) {
 /** Remaining = target − intake (negative means over). */
 export function remaining(target, intake) {
   return { kcal: r1(target.kcal - intake.kcal), p: r1(target.p - intake.p), c: r1(target.c - intake.c), f: r1(target.f - intake.f) };
+}
+
+// ───────── 72-kg defaults: macros, silent migration, gain-phase adaptive step (growth-assessment.md §0.5) ─────────
+
+/**
+ * macrosFor(kcal, {p, f}) → {kcal, p, c, f}: protein and fat fixed, carbs fill the rest (rounded), kcal = 4P + 4C + 9F exactly.
+ */
+export function macrosFor(kcal, { p, f }) {
+  const c = Math.max(0, Math.round((kcal - 4 * p - 9 * f) / 4));
+  return { kcal: 4 * p + 4 * c + 9 * f, p, c, f };
+}
+/** Default targets for a body weight: protein ≈ 2.15 g/kg, fat ≈ 0.97 g/kg (both to 5 g), day kcal scaled from the 72-kg plan (to 50). */
+export function defaultTargetsFor(kg = DEFAULT_BODY_KG) {
+  const w = Number(kg) > 30 && Number(kg) < 300 ? Number(kg) : DEFAULT_BODY_KG;
+  if (Math.abs(w - DEFAULT_BODY_KG) < 0.5) return { training: { ...DEFAULT_TARGETS.training }, rest: { ...DEFAULT_TARGETS.rest }, heart: { ...DEFAULT_TARGETS.heart } };
+  const r5 = (x) => Math.round(x / 5) * 5, r50 = (x) => Math.round(x / 50) * 50;
+  const p = r5(w * 2.15), f = r5(w * 0.97);
+  const out = {};
+  for (const k of DAY_TYPES) out[k] = macrosFor(r50(DEFAULT_TARGETS[k].kcal * w / DEFAULT_BODY_KG), { p, f });
+  return out;
+}
+
+const sameT = (a, b) => !!a && !!b && ['kcal', 'p', 'c', 'f'].every((k) => Number(a[k]) === Number(b[k]));
+/** Stored targets that are still the old defaults (or were never edited): every stored day type equals the old default. */
+export function isLegacyDefault(stored) {
+  if (!stored || !stored.training || !stored.rest) return true; // nothing saved → defaults
+  return ['training', 'rest', 'heart'].every((k) => !stored[k] || sameT(stored[k], LEGACY_DEFAULT_TARGETS[k]));
+}
+export const TARGETS_VERSION = 2;
+export const TARGETS_TOAST = 'اتحدّثت أهدافك حسب وزنك 72';
+
+/**
+ * migrateTargets(stored, {kg}) → {targets, changed, reason, toast?, suggestion?}
+ * - already migrated (tv ≥ 2) → unchanged;
+ * - still the old defaults (2600 / 2050 / 2300) → the new defaults, silently, with TARGETS_TOAST;
+ * - custom → kept exactly; `suggestion` = the new defaults for the adaptive card (apply only on confirm).
+ */
+export function migrateTargets(stored, { kg = DEFAULT_BODY_KG } = {}) {
+  if (stored && Number(stored.tv) >= TARGETS_VERSION) return { targets: stored, changed: false, reason: 'current' };
+  const next = defaultTargetsFor(kg);
+  if (isLegacyDefault(stored)) {
+    return { targets: { ...next, isDefault: true, tv: TARGETS_VERSION }, changed: true, reason: 'defaults', toast: TARGETS_TOAST.replace('72', String(Math.round(Number(kg) || DEFAULT_BODY_KG))) };
+  }
+  const t = withDayTypes(stored);
+  const avg = (x) => (4 * x.training.kcal + x.heart.kcal + 2 * x.rest.kcal) / 7;
+  const delta = Math.round(avg(next) - avg(t));
+  return { targets: { ...stored, tv: TARGETS_VERSION }, changed: true, reason: 'custom',
+    suggestion: Math.abs(delta) >= 100 ? { kind: 'body', delta, targets: next, title: `أهداف ${Math.round(Number(kg) || DEFAULT_BODY_KG)} كجم: ${delta > 0 ? '+' : '−'}${Math.abs(delta)} سعرة في المتوسط`,
+      reason: `على وزنك المتوسط الأسبوعي الأنسب حوالي ${Math.round(avg(next))} سعرة (ثبات لحد +5%). أهدافك الحالية ${Math.round(avg(t))}.` } : null };
+}
+
+/**
+ * runTargetsMigration(db) → {changed, toast?, suggestion?}: reads kv 'targets' + the profile + the latest weight, writes the
+ * migrated targets (tv 2) and the profile height (175 cm) when missing, and parks a custom-target suggestion in
+ * kv 'nutrition'.targetSuggestion for the adaptive card. Safe to call on every boot (no-op once tv = 2).
+ */
+export async function runTargetsMigration(db) {
+  const kvGet = async (k) => { try { const r = await db.get('kv', k); return r && r.value && typeof r.value === 'object' ? r.value : null; } catch { return null; } };
+  const out = { changed: false };
+  let prof = null;
+  try { prof = await db.get('profile', 'me'); } catch { prof = null; }
+  if (!prof || !(Number(prof.heightCm) > 0)) {
+    try { await db.put('profile', { ...(prof || {}), key: 'me', heightCm: DEFAULT_HEIGHT_CM }); out.height = DEFAULT_HEIGHT_CM; } catch { /* best effort */ }
+  }
+  let kg = DEFAULT_BODY_KG;
+  try { const ws = (await db.getAll('bodyweight')).filter((r) => r && isDayKey(r.day) && Number(r.kg) > 30).sort((a, b) => a.day.localeCompare(b.day)); if (ws.length) kg = Number(ws[ws.length - 1].kg); } catch { /* none */ }
+  const stored = await kvGet('targets');
+  const m = migrateTargets(stored, { kg });
+  if (!m.changed) return out;
+  await db.put('kv', { key: 'targets', value: m.targets });
+  out.changed = true; out.reason = m.reason;
+  if (m.toast) out.toast = m.toast;
+  if (m.suggestion) {
+    out.suggestion = m.suggestion;
+    const n = (await kvGet('nutrition')) || {};
+    await db.put('kv', { key: 'nutrition', value: { ...n, targetSuggestion: { ...m.suggestion, date: new Date().toISOString().slice(0, 10) } } });
+  }
+  return out;
+}
+
+/**
+ * Lean-gain adaptive step (growth-assessment §0.5): ±150 kcal at most every 14 days, from the 7-day average weight now vs the
+ * 7-day average 14 days earlier, aiming at +0.25–0.5 kg/month. Only after the re-entry + regain runway (gainFrom, default
+ * 8 weeks after the re-entry start): before that a faster rise is normal (glycogen, water, muscle memory), so the only step
+ * is +150 when the average is FALLING > 0.25 kg/week. → null | {delta, change, rateMonth, from, to, days, title, reason, phase}
+ */
+export const GAIN_STEP = 150;
+export const GAIN_BAND = Object.freeze({ lo: 0.25, hi: 0.5 }); // kg / month
+export const GAIN_EVERY_DAYS = 14;
+export const REGAIN_DAYS = 56;
+export function gainSuggestion(weights = [], history = [], { today, gainFrom = null, reentryStart = null, snoozeUntil = null } = {}) {
+  const ws = (weights || []).filter((w) => w && isDayKey(w.day) && Number(w.kg) > 20).sort((a, b) => a.day.localeCompare(b.day));
+  const end = today || (ws.length ? ws[ws.length - 1].day : null);
+  if (!end || ws.length < 4) return null;
+  if (snoozeUntil && end < snoozeUntil) return null;
+  const last = (history || []).filter((x) => x && isDayKey(x.date)).sort((a, b) => b.date.localeCompare(a.date))[0];
+  if (last && diffDays(last.date, end) < GAIN_EVERY_DAYS) return null;
+  const avgIn = (from, to) => { const v = ws.filter((w) => w.day >= from && w.day <= to).map((w) => Number(w.kg)); return v.length >= 2 ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+  const now = avgIn(addDays(end, -6), end);
+  const before = avgIn(addDays(end, -20), addDays(end, -14));
+  if (now === null || before === null) return null;
+  const change = Math.round((now - before) * 100) / 100;
+  const rateMonth = Math.round(change * (30 / 14) * 100) / 100;
+  const startGain = gainFrom || (reentryStart && isDayKey(reentryStart) ? addDays(reentryStart, REGAIN_DAYS) : null);
+  const regain = !!startGain && end < startGain;
+  const base = { change, rateMonth, from: Math.round(before * 10) / 10, to: Math.round(now * 10) / 10, days: 14, phase: regain ? 'regain' : 'gain' };
+  const kgTxt = (x) => `${Math.abs(x).toFixed(2).replace(/0$/, '')}`;
+  if (regain) {
+    if (change / 2 < -0.25) return { ...base, delta: GAIN_STEP, title: `زوّد ${GAIN_STEP} سعرة`, reason: `متوسط وزنك نزل ${kgTxt(change)} كجم في أسبوعين وإنت لسه في فترة الرجوع. الزيادة هنا طبيعية، النزول معناه عجز كبير.` };
+    return null;
+  }
+  if (rateMonth < GAIN_BAND.lo) return { ...base, delta: GAIN_STEP, title: `زوّد ${GAIN_STEP} سعرة`, reason: `متوسط وزنك اتغيّر ${change >= 0 ? '+' : '−'}${kgTxt(change)} كجم في أسبوعين (≈ ${rateMonth.toFixed(2)} كجم في الشهر). الهدف +0.25 لـ +0.5 كجم في الشهر.` };
+  if (rateMonth > GAIN_BAND.hi) return { ...base, delta: -GAIN_STEP, title: `قلّل ${GAIN_STEP} سعرة`, reason: `متوسط وزنك زاد ${kgTxt(change)} كجم في أسبوعين (≈ ${rateMonth.toFixed(2)} كجم في الشهر). أكتر من +0.5 في الشهر أغلبه دهون.` };
+  return null;
 }

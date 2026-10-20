@@ -10,6 +10,7 @@ import { loadTargets } from '../../app/day.js';
 import { openWeightSheet, latestWeight } from './weight.js';
 import { exportNow, pickAndImport } from './backup-ui.js';
 import { renderMigrate } from './migration.js';
+import { renderWelcome } from './onboarding.js';
 
 const DAYS = [[6, 'السبت'], [0, 'الأحد'], [1, 'الاتنين'], [2, 'التلات'], [3, 'الأربع'], [4, 'الخميس'], [5, 'الجمعة']];
 const AGE_DEFAULT = 27;
@@ -85,7 +86,11 @@ function targetsBlock(ctx, targets, type) {
   });
   const reset = h('button', { type: 'button', class: 'btn ghost sm' }, 'رجّع الافتراضي');
   reset.addEventListener('click', () => { const d = DEFAULT_TARGETS[type]; for (const k of Object.keys(ins)) ins[k].value = d[k]; check(); });
-  return h('div', { class: 'tblock' }, h('h3', {}, type === 'training' ? 'يوم التمرين' : type === 'heart' ? 'يوم القلب' : 'يوم الراحة'), grid, note, h('div', { class: 'btn-row' }, save, reset));
+  const name = type === 'training' ? 'يوم التمرين' : type === 'heart' ? 'يوم القلب' : 'يوم الراحة';
+  // one line per day type; the 4 fields open only on «عدّل» (set once, rarely changed)
+  return h('details', { class: 'tblock' },
+    h('summary', {}, h('span', { class: 'grow' }, h('b', {}, name), h('small', { class: 'num' }, `${fmt(t.kcal)} سعرة · بروتين ${fmt(t.p)} · كارب ${fmt(t.c)} · دهون ${fmt(t.f)} جم`)), h('span', { class: 'tedit' }, 'عدّل')),
+    grid, note, h('div', { class: 'btn-row' }, save, reset));
 }
 
 async function renderProfile(el, ctx) {
@@ -108,6 +113,31 @@ async function renderProfile(el, ctx) {
     try { await db.put('profile', { ...prof, key: 'me', age: n }); ctx.toast('اتحفظ السن'); } catch { ctx.toast('ماقدرناش نحفظ — جرّب تاني.'); }
   });
   ageIn.addEventListener('input', () => { age.err.textContent = ''; ageIn.removeAttribute('aria-invalid'); });
+  const ht = field('p-height', 'الطول (سم)', numInput(prof.heightCm ?? ''), '');
+  const htIn = ht.el.querySelector('input');
+  htIn.addEventListener('blur', async () => {
+    if (!htIn.value.trim()) return;
+    const n = parseNum(htIn.value);
+    if (!Number.isFinite(n) || n < 120 || n > 230) { ht.err.textContent = 'اكتب الطول بالسنتيمتر بين 120 و 230'; htIn.setAttribute('aria-invalid', 'true'); return; }
+    ht.err.textContent = ''; htIn.removeAttribute('aria-invalid');
+    if (Math.round(n) === prof.heightCm) return;
+    prof.heightCm = Math.round(n);
+    try { await db.put('profile', { ...prof, key: 'me', heightCm: prof.heightCm }); ctx.toast('اتحفظ الطول'); } catch { ctx.toast('ماقدرناش نحفظ — جرّب تاني.'); }
+  });
+  htIn.addEventListener('input', () => { ht.err.textContent = ''; htIn.removeAttribute('aria-invalid'); });
+
+  // returning after a break: first 2 weeks lighter (workout reads settings 'wk.reentry')
+  const re = ctx.settings.get('wk.reentry');
+  const reOn = !!(re && re.startDay);
+  const reSw = h('input', { type: 'checkbox', id: 'p-reentry', role: 'switch', checked: reOn ? true : null });
+  const reHint = h('span', { class: 'hint', id: 'p-reentry-h' }, reOn ? `من ${re.startDay} لمدة ${re.weeks || 2} أسبوع: أوزان أخف ومجموعات أقل` : 'لو راجع بعد 3 شهور أو أكتر من غير تمرين');
+  reSw.setAttribute('aria-describedby', 'p-reentry-h');
+  reSw.addEventListener('change', async () => {
+    const v = reSw.checked ? { startDay: ctx.today(), weeks: 2 } : null;
+    await ctx.settings.set('wk.reentry', v);
+    reHint.textContent = v ? `من ${v.startDay} لمدة أسبوعين: أوزان أخف ومجموعات أقل` : 'لو راجع بعد 3 شهور أو أكتر من غير تمرين';
+    ctx.toast(v ? 'أسبوع رجوع اتفعّل' : 'أسبوع رجوع اتقفل');
+  });
 
   // training days
   const td = new Set(ctx.settings.get('trainingDays'));
@@ -173,17 +203,20 @@ async function renderProfile(el, ctx) {
         h('div', { class: 'grow' }, h('b', {}, name || 'ملفك الشخصي'),
           h('small', {}, `${countText(td.size, 'day')} تمرين في الأسبوع`)),
         h('div', { class: 'pstat' }, h('span', { class: 'num' }, kgText), h('small', {}, 'آخر وزن'))),
-      section('s-body', 'الجسم', 'scale', h('div', { class: 'sheet-card plist' }, wRow), h('div', { class: 'sheet-card pform' }, age.el)),
-      section('s-days', 'أيام التمرين', 'dumbbell', h('div', { class: 'sheet-card pform' }, tdChips, tdNote)),
-      section('s-pal', 'ألوان البرنامج', 'spark', h('div', { class: 'sheet-card pform' }, paletteChips(ctx), h('p', { class: 'hint' }, 'نفس التصميم بألوان مختلفة · بيتغيّر على طول'))),
-      section('s-targets', 'الأهداف اليومية', 'food', h('p', { class: 'hint' }, 'كل نوع يوم ليه هدفه. السعرات المفروض تساوي 4×بروتين + 4×كارب + 9×دهون.'),
+      section('s-body', 'الجسم', 'scale', h('div', { class: 'sheet-card plist' }, wRow), h('div', { class: 'sheet-card pform' }, h('div', { class: 'fgrid' }, age.el, ht.el))),
+      section('s-days', 'التمرين', 'dumbbell', h('div', { class: 'sheet-card pform' }, h('p', { class: 'lbl' }, 'أيام الحديد'), tdChips, tdNote,
+        h('label', { class: 'pswitch', for: 'p-reentry' }, h('span', {}, 'راجع بعد انقطاع', reHint), reSw, h('i', { 'aria-hidden': 'true' })))),
+      section('s-targets', 'أهداف الأكل', 'food', h('p', { class: 'hint' }, 'كل نوع يوم ليه هدفه. اضغط «عدّل» لو عايز تغيّر.'),
         h('div', { class: 'sheet-card' }, targetsBlock(ctx, targets, 'training'), targetsBlock(ctx, targets, 'heart'), targetsBlock(ctx, targets, 'rest'))),
       section('s-ai', 'المدرب الذكي', 'spark', h('div', { class: 'sheet-card pform' }, key.el, h('div', { class: 'btn-row wrap' }, saveKey, testKey, showKey), keyMsg)),
       section('s-data', 'البيانات', 'download', h('div', { class: 'sheet-card plist' }, ...backupRows)),
+      section('s-pal', 'المظهر', 'spark', h('details', { class: 'sheet-card pform pfold' }, h('summary', {}, h('span', { class: 'grow' }, 'ألوان البرنامج'), h('span', { class: 'tedit' }, 'غيّر')),
+        paletteChips(ctx), h('p', { class: 'hint' }, 'نفس التصميم بألوان مختلفة · بيتغيّر على طول'))),
     ));
 }
 
 export const routes = {
   profile: renderProfile,
   'profile/migrate': (el, ctx) => renderMigrate(el, ctx),
+  'profile/welcome': (el, ctx, params) => renderWelcome(el, ctx, params),
 };

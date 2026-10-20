@@ -231,3 +231,16 @@ export async function foodFromAI(ctx, name) {
   const r = await aiClient(ctx).chat([{ role: 'user', content: prompt }], {});
   return parseAIFood(r.text);
 }
+
+/**
+ * The one weight-based target suggestion for the ledger alert and the targets screen:
+ * the parked custom-target suggestion from the v2 migration (kv nutrition.targetSuggestion) first, else the
+ * lean-gain step (core gainSuggestion, re-entry aware). → null | {delta, title, reason, from?, to?, targets?, kind?}
+ */
+export async function weightSuggestion(ctx, profile, nkv, today) {
+  const ts = nkv && nkv.targetSuggestion;
+  if (ts && ts.targets && !ts.dismissed && !(nkv.adaptiveSnoozeUntil && today < nkv.adaptiveSnoozeUntil)) return { ...ts, kind: ts.kind || 'body' };
+  const { gainSuggestion } = await import('../../core/targets.js');
+  const re = ctx.settings.get('wk.reentry');
+  return gainSuggestion(profile.weights, (nkv && nkv.adjustmentHistory) || [], { today, reentryStart: re && re.startDay ? re.startDay : null, snoozeUntil: (nkv && nkv.adaptiveSnoozeUntil) || null });
+}

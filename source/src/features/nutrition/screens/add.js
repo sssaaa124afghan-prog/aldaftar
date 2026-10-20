@@ -7,7 +7,7 @@ import { pop, haptic } from '../../../ui/anim.js';
 import { isDayKey } from '../../../core/date.js';
 import { validateQty } from '../../../core/targets.js';
 import {
-  SECTIONS, SECTION_LABEL, sectionForHour, searchFoods, suggestionsFor, makeEntry, quickEntry, validBarcode, offUrl, parseOFF, findByBarcode,
+  SECTIONS, SECTION_LABEL, sectionForHour, searchFoods, suggestionsFor, typicalQty, makeEntry, quickEntry, validBarcode, offUrl, parseOFF, findByBarcode,
   entryFromAIItem, fatEntry, pushPhotoHistory,
 } from '../logic.js';
 import { kvGet, kvPatch, loadCatalog, loadUsage, saveFood, addEntries, rememberQty, aiClient, aiErrorText, dayLabel, relDay, fileToJpeg, hasAIKey, isOnline, foodFromAI } from '../data.js';
@@ -48,13 +48,16 @@ export async function addScreen(el, ctx, params) {
     try { e = makeEntry(food, qq, section); } catch (x) { return x.message; }
     const ok = await addEntries(ctx, day, [e, ...extra], extra.length ? `اتسجّل ${food.name} + ${extra.length === 1 ? 'دهون مضافة' : 'دهون مضافة'}` : undefined);
     if (!ok) return 'ماقدرناش نحفظ دلوقتي. جرّب تاني.';
-    lastQty[food.id] = qq; rememberQty(ctx.db, food.id, qq);
+    lastQty[food.id] = qq; justNow[food.id] = qq; rememberQty(ctx.db, food.id, qq);
     return null;
   };
 
+  // portion for this meal: what you logged in this meal before (eggs at breakfast ≠ chicken at lunch), else the last quantity
+  const justNow = {};
+  const qtyFor = (f) => justNow[f.id] || typicalQty(usage, f, section) || lastQty[f.id];
   const pick = (food, presetQty = null) => {
     const unit = food.unit || 'جرام';
-    const def = presetQty || lastQty[food.id] || (/جرام|مل/.test(unit) ? (food.per && food.per !== 1 ? food.per : 100) : 1);
+    const def = presetQty || qtyFor(food) || (/جرام|مل/.test(unit) ? (food.per && food.per !== 1 ? food.per : 100) : 1);
     qtySheet(ctx, {
       title: food.name, sub: `لكل ${fmt(food.per)} ${unit}: ${fmt(food.kcal)} سعرة · ${fmt(food.p)} بروتين${food.fiber ? ` · ${fmt(food.fiber)} ألياف` : ''}`, unit, qty: def,
       favorite: food.id ? { on: !!favs()[food.id], toggle: (on) => toggleFav(food, on) } : null,
@@ -70,12 +73,12 @@ export async function addScreen(el, ctx, params) {
   };
 
   const quick = async (f) => {
-    const qq = lastQty[f.id] || (/جرام|مل/.test(f.unit || 'جرام') ? (f.per && f.per !== 1 ? f.per : 100) : 1);
+    const qq = qtyFor(f) || (/جرام|مل/.test(f.unit || 'جرام') ? (f.per && f.per !== 1 ? f.per : 100) : 1);
     const msg = await logFood(f, qq);
     if (msg) ctx.toast(msg);
   };
   const row = (f, withQuick = false) => foodRow(f, { onPick: pick, fav: !!favs()[f.id], onQuick: withQuick ? quick : null,
-    quickLabel: `سجّل ${f.name} ${fmt(lastQty[f.id] || (/جرام|مل/.test(f.unit || 'جرام') ? 100 : 1))} ${f.unit || 'جرام'} في ${SECTION_LABEL[section]}` });
+    quickLabel: `سجّل ${f.name} ${fmt(qtyFor(f) || (/جرام|مل/.test(f.unit || 'جرام') ? 100 : 1))} ${f.unit || 'جرام'} في ${SECTION_LABEL[section]}` });
 
   const fastCard = (fp, raw) => {
     const e = (() => { try { return makeEntry(fp.food, fp.qty, fp.section || section); } catch { return null; } })();

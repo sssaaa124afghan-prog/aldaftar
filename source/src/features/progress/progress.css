@@ -233,3 +233,16 @@
   #pg-print .pg-report li{color:#000}
   @page{size:A4;margin:10mm}
 }
+
+/* «الأسبوع ده» first; section chips + period in one row; 44 px «?» targets */
+.pg-thisweek{display:flex;flex-direction:column;gap:12px}
+.pg-thisweek .pg-grid4{grid-template-columns:repeat(2,1fr)}
+@media (min-width:420px){.pg-thisweek .pg-grid4:not(.pg-grid2){grid-template-columns:repeat(4,1fr)}}
+.pg-fig4 em.pg-wd{font-weight:600}
+.pg-fig4 em.pg-wd.up{color:var(--carb,#86EFAC)}
+.pg-fig4 em.pg-wd.down{color:var(--fat,#FBCFE8)}
+.pg-nav{align-items:center}
+.pg-nav .pg-seg{flex:none;margin-inline-end:4px}
+.pg-nav a,.pg-nav .pg-seg button{min-height:40px}
+.pg-info::after{inset:-8px}
+.pg-info{width:28px;height:28px}

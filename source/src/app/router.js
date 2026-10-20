@@ -1,6 +1,8 @@
 // Hash router: #/<route>?k=v. Feature modules are lazy chunks found by glob (missing ones → quiet placeholder).
 import { h, raw } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
+import { needsOnboarding, markOnboardingSeen } from './onboarding-gate.js';
+import { runTargetsMigration } from '../core/targets.js';
 
 const loaders = import.meta.glob('../features/*/index.js');
 const mods = new Map();
@@ -57,13 +59,26 @@ function markTab(nav, feature) {
 /** startRouter({view, nav, getCtx}) — renders on every hash change. */
 export function startRouter({ view, nav, ctx }) {
   let cleanup = null; let seq = 0; let first = true; let lastRoute = null;
+  // targets v2 (lean-gain defaults 2850/2550/2350, height 175): once per install, no-op afterwards
+  runTargetsMigration(ctx.db).then((r) => {
+    if (!r) return;
+    if (r.changed) ctx.emit('settings:changed', { key: 'targets' });
+    if (r.toast) ctx.toast(r.toast, { ms: 8000 });
+  }).catch((e) => console.warn('[boot] targets migration failed', e && e.message));
   async function render() {
     const my = ++seq;
     const cur = parseHash().route;
     if (lastRoute !== null && cur !== lastRoute) window.dispatchEvent(new CustomEvent('app:route-leave', { detail: { route: cur } })); // close open sheets
     lastRoute = cur;
     if (seq > 1) { const th = document.querySelector('.toast-host'); if (th && Date.now() - Number(th.dataset.t || 0) > 1500) th.textContent = ''; }
-    const { route, params } = parseHash();
+    let { route, params } = parseHash();
+    // fresh install → first-run onboarding instead of Today (home-screen shortcuts with ?quick=1 go straight to their action)
+    if (route === 'today' && !params.quick && await needsOnboarding(ctx)) {
+      if (my !== seq) return;
+      markOnboardingSeen(ctx);
+      history.replaceState(null, '', '#/profile/welcome');
+      route = 'profile/welcome'; params = {}; lastRoute = route;
+    }
     const feature = route.split('/')[0];
     markTab(nav, feature);
     let fn = null;
@@ -104,7 +119,7 @@ export function startRouter({ view, nav, ctx }) {
 // Floating «اسأل المدرب» button on every main screen (hidden where it would clash: live session, coach, migration).
 let fab = null;
 function syncCoachFab(route, ctx) {
-  const hide = /^(coach|nutrition\/coach|workout\/session|workout\/recovery|profile\/migrate)/.test(route);
+  const hide = /^(coach|nutrition\/coach|workout\/session|workout\/recovery|profile\/migrate|profile\/welcome)/.test(route);
   if (!fab) {
     fab = h('button', { type: 'button', class: 'coach-fab', 'aria-label': 'اسأل المدرب', title: 'اسأل المدرب' });
     fab.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>المدرب</span>';

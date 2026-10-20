@@ -81,11 +81,11 @@ test('add / remove: MRV on add, MEV warning on remove, superset partner cleaned 
   const p = base();
   const add = planChange(p, { type: 'workout.addExercise', day: 'lowerB', exId: 'ex43', sets: 10, reps: '8-12' }, { today: TODAY });
   assert.equal(add.ok, false); assert.match(add.error, /الحد الأقصى/);
-  const ok = planChange(p, { type: 'workout.addExercise', day: 'upperB', exId: 'ex30', sets: 2, reps: '10-15', pairWith: 'ub6b' }, { today: TODAY });
+  const ok = planChange(p, { type: 'workout.addExercise', day: 'upperB', exId: 'ex30', sets: 2, reps: '10-15', pairWith: 'ubOCT' }, { today: TODAY });
   assert.equal(ok.ok, true);
   const items = ok.next.days.upperB.items;
   const i = items.findIndex((x) => x.lib === 'ex30');
-  assert.equal(items[i].ss, 'D'); assert.equal(items[i - 1].id, 'ub6b', 'placed right after its superset group');
+  assert.equal(items[i].ss, 'D'); assert.equal(items[i - 1].id, 'ubOCT', 'placed right after its superset group');
   const long = planChange(p, { type: 'workout.addExercise', day: 'upperA', exId: 'ex30', sets: 3, reps: '10-15' }, { today: TODAY });
   assert.ok(long.ok && long.minutes.after > 60 && long.warnings.some((w) => /60/.test(w)), `time warning past 60 min ${JSON.stringify(long.minutes)}`);
   const rm = planChange(p, { type: 'workout.removeExercise', day: 'lowerA', exId: 'la5a' }, { today: TODAY });

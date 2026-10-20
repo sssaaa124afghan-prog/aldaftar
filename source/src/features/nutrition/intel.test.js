@@ -208,3 +208,27 @@ test('stemAr strips ال / plural suffixes; search still finds synonyms', () => 
   assert.equal(L.stemAr('البيضات'), L.stemAr('بيض'));
   assert.ok(L.searchFoods(cat, 'الفراخ').some((f) => /فراخ/.test(f.name)));
 });
+
+test('smart suggestions respect the meal: no 400 g chicken at breakfast; your own breakfast foods at your usual portion', () => {
+  const cat = L.buildCatalog(FOODS, []);
+  const by = (n) => cat.find((f) => f.name === n);
+  const chicken = by('صدور فراخ مشوية'), egg = by('بيضة كاملة'), whey = by('واي بروتين سكوب');
+  const t = { kcal: 2550, p: 160, c: 300, f: 70, type: 'training' };
+  const days = Array.from({ length: 6 }, (_, i) => ({ day: `2026-10-${String(10 + i).padStart(2, '0')}`, entries: [
+    { foodId: chicken.id, name: chicken.name, qty: 250, section: 'lunch' },
+    { foodId: egg.id, name: egg.name, qty: 4, section: 'breakfast' },
+    { foodId: whey.id, name: whey.name, qty: 1, section: 'breakfast' }] }));
+  const usage = L.computeUsage(days);
+  assert.equal(usage.get(egg.id).secQty.breakfast, 4);
+  const intake = { kcal: 0, p: 0, c: 0, f: 0 };
+  const bf = L.smartSuggestions(cat, usage, intake, t, { dayType: 'training', section: 'breakfast' });
+  assert.ok(bf.items.length > 0);
+  assert.ok(!bf.items.some((x) => /فراخ|دجاج|لحم|سمك|تونة/.test(x.food.name)), bf.items.map((x) => x.food.name).join(' | '));
+  const e = bf.items.find((x) => x.food.id === egg.id);
+  assert.ok(e && e.qty === 4, 'eggs at the usual 4');
+  for (const x of bf.items) if (!x.inSection && /جرام/.test(x.food.unit)) assert.ok(x.qty <= L.SECTION_CAP.breakfast.g);
+  // lunch: chicken at the usual 250 g, ranked first
+  const lu = L.smartSuggestions(cat, usage, intake, t, { dayType: 'training', section: 'lunch' });
+  assert.equal(lu.items[0].food.id, chicken.id); assert.equal(lu.items[0].qty, 250);
+  assert.equal(L.typicalQty(usage, egg, 'breakfast'), 4);
+});

@@ -67,7 +67,9 @@ export function renderMigrate(el, ctx) {
     ctx.emit('food:changed', {}); ctx.emit('session:changed', {}); ctx.emit('weight:changed', {});
     const c = (r.report && r.report.counts) || {};
     ctx.toast(`اتنقل ${fmt(c.sessions || 0)} جلسة و ${fmt(c.meals || 0)} وجبة`);
-    ctx.go('today');
+    // then the two onboarding questions the old apps never asked (training days, returning after a break); once only
+    if (!ctx.settings.get('onboarded') && !ctx.settings.get('ob.seen')) { try { ctx.settings.set('ob.seen', true); } catch { /* ignore */ } ctx.go('profile/welcome', { from: 'migrate' }); }
+    else ctx.go('today');
   });
   later.addEventListener('click', () => { try { sessionStorage.setItem(DEFER, '1'); } catch { /* ignore */ } ctx.go('today'); });
   fileBtn.addEventListener('click', () => pickAndImport(ctx, { after: async () => { await runMigrationOnce(null, ctx.db).catch(() => null); ctx.go('today'); } }));

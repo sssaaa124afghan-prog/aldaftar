@@ -76,35 +76,68 @@ export function stemAr(w) {
 }
 const stem = stemAr;
 
-function wordMatches(qw, fw) {
-  if (fw === qw || fw.startsWith(qw) || qw.startsWith(fw)) return true;
-  if (qw.length > 2 && fw.includes(qw)) return true;
-  const sq = stem(qw), sf = stem(fw);
-  return sq.length > 1 && sq === sf;
+// Multi-word synonyms whose words mean something else on their own («لبن رايب» is yoghurt, «لبن» alone is milk).
+// In food names they are read as one token, so «لبن» never counts as a whole-word hit on «لبن رايب».
+const COMPOUNDS = SYNONYMS.flatMap((g) => g.filter((w) => w.includes(' ') && !w.split(' ').some((p) => g.includes(p))));
+function tokensOf(n) {
+  let s = n;
+  for (const c of COMPOUNDS) if (s.includes(c)) s = s.split(c).join(c.replace(/ /g, '_'));
+  return s.split(' ').filter(Boolean);
+}
+// synonyms by the word itself or without the article («الفراخ» → فراخ); never by the full stem, so «لبنة» does not pull in milk
+const altsOf = (qw) => { const w = qw.replace(/_/g, ' '); return SYN.get(w) || (w.length > 3 && SYN.get(w.replace(/^(?:وال|بال|فال|كال|لل|ال)/, ''))) || [w]; };
+/** The everyday meaning of a one-word query (Egyptian usage): «لبن» = whole milk, «رز» = white rice. Small tie-break bonus. */
+export const EVERYDAY = Object.freeze({ 'لبن': 'حليب كامل الدسم', 'حليب': 'حليب كامل الدسم', 'بيض': 'بيضه كامله', 'رز': 'ارز ابيض مطبوخ', 'ارز': 'ارز ابيض مطبوخ',
+  'عيش': 'عيش بلدي', 'شوفان': 'شوفان جاف', 'واي': 'واي بروتين سكوب', 'زبادي': 'زبادي عادي' });
+
+/**
+ * How well one query word matches one food-name token, 0..1.
+ * whole word 1 · same stem .9 (.7 when only ة differs) · inside a compound with another meaning .45 · prefix .4 · food word is a prefix .35 · substring .3
+ */
+function wordQuality(a, fw) {
+  if (fw === a) return 1;
+  if (fw.includes('_')) return fw.split('_').includes(a) ? 0.45 : fw.startsWith(a) ? 0.4 : 0;
+  const sa = stem(a);
+  // same stem: plural / article (.9); a word that differs only by ة is often another food (لبن ≠ لبنة) → .7, unity nouns live in SYNONYMS
+  if (sa.length > 1 && sa === stem(fw)) return (fw === `${a}ه` || a === `${fw}ه`) ? 0.7 : 0.9;
+  if (fw.startsWith(a)) return 0.4;
+  if (fw.length >= 3 && a.startsWith(fw)) return 0.35;
+  if (a.length > 2 && fw.includes(a)) return 0.3;
+  return 0;
 }
 
-/** Score 0..100 of one food against a normalised query. */
+/**
+ * Score 0..100 of one food against a normalised query.
+ * 100 exact name · 88–98 every query word is a whole word (or synonym / same stem) of the name; +5 when the
+ * name starts with it, −1 per extra word · ≤ 83 only ة differs («لبن» → «لبنة») · ≤ 74 prefix / substring · ≤ 50 some words.
+ */
 export function scoreFood(food, q) {
   if (!q) return 0;
   const names = [food._n || normalizeAr(food.name), ...(food.aliases || []).map(normalizeAr)];
+  const qWords = tokensOf(q).filter((w) => w.length > 1 || /\d/.test(w));
   let best = 0;
   for (const n of names) {
     if (n === q) return 100;
-    if (n.startsWith(q)) best = Math.max(best, 92);
-    else if (n.includes(q)) best = Math.max(best, 85);
+    if (!qWords.length) { if (n.startsWith(q)) best = Math.max(best, 50); continue; }
+    const fT = tokensOf(n);
+    const padded = ` ${n} `;
+    let sum = 0, hit = 0, lead = false;
+    qWords.forEach((qw, i) => {
+      let bq = 0, bj = -1;
+      for (const alt of altsOf(qw)) {
+        if (alt.includes(' ')) { if (padded.includes(` ${alt} `) && bq < 1) { bq = 1; bj = fT.findIndex((t) => t.startsWith(alt.split(' ')[0])); } continue; }
+        fT.forEach((fw, j) => { const m = wordQuality(alt, fw); if (m > bq || (m === bq && m > 0 && j < bj)) { bq = m; bj = j; } });
+      }
+      if (bq > 0) { hit++; sum += bq; if (i === 0 && bj === 0 && bq >= 0.9) lead = true; }
+    });
+    if (!hit) continue;
+    const s = hit === qWords.length
+      ? 62 + 30 * (sum / hit) + (lead ? 5 : 0) - Math.min(4, Math.max(0, fT.length - qWords.length))
+      : 55 * (sum / qWords.length) - 5;
+    best = Math.max(best, Math.min(98, Math.round(s)));
   }
-  if (best) return best;
-  const qWords = q.split(' ').filter((w) => w.length > 1);
-  if (!qWords.length) return 0;
-  for (const n of names) {
-    const fWords = n.split(' ');
-    let hit = 0;
-    for (const qw of qWords) {
-      const alts = SYN.get(qw) || SYN.get(stem(qw)) || [qw];
-      if (alts.some((a) => fWords.some((fw) => wordMatches(a, fw)))) hit++;
-    }
-    if (hit) best = Math.max(best, Math.round(70 * (hit / qWords.length)) - (hit < qWords.length ? 10 : 0));
-  }
+  const ev = qWords.length === 1 && EVERYDAY[qWords[0]];
+  if (ev && best >= 88 && names[0].startsWith(ev)) best = Math.min(99, best + 3);
   return best;
 }
 
@@ -112,7 +145,7 @@ export function scoreFood(food, q) {
 export const foodKey = (f) => (f && f.foodId) || (f && f.id && !String(f.id).startsWith('e:') && !String(f.id).startsWith('n:') ? f.id : `n:${normalizeAr(f && f.name)}`);
 
 /**
- * Usage stats from food log days: Map(key → {count, last, lastQty, sections:{key:count}, hours:{h:count}})
+ * Usage stats from food log days: Map(key → {count, last, lastQty, sections:{key:count}, secQty:{key:qty}, secLast:{key:day}})
  * days: [{day, entries}] (any order).
  */
 export function computeUsage(days = []) {
@@ -121,16 +154,25 @@ export function computeUsage(days = []) {
     for (const e of (d && d.entries) || []) {
       const keys = new Set([e.foodId, `n:${normalizeAr(e.name)}`].filter(Boolean));
       for (const k of keys) {
-        const u = m.get(k) || { count: 0, last: '', lastQty: null, sections: {} };
+        const u = m.get(k) || { count: 0, last: '', lastQty: null, sections: {}, secQty: {}, secLast: {} };
         u.count++;
         if (d.day >= u.last) { u.last = d.day; if (e.qty > 0) u.lastQty = e.qty; }
         const s = sectionOf(e);
         u.sections[s] = (u.sections[s] || 0) + 1;
+        // typical portion per meal: the latest quantity logged in that meal
+        if (e.qty > 0 && d.day >= (u.secLast[s] || '')) { u.secLast[s] = d.day; u.secQty[s] = e.qty; }
         m.set(k, u);
       }
     }
   }
   return m;
+}
+
+/** Typical portion of a food in a meal: your last quantity in that meal, else your last quantity anywhere, else null. */
+export function typicalQty(usage, f, section) {
+  const u = usageOf(usage, f);
+  if (!u) return null;
+  return (section && u.secQty && u.secQty[section]) || u.lastQty || null;
 }
 
 const usageOf = (usage, f) => (usage && (usage.get(f.id) || usage.get(`n:${f._n || normalizeAr(f.name)}`))) || null;
@@ -176,7 +218,8 @@ export function searchFoods(catalog, query, { usage = null, limit = 30 } = {}) {
     const s = scoreFood(f, q);
     if (s >= 35) {
       const u = usageOf(usage, f);
-      scored.push({ f, s: s + (u ? Math.min(8, u.count) : 0), u });
+      // your frequent foods first, but only inside the same match class: a prefix hit (≤ 74 + 6) never beats a whole word (≥ 88)
+      scored.push({ f, s: s + (u && s >= 60 ? Math.min(6, u.count) : 0), u });
     }
   }
   scored.sort((a, b) => b.s - a.s || (b.u?.count || 0) - (a.u?.count || 0) || (b.u?.last || '').localeCompare(a.u?.last || '') || a.f.name.length - b.f.name.length);
@@ -594,7 +637,13 @@ export function eodRecap(intake, t, ranges, { hour = 0, isToday = true, waterMl 
  * Local, no AI. Mode: protein gap > 15 g → protein foods; else kcal gap > 150 → balanced; else carbs on a training day.
  * Only foods whose suggested portion fits inside the remaining kcal. The user's own frequent foods and favorites rank first.
  */
-export function smartSuggestions(catalog, usage, intake, t, { dayType = 'rest', favorites = {}, limit = 3 } = {}) {
+// From the default list, breakfast/snack only offers breakfast-type foods (eggs, dairy, whey, oats, beans, bread, fruit);
+// anything else needs your own history in that meal. [opinion: Egyptian meal habits]
+const LIGHT_MEAL = /بيض|واي|بروتين بار|زبادي|لبن|حليب|جبن|قريش|لبنه|شوفان|فول|طعميه|توست|عيش|خبز|موز|تمر|تفاح|عسل|زبده فول|مكسرات|لوز/;
+/** Largest portion suggested per meal when there is no history for that food in that meal. */
+export const SECTION_CAP = Object.freeze({ breakfast: { g: 200, n: 4 }, snack: { g: 150, n: 2 }, lunch: { g: 300, n: 4 }, dinner: { g: 300, n: 4 } });
+
+export function smartSuggestions(catalog, usage, intake, t, { dayType = 'rest', favorites = {}, limit = 3, section = null } = {}) {
   const remP = t.p - intake.p, remK = t.kcal - intake.kcal, remC = (t.c || 0) - (intake.c || 0);
   const mode = remP > 15 ? 'p' : remK > 150 ? 'kcal' : remC > 30 && dayType === 'training' ? 'c' : null;
   if (!mode || remK <= 0) return { mode: null, items: [] };
@@ -607,13 +656,21 @@ export function smartSuggestions(catalog, usage, intake, t, { dayType = 'rest', 
     const count = u ? u.count : 0;
     const fav = !!(favorites && favorites[f.id]);
     if (!count && !fav && f.cat !== (mode === 'c' ? 'كارب' : 'بروتين')) continue;
+    // meal-aware: your own history in this meal first; a food you eat often but never in this meal is skipped,
+    // and main dishes are not offered at breakfast/snack from the default list
+    const inSec = section && u ? (u.sections[section] || 0) : 0;
+    if (section && count >= 2 && !inSec && !fav) continue;
+    if (section && !inSec && (section === 'breakfast' || section === 'snack') && !LIGHT_MEAL.test(f._n || normalizeAr(f.name))) continue;
+    const typical = section && u && inSec ? (u.secQty && u.secQty[section]) || u.lastQty : null;
+    const cap = section ? SECTION_CAP[section] : null;
     const perUnit = { kcal: f.kcal / per, p: (f.p || 0) / per, c: (f.c || 0) / per };
     let qty;
     if (mode === 'p') { if (perUnit.p * per < 5 || (f.p * 4) / f.kcal < 0.25) continue; qty = remP / perUnit.p; }
     else if (mode === 'kcal') qty = remK / perUnit.kcal;
     else { if (perUnit.c <= 0) continue; qty = remC / perUnit.c; }
-    if (grams) qty = Math.max(30, Math.min(400, Math.round(qty / 10) * 10));
-    else qty = Math.max(1, Math.min(6, Math.round(qty)));
+    if (typical > 0) qty = typical;
+    else if (grams) qty = Math.max(30, Math.min(cap ? cap.g : 400, Math.round(qty / 10) * 10));
+    else qty = Math.max(1, Math.min(cap ? cap.n : 6, Math.round(qty)));
     let kcal = perUnit.kcal * qty;
     if (kcal > remK) {
       // shrink to fit the remaining kcal
@@ -626,7 +683,8 @@ export function smartSuggestions(catalog, usage, intake, t, { dayType = 'rest', 
     const got = mode === 'p' ? p : mode === 'kcal' ? kcal : perUnit.c * qty;
     const coverage = Math.min(100, Math.round((got / gap) * 100));
     const density = mode === 'p' ? (f.p * 4) / f.kcal : mode === 'c' ? ((f.c || 0) * 4) / f.kcal : 0.5;
-    out.push({ food: f, qty, kcal: r0(kcal), p: r0(p), coverage, count, fav, score: density * 2 + Math.min(count, 10) * 0.8 + (fav ? 3 : 0) + coverage / 100 });
+    out.push({ food: f, qty, kcal: r0(kcal), p: r0(p), coverage, count, fav, inSection: inSec,
+      score: density * 2 + Math.min(count, 10) * 0.8 + Math.min(inSec, 10) * 1.5 + (fav ? 3 : 0) + coverage / 100 });
   }
   out.sort((a, b) => b.score - a.score || a.food.name.length - b.food.name.length);
   const seen = new Set();

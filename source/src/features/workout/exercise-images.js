@@ -93,6 +93,8 @@ const MAP = {
   'exRWC': ['fdb', 'fdb-seated-palms-down-barbell-wrist-curl'],
   'exMHT': ['fdb', 'fdb-barbell-hip-thrust'],
   'exNECK': ['fdb', 'fdb-lying-face-up-plate-neck-resistance'],
+  'exLID': ['ek', '0061s'],
+  'exROE': ['fdb', 'fdb-cable-rope-overhead-triceps-extension'],
 };
 // <<< ex-img map
 

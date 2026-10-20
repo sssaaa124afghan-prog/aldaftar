@@ -66,11 +66,11 @@ test('weekly report lines are factual and calm', () => {
   assert.deepEqual(P.weekContext({ sessionsDone: 1, sessionsPlanned: 4, proteinDaysHit: 0, daysLogged: 0, avgKcal: null }, null).weightTrendKgPerWeek, null);
 });
 
-test('Heart Day (S2): the program weekday and a logged Heart Day use the 2300 kcal heart target, not lifting', () => {
+test('Heart Day (S2): the program weekday and a logged Heart Day use the default heart target (2550 kcal), not lifting', () => {
   const sessions = [{ id: 'h', kind: 'heart', mode: 'heart', day: '2026-10-25', durationS: 1800 }];
-  const foodLog = { '2026-10-24': [{ kcal: 2300, p: 160 }], '2026-10-25': [{ kcal: 2300, p: 160 }] };
+  const foodLog = { '2026-10-24': [{ kcal: 2550, p: 160 }], '2026-10-25': [{ kcal: 2550, p: 160 }] };
   const a = P.weekAdherence({ anchorDay: '2026-10-25', weekStartDow: 1, sessions, foodLog, targets: T, heartDow: 6 });
-  assert.equal(a.perDay[5].type, 'heart'); assert.equal(a.perDay[5].target.kcal, 2300); assert.equal(a.perDay[5].inRange, true);
+  assert.equal(a.perDay[5].type, 'heart'); assert.equal(a.perDay[5].target.kcal, 2550); assert.equal(a.perDay[5].inRange, true);
   assert.equal(a.perDay[6].type, 'heart'); // Sunday with a logged Heart Day
   assert.equal(a.sessionsDone, 0); // never a lifting session
   assert.equal(P.weekAdherence({ anchorDay: '2026-10-25', sessions: [], foodLog, targets: T }).perDay[5].type, 'rest');

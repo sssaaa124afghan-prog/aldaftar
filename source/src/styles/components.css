@@ -41,7 +41,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;str
 .ring-wrap>.ring-c{position:absolute;inset:0;display:grid;place-content:center;text-align:center;font-weight:700}
 
 /* route transition: #view gets .route-in on every render (router.js); its direct children rise in sequence */
-#view.route-in>:not(.dock){animation:route-in var(--d-route) var(--ease-out) backwards}
+#view.route-in>:not(.dock):not(.ob){animation:route-in var(--d-route) var(--ease-out) backwards}
 #view.route-in>:nth-child(2){animation-delay:calc(var(--stagger)*1)}
 #view.route-in>:nth-child(3){animation-delay:calc(var(--stagger)*2)}
 #view.route-in>:nth-child(n+4){animation-delay:calc(var(--stagger)*3)}

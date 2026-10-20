@@ -73,10 +73,11 @@ CURATED = {
     'ex63': ('0021', 'high', 'lying leg raise'),
     'ex64': ('0286', 'medium', 'kneeling rollout with a barbell instead of a wheel'),
     'exADD': ('0157', 'high', 'thigh adductor machine'),
+    'exLID': ('0061', 'medium', 'incline DB press; drawing is a steeper incline than our 15° low incline'),
 }
 # Eccentric-first lifts: the movement STARTS in the contracted ("tension") drawing, so -a.webp (start) is built
 # from tension and -b.webp (end) from relaxation. Everything else starts at relaxation.
-SWAP = {'ex1', 'ex2', 'ex3', 'exFDP', 'ex35', 'ex5', 'ex6', 'ex7', 'ex39', 'ex38', 'ex37',
+SWAP = {'ex1', 'ex2', 'exLID', 'ex3', 'exFDP', 'ex35', 'ex5', 'ex6', 'ex7', 'ex39', 'ex38', 'ex37',
         'ex41', 'ex41b', 'ex45b', 'ex43', 'ex42', 'ex47'}
 # Checked and rejected (closest EK candidate shows a different movement or has no drawing).
 REJECTED = {
@@ -124,6 +125,7 @@ FDB_CURATED = {
     'exWC': ('Standing_Cable_Wood_Chop', 'high', 'high-to-low chop'),
     'exWCH': ('Standing_Cable_Wood_Chop', 'high', 'high-to-low chop'),
     'exPAL': ('Pallof_Press', 'medium', 'end photo is a close-up of the press-out'),
+    'exROE': ('Cable_Rope_Overhead_Triceps_Extension', 'high', 'standing, facing away from the low pulley, rope overhead'),
     'exNECK': ('Lying_Face_Up_Plate_Neck_Resistance', 'medium', 'plate-loaded neck flexion on a bench (extension is the face-down version)'),
 }
 # fedb photos whose order is reversed for our start/end (0.jpg shows the end position).

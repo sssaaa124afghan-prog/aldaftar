@@ -25,6 +25,7 @@ export async function saveProgram(db, program, prevRec) {
   const value = { key: 'current', v: 2, activeProgram: program.activeProgram, order: program.order, days: program.days };
   if (program.schedule && Object.keys(program.schedule).length) value.schedule = program.schedule;
   if (program.startDay) value.startDay = program.startDay;
+  if (Number.isInteger(program.tv) && program.tv > 0) value.tv = program.tv; // template version («تحديث الخطة»)
   // «برنامجي القديم»: the plan the user had before switching to the new default (null clears it)
   if (program.previous !== undefined) { if (program.previous) value.previous = program.previous; }
   else if (prevRec && prevRec.previous) value.previous = prevRec.previous;

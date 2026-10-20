@@ -1,6 +1,6 @@
 // Pure training logic (no DOM, no storage). Tested by logic.test.js.
 import { addDays, diffDays, weekStart, dayKey, weekday as weekdayOf } from '../../core/date.js';
-import { PROGRAMS, DEFAULT_PROGRAM, LIBRARY, VOL_LM, MUSCLE_LM, findLib, libById, enKey, muscleGroup, fineOf, isLowerMuscle } from './exercises.js';
+import { PROGRAMS, DEFAULT_PROGRAM, LIBRARY, VOL_LM, MUSCLE_LM, PLAN_UPDATES, findLib, libById, enKey, muscleGroup, fineOf, isLowerMuscle } from './exercises.js';
 import { PLATEAU_PROTOCOLS, MOBILITY_PREP, STATIONS } from './content.js';
 
 export const REST = Object.freeze({ compound: 150, isolation: 90 });
@@ -151,6 +151,8 @@ export const GATES = Object.freeze({
   bw: 'وزن جسمك نزل أكتر من 2 كجم — ثبّت الوزن وركز على البروتين',
   load: 'حمل التدريب عالي الأسبوع ده — ثبّت الوزن',
   phase: 'أسبوع تخفيف في الدورة — 90% من الوزن',
+  reentry: 'أسبوع الرجوع 1 — 80% من آخر وزن ومجموعات أقل، من غير فشل',
+  reentry2: 'أسبوع الرجوع 2 — 90% من آخر وزن ومجموعات أقل شوية',
 });
 const lighten = (w) => (w >= 20 ? roundTo(w * 0.9) : round1(w * 0.9));
 const avgRirOf = (sets) => { const v = sets.filter((t) => t.rir !== null && t.rir !== undefined && t.rir !== '').map((t) => +t.rir); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
@@ -378,6 +380,7 @@ export function normalizeProgram(rec) {
       const out = { v: 2, activeProgram: rec.activeProgram || 'custom', order, days };
       if (rec.schedule && typeof rec.schedule === 'object' && !Array.isArray(rec.schedule)) out.schedule = Object.fromEntries(Object.entries(rec.schedule).filter(([d, id]) => /^[0-6]$/.test(d) && days[id]));
       if (rec.startDay && /^\d{4}-\d{2}-\d{2}$/.test(rec.startDay)) out.startDay = rec.startDay;
+      if (Number.isInteger(rec.tv) && rec.tv > 0) out.tv = rec.tv;
       return out;
     }
   }
@@ -419,6 +422,8 @@ function normItem(e) {
     ...(+e.restS >= 15 && +e.restS <= 600 ? { restS: Math.round(+e.restS) } : {}),
     ...(e.rir && /^\d(-\d)?$/.test(String(e.rir)) ? { rir: String(e.rir) } : {}),
     ...(e.fill === true && e.ss ? { fill: true } : {}),
+    ...(e.note ? { note: String(e.note).slice(0, 160) } : {}),
+    ...(e.r1 && parseReps(e.r1) ? { r1: String(e.r1).slice(0, 20) } : {}),
   };
 }
 
@@ -427,6 +432,7 @@ export function fromTemplate(id, { startDay = null } = {}) {
   const p = { v: 2, activeProgram: t.id, order: [...t.order], days: Object.fromEntries(t.order.map((d) => [d, normDay(t.days[d], d)])) };
   if (t.schedule) p.schedule = Object.fromEntries(Object.entries(t.schedule).map(([k, v]) => [String(k), v]));
   if (startDay) p.startDay = startDay;
+  if (t.version) p.tv = t.version;
   return p;
 }
 /** Template flags for a program record (z2 after lifting, mesocycle, heart-day weekday). */
@@ -528,7 +534,8 @@ export function restRemaining(rest, now = Date.now()) {
 /** One live exercise from a plan item + history (shared by buildLive, add exercise and swap). */
 export function liveExercise(it, sessions, opts = {}) {
   const last = exposures(sessions, it)[0];
-  const p = prescribe(it, last?.ex, opts);
+  let p = prescribe(it, last?.ex, opts.reentry?.active ? { ...opts, lighter: false } : opts);
+  if (opts.reentry?.active) p = reentryAdjust(p, opts.reentry, { item: it, sets: !it.reSets });
   const ex = {
     exId: it.id, lib: it.lib || null, name: it.ar || displayName(it), en: it.en || '', muscle: it.muscle || '', kind: kindOf(it),
     reps: it.reps, ready: p.ready, inc: p.inc, gates: p.gates, from: p.from,
@@ -539,9 +546,11 @@ export function liveExercise(it, sessions, opts = {}) {
   if (+it.restS > 0) ex.restS = +it.restS;
   if (it.fill) ex.fill = true;
   if (it.rir) ex.rir = it.rir;
-  if (it.planNote) ex.planNote = String(it.planNote).slice(0, 160);
+  const pn = [it.planNote, it.note].filter(Boolean).join(' · ');
+  if (pn) ex.planNote = pn.slice(0, 240);
   if (p.mode) ex.mode = p.mode;
-  if (Number.isInteger(opts.week)) ex.rirT = rirTarget(it, opts.week);
+  if (opts.reentry?.active) ex.rirT = reentryRir(it, opts.reentry);
+  else if (Number.isInteger(opts.week)) ex.rirT = rirTarget(it, opts.week);
   const st = stallInfo(sessions, it);
   if (st.action) ex.stall = st;
   const lastNote = last?.ex?.note || (opts.notes && opts.notes[exKey(it)]) || '';
@@ -551,8 +560,10 @@ export function liveExercise(it, sessions, opts = {}) {
 
 /** Build a live session from plan items + history. */
 export function buildLive({ items, dayId, dayName, sessions, now = new Date(), deload = false, lighter = false, quick = false, program = null,
-  readiness = null, bwDrop = 0, load = null, phase = null, home = false, bw = 0, week = null, warm = null, warmNote = '', z2 = false, plan = null }) {
-  const opts = { deload, lighter, readiness, bwDrop, load, phase, bw, ...(Number.isInteger(week) ? { week } : {}) };
+  readiness = null, bwDrop = 0, load = null, phase = null, home = false, bw = 0, week = null, warm = null, warmNote = '', z2 = false, plan = null, reentry = null }) {
+  const re = reentry && reentry.active ? reentry : null;
+  if (re) { week = null; lighter = false; }
+  const opts = { deload, lighter, readiness, bwDrop, load, phase, bw, ...(Number.isInteger(week) ? { week } : {}), ...(re ? { reentry: re } : {}) };
   const exercises = items.map((it) => liveExercise(it, sessions, opts));
   // warm-up ramp for the first compound lift (W50): never counted in volume / PRs
   const first = exercises.find((e) => e.kind === 'compound');
@@ -569,6 +580,7 @@ export function buildLive({ items, dayId, dayName, sessions, now = new Date(), d
     cur: { ex: 0, set: 0 }, rest: null, exercises,
   };
   if (Number.isInteger(week)) live.week = week;
+  if (re) live.reentry = { week: re.week, of: re.of, startDay: re.startDay };
   if (z2) live.z2 = { plan: true };
   if (plan) live.plan = plan;
   return live;
@@ -1125,10 +1137,185 @@ export function rirPhrase(t) {
   return `سيب ${x} ${t.hi <= 1 && t.lo === t.hi ? 'عدّة' : 'عدّات'}`;
 }
 export const MESO_LABEL = Object.freeze(['', 'بداية', 'بناء', 'بناء', 'تقريب', 'ذروة', 'تخفيف']);
+/** Block number (1, 2, …) of the 6-week mesocycle from the plan start date; null without a start date or before it. */
+export function mesoBlock(startDay, today) {
+  if (!startDay || !today) return null;
+  let d; try { d = diffDays(startDay, today); } catch { return null; }
+  if (d < 0) return null;
+  return Math.floor(d / (7 * MESO_WEEKS)) + 1;
+}
+
+// ══ re-entry after a break (growth-assessment.md §0.4) ═══════════
+/**
+ * Two ramp weeks before the 6-week block after a long break (repeated-bout effect; Bickel 2011: low volume regrows
+ * previously trained muscle). Week 1: ~55% of the sets, RIR 4 compounds / 3 isolations, ~80% of the last logged load.
+ * Week 2: ~75%, RIR 3 / 2, ~90%. No intervals on the Heart Day. The 6-week block starts the day after.
+ */
+export const REENTRY = Object.freeze({
+  1: Object.freeze({ sets: 0.55, load: 0.8, rir: { compound: 4, isolation: 3 }, gate: 'reentry' }),
+  2: Object.freeze({ sets: 0.75, load: 0.9, rir: { compound: 3, isolation: 2 }, gate: 'reentry2' }),
+});
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+/** The stored setting `wk.reentry = {startDay, weeks}` from ctx.settings, ctx, a plain settings object or the value itself. */
+export function reentrySetting(src) {
+  if (!src) return null;
+  let v = null;
+  try {
+    if (typeof src.get === 'function') v = src.get('wk.reentry');
+    else if (src.settings && typeof src.settings.get === 'function') v = src.settings.get('wk.reentry');
+    else if (src['wk.reentry'] !== undefined) v = src['wk.reentry'];
+    else if (src.startDay) v = src;
+  } catch { v = null; }
+  if (!v || typeof v !== 'object' || !DAY_RE.test(String(v.startDay || ''))) return null;
+  return { startDay: v.startDay, weeks: Math.max(1, Math.min(4, Math.round(+v.weeks || 2))) };
+}
+/**
+ * reentryInfo(settings, day) → null (never set) | {active, week (1..weeks), of, startDay, endDay (first block day), daysLeft}.
+ * active is false before the start day and from endDay on (then the 6-week block runs from endDay).
+ */
+export function reentryInfo(settings, day) {
+  const r = reentrySetting(settings);
+  if (!r || !day) return null;
+  let d; try { d = diffDays(r.startDay, day); } catch { return null; }
+  const endDay = addDays(r.startDay, r.weeks * 7);
+  const active = d >= 0 && d < r.weeks * 7;
+  return { active, week: active ? Math.floor(d / 7) + 1 : null, of: r.weeks, startDay: r.startDay, endDay, daysLeft: active ? r.weeks * 7 - d : 0 };
+}
+/** For heart.js / Today: re-entry running on that date (no intervals then). Accepts ctx, ctx.settings or a settings object. */
+export const isReentry = (settings, day) => !!reentryInfo(settings, day)?.active;
+/** Start of the 6-week block: the plan start date, moved to the end of the re-entry weeks when those end later. */
+export function blockStart(startDay, reentry) {
+  const end = reentry && reentry.endDay;
+  if (!end) return startDay || null;
+  return !startDay || String(startDay) < end ? end : startDay;
+}
+const reCfg = (info) => REENTRY[Math.max(1, Math.min(2, +info?.week || 1))];
+/** Sets in a re-entry week: round(n × share), min 1. Dropping from the end keeps the first (best) sets. */
+export const reentrySets = (n, info) => Math.max(1, Math.round((+n || 0) * reCfg(info).sets));
+/** Re-entry RIR target for an item: {lo, hi, reentry:true}. */
+export function reentryRir(item, info) {
+  const v = reCfg(info).rir[kindOf(item) === 'isolation' ? 'isolation' : 'compound'];
+  return { lo: v, hi: v, reentry: true };
+}
+const reLoad = (w, f) => { w = +w || 0; if (!w) return 0; const x = w * f; return x >= 20 ? roundTo(x) : Math.max(1, Math.round(x)); };
+/**
+ * reentryAdjust(prescription, info, {item, sets}) → the prescribe() result for a re-entry week: fewer sets (last ones dropped,
+ * unless the plan already cut them: sets:false), loads × 0.8 / 0.9 of the last logged, no increase, gate line, RIR target.
+ */
+export function reentryAdjust(prescription, info, { item = null, sets: cut = true } = {}) {
+  if (!prescription || !info || info.active === false) return prescription;
+  const c = reCfg(info);
+  const list = prescription.sets || [];
+  const k = cut ? Math.min(list.length, reentrySets(list.length, info)) : list.length;
+  const out = list.slice(0, k).map((t) => ({ w: reLoad(t.w, c.load), r: t.r }));
+  const gates = [c.gate, ...(prescription.gates || []).filter((g) => g !== 'readiness' && g !== 'phase' && g !== c.gate)];
+  const { mode, ...rest } = prescription;
+  return { ...rest, sets: out, ready: false, inc: 0, gates, hold: true, reentry: { week: info.week, of: info.of }, ...(item ? { rirT: reentryRir(item, info) } : {}) };
+}
+/** «رجوع · الأسبوع 1 من 2» (+ « · سيب 4 عدّات» with an item). */
+export function reentryHeader(info, item = null) {
+  if (!info || !info.active) return '';
+  const head = `رجوع · الأسبوع ${info.week} من ${info.of}`;
+  return item ? `${head} · ${rirPhrase(reentryRir(item, info))}` : head;
+}
+/** The session header line for exercise e: re-entry first, then the mesocycle week; '' when neither. */
+export function weekLine(live, e, setIdx = null) {
+  if (!live || !e) return '';
+  if (live.reentry) return reentryHeader({ active: true, ...live.reentry }, e);
+  if (Number.isInteger(live.week)) return `الأسبوع ${live.week} · ${rirPhrase(rirTarget(e, live.week, setIdx, e.sets?.length))}`;
+  return '';
+}
+
+// ══ template updates for users already on a template («تحديث الخطة») ══
+/**
+ * planUpdate(program) → null | {from, to, title, changes:[{day, dayName, kind:'swap'|'set', fromName, toName, text, why, ok}]}
+ * Pending when the program runs a template whose version is newer than programs.current.tv (missing tv = 1).
+ */
+export function planUpdate(program) {
+  const t = PROGRAMS[program?.activeProgram];
+  const ups = PLAN_UPDATES[program?.activeProgram];
+  if (!t || !t.version || !ups) return null;
+  const from = Number.isInteger(program.tv) ? program.tv : 1;
+  if (from >= t.version) return null;
+  const changes = [];
+  let title = '';
+  for (let v = from + 1; v <= t.version; v++) {
+    const u = ups[v]; if (!u) continue;
+    title = u.title || title;
+    for (const c of u.changes) {
+      const day = program.days[c.day];
+      const dayName = day?.name || t.days[c.day]?.name || c.day;
+      if (c.set) {
+        const it = day?.items.find((x) => x.id === c.id);
+        const r = c.set.r1 ? `${String(c.set.r1).replace('-', '–')} عدّات أول 6 أسابيع (بدل ${String(it?.reps || '').replace('-', '–')})` : '';
+        changes.push({ v, day: c.day, dayName, kind: 'set', id: c.id, set: c.set, fromName: it?.ar || '', toName: it?.ar || '', ok: !!it && Object.entries(c.set).some(([k, val]) => it[k] !== val), why: c.why || '', text: `${dayName}: ${it?.ar || c.id} · ${r}` });
+      } else {
+        const it = day?.items.find((x) => x.id === c.from);
+        const nx = t.days[c.day]?.items.find((x) => x.id === c.to);
+        changes.push({ v, day: c.day, dayName, kind: 'swap', from: c.from, to: c.to, fromName: it?.ar || '', toName: nx?.ar || c.to, ok: !!it && !!nx && !day.items.some((x) => x.id === c.to), why: c.why || '',
+          text: `${dayName}: ${it?.ar || '—'} ← ${nx?.ar || c.to}` });
+      }
+    }
+  }
+  return { from, to: t.version, title, changes, applicable: changes.filter((c) => c.ok).length };
+}
+/** Apply a pending update: swaps replace the old item in place (same position), `set` patches; tv = template version. */
+export function applyPlanUpdate(program) {
+  const u = planUpdate(program);
+  if (!u) return { program, applied: [], skipped: [] };
+  const t = PROGRAMS[program.activeProgram];
+  const next = { ...program, days: Object.fromEntries(Object.entries(program.days).map(([k, d]) => [k, { ...d, items: d.items.map((x) => ({ ...x })) }])) };
+  const applied = [], skipped = [];
+  for (const c of u.changes) {
+    const day = next.days[c.day];
+    if (!c.ok || !day) { skipped.push(c); continue; }
+    if (c.kind === 'set') { const it = day.items.find((x) => x.id === c.id); Object.assign(it, c.set); applied.push(c); continue; }
+    const i = day.items.findIndex((x) => x.id === c.from);
+    const tpl = t.days[c.day].items.find((x) => x.id === c.to);
+    const old = day.items[i];
+    // keep the user's own superset tag / rest / sets where he changed them from the template's old row
+    day.items[i] = normItem({ ...tpl, ...(old.ss ? { ss: old.ss } : {}), ...(old.restS ? { restS: old.restS } : {}) });
+    applied.push(c);
+  }
+  // template warm-up note changes (pull-up → pulldown ramp)
+  for (let v = u.from + 1; v <= u.to; v++) for (const d of Object.keys(PLAN_UPDATES[program.activeProgram]?.[v]?.warmNote || {})) {
+    if (next.days[d] && t.days[d]?.warmNote) next.days[d].warmNote = t.days[d].warmNote;
+  }
+  next.tv = t.version;
+  return { program: next, applied, skipped };
+}
+
+/**
+ * Pull-up gate (exercise-selection #3): a session with ≥ 3 body-weight pull-up sets of ≥ 8 reps at RIR ≥ 2 (or not logged)
+ * → ready to go back to the weighted pull-up. → {ready, day} | {ready:false}
+ */
+export function pullupReady(sessions) {
+  const fin = finished(sessions || []);
+  for (let i = fin.length - 1; i >= 0; i--) {
+    for (const e of fin[i].exercises || []) {
+      const lib = e.lib || findLib(e.en || e.name)?.id;
+      if (lib !== 'ex12' && lib !== 'exWPU') continue;
+      const ok = doneSets(e).filter((t) => !(+t.w > 0) && +t.r >= 8 && (t.rir === null || t.rir === undefined || t.rir === '' || +t.rir >= 2));
+      if (ok.length >= 3) return { ready: true, day: fin[i].day };
+    }
+  }
+  return { ready: false };
+}
+/** Swap the pulldown slot back to the weighted pull-up (Upper A, same superset / rest). */
+export function backToPullup(program) {
+  const next = { ...program, days: { ...program.days } };
+  const d = next.days.upperA; if (!d) return program;
+  const i = d.items.findIndex((x) => x.id === 'uaLPD'); if (i < 0) return program;
+  const old = d.items[i];
+  const items = d.items.map((x) => ({ ...x }));
+  items[i] = normItem({ id: 'ub1', lib: 'exWPU', sets: old.sets, reps: '6-10', ss: old.ss, restS: old.restS, rir: old.rir });
+  next.days.upperA = { ...d, items };
+  return next;
+}
 
 // ══ stall rule (hypertrophy.md §4.1) ══════════════════════════
 /** Variants for the 3-session stall swap (next block); fallback: first same-muscle library alternative. */
-const VARIANT = { ex1: 'ex2', ex2: 'exFDP', exFDP: 'ex2', ex45b: 'ex43', ex43: 'ex45b', ex41: 'ex45b', ex47: 'ex50', exWPU: 'ex14', ex14: 'exWPU', exCSTB: 'ex15', ex15: 'exCSTB', ex22: 'ex26', ex46: 'exMHT', exMHT: 'ex46', ex42: 'ex43' };
+const VARIANT = { ex1: 'ex2', ex2: 'exFDP', exFDP: 'ex2', ex45b: 'ex43', ex43: 'ex45b', ex41: 'ex45b', ex47: 'ex50', exWPU: 'ex14', ex14: 'exWPU', exCSTB: 'ex15', ex15: 'exCSTB', ex22: 'ex26', ex46: 'exMHT', exMHT: 'ex46', ex42: 'ex43', exLID: 'exFDP', exROE: 'exOCT', exOCT: 'exROE', ex32: 'ex34b' };
 /**
  * Same exercise, same top load, no rep gain: counts the newest consecutive exposures that did not beat the one before.
  * 2 → 'recovery' (check sleep, calories, readiness); 3+ → 'variant' (swap to a variant next block). → {stalls, action, variant}
@@ -1327,13 +1514,36 @@ export const budgetFor = (today) => (budgetPick.day === today ? budgetPick.min :
  * dayEstimate → {plan (planSession result), week, deload, lift, z2, total}: lifting minutes (warm-up included, after the
  * weekly balance and the time budget) plus the Zone 2 finisher the program adds after lifting.
  */
-export function dayEstimate({ program, sessions = [], today, dayId, training = {}, budgetMin = budgetFor(today), weekStartDow = 1, trainingDays = null }) {
+export function dayEstimate({ program, sessions = [], today, dayId, training = {}, budgetMin = budgetFor(today), weekStartDow = 1, trainingDays = null, reentry = null }) {
   const flags = programFlags(program);
-  const week = flags.meso ? mesoWeek(program.startDay, today) : null;
-  const deload = deloadActive(training.deload, today) || week === 6;
-  const plan = planSession({ program, sessions, today, dayId, budgetMin, carry: training.carry || {}, weekStartDow, trainingDays, deload });
-  const z2 = flags.z2 ? z2Minutes(plan.minutes, { deload }) : 0;
-  return { plan, week, deload, lift: plan.minutes, z2, total: plan.minutes + z2 };
+  const re = reentry && reentry.active ? reentry : null;
+  const start = blockStart(program.startDay, reentry);
+  const week = flags.meso && !re ? mesoWeek(start, today) : null;
+  const block = flags.meso && !re ? mesoBlock(start, today) : null;
+  const deload = !re && (deloadActive(training.deload, today) || week === 6);
+  // meso 1 (and the re-entry weeks before it): the item's first-block rep range (back squat / bench 6–10)
+  const p0 = flags.meso && (re || block === null || block === 1) ? withBlockReps(program, dayId) : program;
+  let plan;
+  if (re) {
+    const items = p0.days[dayId].items.map((x) => ({ ...x, sets: reentrySets(x.sets, re), reSets: true }));
+    const full = estimateMinutes(p0.days[dayId].items);
+    const ap = autopilot({ items, budgetMin, projection: {} });
+    const pct = Math.round(REENTRY[Math.min(re.week, 2)].sets * 100);
+    plan = { items: ap.items, minutes: ap.minutes, baseMinutes: full, fits: ap.fits, projection: null, carryNext: mergeCarry(training.carry || {}, {}, {}, today),
+      changes: [{ code: 'reentry', text: `${reentryHeader(re)} · حوالي ${pct}% من المجموعات ووزن ${Math.round(REENTRY[Math.min(re.week, 2)].load * 100)}% من آخر مرة` },
+        ...ap.changes.filter((c) => c.code !== 'carried')] };
+  } else plan = planSession({ program: p0, sessions, today, dayId, budgetMin, carry: training.carry || {}, weekStartDow, trainingDays, deload });
+  const z2 = flags.z2 ? z2Minutes(plan.minutes, { deload: deload || !!re }) : 0;
+  return { plan, week, block, deload, reentry: re, lift: plan.minutes, z2, total: plan.minutes + z2 };
+}
+/** A copy of the program whose items use their first-block rep range (`r1`) where they have one. */
+export function withBlockReps(program, dayId = null) {
+  const days = { ...program.days };
+  for (const id of dayId ? [dayId] : program.order) {
+    const d = program.days[id]; if (!d) continue;
+    days[id] = { ...d, items: d.items.map((x) => (x.r1 ? { ...x, reps: x.r1 } : x)) };
+  }
+  return { ...program, days };
 }
 
 // ══ Zone 2 after lifting (review.md M4) ═══════════════════════

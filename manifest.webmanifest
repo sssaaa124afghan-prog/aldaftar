@@ -11,9 +11,83 @@
   "background_color": "#0D0B2E",
   "theme_color": "#0D0B2E",
   "icons": [
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "ابدأ التمرين",
+      "short_name": "ابدأ التمرين",
+      "description": "يبدأ جلسة النهارده على طول",
+      "url": "./#/workout?start=1&quick=1",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "سجّل وزنك",
+      "short_name": "سجّل وزنك",
+      "description": "خانة الوزن جاهزة بآخر وزن",
+      "url": "./#/today?weigh=1&quick=1",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "فطاري المعتاد",
+      "short_name": "فطاري المعتاد",
+      "description": "يسجّل فطارك المعتاد بلمسة، وتقدر تتراجع",
+      "url": "./#/today?usual=breakfast&quick=1",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "سجّل الضغط",
+      "short_name": "سجّل الضغط",
+      "description": "خانة الضغط الكبير جاهزة",
+      "url": "./#/today?bp=1&quick=1",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
   ]
 }

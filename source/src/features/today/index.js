@@ -3,18 +3,19 @@
 import './today.css';
 import { h, raw, fill } from '../../ui/dom.js';
 import { icon } from '../../ui/icons.js';
-import { fmt, countText } from '../../ui/num.js';
+import { fmt, countText, parseNum } from '../../ui/num.js';
 import { ring } from '../../ui/ring.js';
 import { countUp, pop, haptic, reduced } from '../../ui/anim.js';
-import { parseDayKey, weekday } from '../../core/date.js';
+import { parseDayKey, weekday, addDays, diffDays } from '../../core/date.js';
 import { sumEntries, dayType, heartDowOf, heartDaysOf } from '../../core/targets.js';
 import { DAY_TYPE_LABEL, sessionState, loadTargets } from '../../app/day.js';
-import { SECTION_LABEL } from '../nutrition/logic.js';
-import { openWeightSheet } from '../profile/weight.js';
+import { SECTION_LABEL, listMeals } from '../nutrition/logic.js';
+import { openWeightSheet, saveWeight, validKg } from '../profile/weight.js';
 import * as WK from '../workout/logic.js';
+import * as TP from '../workout/today-plan.js';
 import { bpGate } from '../workout/bp.js';
 import * as M from '../progress/metrics.js';
-import { waterGoalMl, mealsDone, checklist, AUTO_ITEMS, DEFAULT_PREGYM } from './logic.js';
+import { waterGoalMl, mealsDone, checklist, AUTO_ITEMS, DEFAULT_PREGYM, quickMeal, entriesForLog, mealLine, weightDue, bpDue, kegelDue } from './logic.js';
 
 export const WEEKDAY = ['الأحد', 'الاتنين', 'التلات', 'الأربع', 'الخميس', 'الجمعة', 'السبت'];
 export const MONTH = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
@@ -41,9 +42,36 @@ async function load(ctx) {
   const t = targets[type];
   const ws = M.lifting(sessions);
   weights.sort((a, b) => String(a.day).localeCompare(String(b.day)));
+  // last 30 days of food (for «فطارك المعتاد») + today's plan from the workout package (one source with the Workout tab)
+  const back = Array.from({ length: 30 }, (_, i) => addDays(day, -(i + 1)));
+  const [recent, plan] = await Promise.all([
+    Promise.all(back.map((d) => safe(db.get('foodLog', d), null))),
+    planOf(ctx, day)]);
+  const recentDays = recent.filter((r) => r && Array.isArray(r.entries) && r.entries.length);
+  let savedMeals = []; try { savedMeals = listMeals(nutrition.savedMeals); } catch { /* legacy shapes */ }
   return { day, type, planned, target: { kcal: t.kcal, p: t.p, c: t.c, f: t.f }, entries: (log && Array.isArray(log.entries)) ? log.entries : [],
     nutrition, progress, training, sessions, lifting: ws, programRec, weights, daily: daily || { day }, name: String((prof && prof.name) || '').trim(),
-    sex: prof && prof.sex, trainingDays, heartDow, bp: Array.isArray(health.bp) ? health.bp : [], startDow: Number(ctx.settings.get('weekStart')) || 1 };
+    sex: prof && prof.sex, trainingDays, heartDow, bp: Array.isArray(health.bp) ? health.bp : [], health, startDow: Number(ctx.settings.get('weekStart')) || 1,
+    recentDays, yesterday: recentDays.find((r) => r.day === back[0]) || null, savedMeals, plan };
+}
+
+/**
+ * Today's planned day from workout/today-plan.js `todayPlan(ctx, day)` (B1, the single source the Workout tab uses).
+ * Guarded: until it exists (or if it throws) Today falls back to its own estimate. → {name, count, minutes, z2} | null
+ */
+async function planOf(ctx, day) {
+  if (typeof TP.todayPlan !== 'function') return null;
+  try {
+    const r = await TP.todayPlan(ctx, day);
+    if (!r) return null;
+    const d = r.day && typeof r.day === 'object' ? r.day : null;
+    const items = r.items || (d && d.items) || (r.prep && r.prep.items) || null;
+    const name = r.name || r.dayName || (d && d.name) || r.label || null;
+    const minutes = r.minutes ?? r.lift ?? (r.est && r.est.lift) ?? (r.plan && r.plan.minutes) ?? null;
+    const z2 = r.z2 ?? (r.est && r.est.z2) ?? (r.plan && r.plan.z2) ?? null;
+    const count = Number.isFinite(+r.exercises) && typeof r.exercises !== 'object' ? +r.exercises : Array.isArray(items) ? items.length : (r.count ?? null);
+    return name ? { name, count, minutes, z2, dayId: r.dayId || r.id || null, kind: r.kind || r.type || null } : null;
+  } catch (e) { console.warn('[today] todayPlan failed', e && e.message); return null; }
 }
 
 async function patchDaily(ctx, day, fn) {
@@ -119,7 +147,14 @@ function workoutCard(st, ctx) {
     // same estimate as the workout overview (lifting incl. warm-up after balance + time budget, then Zone 2)
     let est = null; try { if (d) est = WK.dayEstimate({ program, sessions: fin, today: st.day, dayId: id, training: st.training, weekStartDow: ctx.settings.get('weekStart') ?? 1, trainingDays: ctx.settings.get('trainingDays') || null }); } catch { /* fall back */ }
     small = wp ? `جلسة ${wp.thisWeek + 1} من ${wp.planned} الأسبوع ده` : 'تمرين النهارده';
-    title = d ? d.name : 'يوم تمرين'; sub = d ? `${countText(d.items.length, 'exercise')} · ${est ? est.lift : WK.estimateMinutes(d.items)} دقيقة${est && est.z2 ? ` + Zone 2 ‏${est.z2} د` : ''}` : 'الخطة جاهزة';
+    const P = st.plan;
+    if (P) {
+      // same day name / count / minutes as the Workout tab (todayPlan)
+      title = P.name;
+      sub = [P.count ? countText(P.count, 'exercise') : null, P.minutes ? `${P.minutes} دقيقة${P.z2 ? ` + Zone 2 ‏${P.z2} د` : ''}` : null].filter(Boolean).join(' · ') || 'الخطة جاهزة';
+    } else {
+      title = d ? d.name : 'يوم تمرين'; sub = d ? `${countText(d.items.length, 'exercise')} · ${est ? est.lift : WK.estimateMinutes(d.items)} دقيقة${est && est.z2 ? ` + Zone 2 ‏${est.z2} د` : ''}` : 'الخطة جاهزة';
+    }
     btn = 'ابدأ'; run = () => ctx.go('workout', { start: '1' });
   } else if (st.type === 'heart' || st.planned === 'heart') {
     // Heart Day (program heartDow, e.g. Saturday on the 4-day plan): 30 min, not a lifting session.
@@ -179,7 +214,7 @@ function intel(st, ctx, openWellness) {
   rows.push(h('div', { class: `td-row r-${band ? band.key : 'none'}` }, h('i', { 'aria-hidden': 'true' }),
     h('p', {}, band ? h('b', {}, `جاهزية ${band.label}: `) : h('b', {}, 'الجاهزية: '), band ? band.advice : 'سجّل نومك وطاقتك في 10 ثواني عشان النصيحة تبقى على مقاسك.'),
     h('button', { type: 'button', class: 'td-lnk', onclick: openWellness }, band ? 'غيّر' : 'سجّل')));
-  if (load) rows.push(h('div', { class: `td-row l-${load.level}` }, h('i', { 'aria-hidden': 'true' }), h('p', {}, h('b', {}, 'حمل التدريب: '), h('span', { class: 'num' }, fmt(load.ratio, { dp: 2 })), ` — ${M.LOAD_TEXT[load.level]}`)));
+  if (load) rows.push(h('div', { class: `td-row l-${load.level}` }, h('i', { 'aria-hidden': 'true' }), h('p', {}, h('b', {}, 'تمرين الأسبوع ده: '), h('span', { class: 'num' }, `${fmt(load.ratio, { dp: 1 })}×`), ' متوسط آخر 4 أسابيع', ` — ${M.LOAD_TEXT[load.level]}`)));
   if (drop) rows.push(h('div', { class: 'td-row warn' }, h('i', { 'aria-hidden': 'true' }), h('p', {}, h('b', {}, 'الوزن: '), `نزل ${fmt(drop.drop, { dp: 1 })} كجم عن آخر 4 وزنات — اتأكد من البروتين.`)));
   const chips = lifts.map((l) => { const r = M.progressRate(st.sessions, l.item, { today: st.day, weeks: 8 }); const t = M.rateLabel(r); return t ? h('span', { class: `td-rate${r >= 0.25 ? ' up' : ''}` }, `${l.name.split(' ')[0]} `, h('b', {}, t)) : null; }).filter(Boolean);
   const out = h('div', { class: 'td-ai', 'aria-live': 'polite' });
@@ -209,17 +244,24 @@ function goals(st, ctx, rerender) {
     weighed: st.weights.some((w) => w.day === st.day), sessionDone: todays.some((s) => !M.isRecovery(s)), recoveryDone: todays.some((s) => M.isRecovery(s)),
     supplements: st.daily.supplements, hasSupps: !!(st.daily.supplements || (st.nutrition.supplements && Object.keys(st.nutrition.supplements).length)), config: cfg, ticks: st.daily.checklist || {} });
   const ACT = { workout: () => ctx.go('workout', { start: '1' }), recovery: () => ctx.go('workout/recovery'), protein: () => ctx.go('nutrition'), water: () => ctx.go('nutrition'), weigh: () => openWeightSheet(ctx), supps: () => ctx.go('nutrition') };
+  // The whole row is the target (≥ 48 px). Rows that tick from your data open their action (weight → weight sheet);
+  // your own rows toggle. No «تلقائي» chip: a chevron says the row opens something.
   const item = (r) => {
-    const box = h('button', { type: 'button', class: `td-ck${r.done ? ' on' : ''}`, role: 'checkbox', 'aria-checked': String(r.done), 'aria-label': r.label }, I('check', { size: 16 }));
-    if (r.auto && !ACT[r.id]) box.disabled = true;
-    box.addEventListener('click', async () => {
+    const opens = r.auto && !r.done && !!ACT[r.id];
+    const row = r.auto
+      ? h('button', { type: 'button', class: 'td-ckrow', 'aria-label': r.done ? `${r.label}: اتحقق` : opens ? `${r.label}: افتح` : r.label },
+        h('span', { class: `td-ck${r.done ? ' on' : ''}`, 'aria-hidden': 'true' }, I('check', { size: 16 })), h('span', { class: 'td-cl' }, r.label),
+        r.done ? h('small', {}, 'اتحقق') : opens ? I('chevron', { size: 16 }) : null)
+      : h('button', { type: 'button', class: 'td-ckrow', role: 'checkbox', 'aria-checked': String(r.done) },
+        h('span', { class: `td-ck${r.done ? ' on' : ''}`, 'aria-hidden': 'true' }, I('check', { size: 16 })), h('span', { class: 'td-cl' }, r.label));
+    if (r.auto && !opens) row.disabled = true;
+    row.addEventListener('click', async () => {
       if (r.auto) { ACT[r.id] && ACT[r.id](); return; } // auto items tick from your data
       const on = !r.done;
       try { st.daily = await patchDaily(ctx, st.day, (d) => ({ ...d, checklist: { ...(d.checklist || {}), [r.id]: on } })); } catch { ctx.toast('ماقدرناش نحفظ.'); return; }
       haptic(); rerender(); requestAnimationFrame(() => pop(document.querySelector(`[data-ck="${r.id}"] .td-ck`)));
     });
-    return h('li', { class: r.done ? 'done' : '', dataset: { ck: r.id } }, box, h('span', {}, r.label),
-      r.auto ? h('small', {}, r.done ? 'اتحقق' : 'تلقائي') : null);
+    return h('li', { class: r.done ? 'done' : '', dataset: { ck: r.id } }, row);
   };
   const day = rows.filter((r) => r.group === 'day'); const pre = rows.filter((r) => r.group === 'pregym');
   const n = day.filter((r) => r.done).length;
@@ -281,6 +323,121 @@ function wellnessSheet(st, ctx, rerender) {
   } }, { label: 'إلغاء', ghost: true }] });
 }
 
+
+// ───────── «دلوقتي»: the one-tap jobs for this hour (weight, usual meal) and due health cards ─────────
+
+async function logEntries(ctx, day, entries, label) {
+  let prev;
+  try {
+    prev = (await ctx.db.get('foodLog', day).catch(() => null)) || { day, entries: [] };
+    await ctx.db.put('foodLog', { ...prev, day, entries: [...(Array.isArray(prev.entries) ? prev.entries : []), ...entries] });
+  } catch { ctx.toast('ماقدرناش نحفظ دلوقتي. جرّب تاني.'); return false; }
+  const ids = new Set(entries.map((e) => e.id));
+  ctx.emit('food:changed', { day });
+  ctx.toast(label, { action: { label: 'تراجع', run: async () => {
+    const cur = (await ctx.db.get('foodLog', day).catch(() => null)) || { day, entries: [] };
+    await ctx.db.put('foodLog', { ...cur, entries: (cur.entries || []).filter((e) => !ids.has(e.id)) });
+    ctx.emit('food:changed', { day });
+  } } });
+  return true;
+}
+
+function mealFor(st, hour) {
+  return quickMeal({ hour, todayEntries: st.entries, days: st.recentDays, yesterday: st.yesterday, savedMeals: st.savedMeals });
+}
+async function logMeal(ctx, st, m) {
+  const es = entriesForLog(m);
+  const name = m.kind === 'yesterday' ? `${SECTION_LABEL[m.section]} زي امبارح` : 'الفطار المعتاد';
+  return logEntries(ctx, st.day, es, `اتسجّل ${name} · ${fmt(m.kcal)} سعرة`);
+}
+
+function mealCard(st, ctx, hour) {
+  const m = mealFor(st, hour);
+  if (!m) return null;
+  const title = m.kind === 'yesterday' ? `${SECTION_LABEL[m.section]} زي امبارح` : 'فطارك المعتاد';
+  const small = m.source === 'seed' ? 'الفطار الثابت · تقدر تغيّره من التغذية' : m.source === 'saved' ? 'من وجباتي' : m.kind === 'yesterday' ? 'نفس أكل امبارح' : 'اللي بتاكله عادةً';
+  const go = h('button', { type: 'button', class: 'td-go', dataset: { quick: 'meal' }, 'aria-label': `سجّل ${title}: ${fmt(m.kcal)} سعرة` }, I('plus', { size: 16 }), 'سجّله');
+  go.addEventListener('click', async () => { go.disabled = true; haptic(); pop(go); if (!(await logMeal(ctx, st, m))) go.disabled = false; });
+  return h('section', { class: 'td-wo td-meal gl', 'aria-label': title },
+    h('div', { class: 'td-ic', 'aria-hidden': 'true' }, I('food')),
+    h('div', { class: 't' }, h('small', {}, small), h('b', {}, title), h('span', { class: 'td-ml' }, mealLine(m.entries)),
+      h('span', {}, h('span', { class: 'num' }, fmt(m.kcal)), ' سعرة · ', h('span', { class: 'num' }, fmt(m.p)), ' جم بروتين')), go);
+}
+
+function weightRow(st, ctx) {
+  const last = st.weights.length ? st.weights[st.weights.length - 1].kg : null;
+  const input = h('input', { id: 'td-kg', type: 'text', inputmode: 'decimal', enterkeyhint: 'done', autocomplete: 'off', class: 'num', value: last != null ? String(last) : '', 'aria-describedby': 'td-kg-h td-kg-err' });
+  const err = h('p', { class: 'td-err', id: 'td-kg-err', 'aria-live': 'polite' });
+  const clear = () => { err.textContent = ''; input.removeAttribute('aria-invalid'); };
+  const step = (d) => { const v = parseNum(input.value); const base = Number.isFinite(v) ? v : (last ?? 72); input.value = String(Math.round((base + d) * 10) / 10); clear(); };
+  const save = h('button', { type: 'button', class: 'td-save' }, 'احفظ');
+  const run = async () => {
+    const v = validKg(input.value);
+    if (!v.ok) { err.textContent = v.message; input.setAttribute('aria-invalid', 'true'); input.focus(); return; }
+    save.disabled = true; haptic();
+    try { await saveWeight(ctx, v.kg, st.day); } catch { err.textContent = 'ماقدرناش نحفظ دلوقتي — جرّب تاني.'; save.disabled = false; }
+  };
+  save.addEventListener('click', run);
+  input.addEventListener('input', clear);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
+  const sb = (d, label, txt) => h('button', { type: 'button', class: 'td-stp', 'aria-label': label, onclick: () => step(d) }, txt);
+  return h('section', { class: 'td-now td-kgrow gl', 'aria-labelledby': 'td-kg-l' },
+    h('div', { class: 'td-nh' }, I('scale', { size: 16 }), h('label', { for: 'td-kg', id: 'td-kg-l' }, 'وزنك النهارده'),
+      h('small', { id: 'td-kg-h' }, last != null ? `آخر مرة ${fmt(last, { dp: 1 })} كجم` : 'على الريق لو تقدر')),
+    h('div', { class: 'td-kgin' }, sb(0.1, 'زوّد 0.1 كجم', '+'), input, sb(-0.1, 'قلّل 0.1 كجم', '−'), save), err);
+}
+
+function bpCard(st, ctx, force = false) {
+  const g = bpGate(st.bp, st.day);
+  const due = bpDue({ gateState: g.state, bp: st.bp, day: st.day });
+  if (!due && !force) return null;
+  const f = (id, label, min, max, hint) => {
+    const input = h('input', { id, type: 'text', inputmode: 'numeric', autocomplete: 'off', class: 'num', 'aria-describedby': `${id}-err`, enterkeyhint: id === 'td-sys' ? 'next' : 'done' });
+    const err = h('p', { class: 'td-err', id: `${id}-err`, 'aria-live': 'polite' });
+    input.addEventListener('input', () => { err.textContent = ''; input.removeAttribute('aria-invalid'); });
+    return { input, err, el: h('div', { class: 'td-bpf' }, h('label', { for: id }, label, h('small', {}, hint)), input, err), min, max };
+  };
+  const sys = f('td-sys', 'الانقباضي', 70, 260, ' (الكبير)');
+  const dia = f('td-dia', 'الانبساطي', 40, 160, ' (الصغير)');
+  const save = h('button', { type: 'button', class: 'td-save' }, 'سجّل');
+  const run = async () => {
+    const H = await import('../workout/heart.js');
+    const v = H.validateBP({ sys: sys.input.value.trim(), dia: dia.input.value.trim() });
+    sys.err.textContent = v.errors.sys || ''; dia.err.textContent = v.errors.dia || '';
+    sys.input.setAttribute('aria-invalid', String(!!v.errors.sys)); dia.input.setAttribute('aria-invalid', String(!!v.errors.dia));
+    if (!v.ok) { (v.errors.sys ? sys : dia).input.focus(); return; }
+    save.disabled = true; haptic();
+    const row = { id: `bp:${Date.now().toString(36)}`, at: new Date().toISOString(), day: st.day, ...v.value, cuff: st.health.cuffArm === false ? 'other' : 'arm' };
+    try { await H.patchHealth(ctx.db, (c) => ({ ...c, bp: [...(c.bp || []), row].slice(-400) })); } catch { ctx.toast('ماقدرناش نحفظ دلوقتي. جرّب تاني.'); save.disabled = false; return; }
+    ctx.toast(`اتسجّل ${row.sys}/${row.dia}: ${H.bpCategory(row.sys, row.dia).label}`);
+    ctx.emit('health:changed', { day: st.day });
+  };
+  const toNum = (s) => String(s).replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660));
+  for (const x of [sys, dia]) x.input.addEventListener('input', () => { const t = toNum(x.input.value); if (t !== x.input.value) x.input.value = t; });
+  sys.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); dia.input.focus(); } });
+  dia.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
+  save.addEventListener('click', run);
+  const sub = due ? `قراءة ${due.today + 1} من 2 · يوم ${g.days} من 3` : 'قراءة جديدة';
+  return h('section', { class: 'td-now td-bp gl', 'aria-labelledby': 'td-bp-h' },
+    h('div', { class: 'td-nh' }, I('heart', { size: 16 }), h('h2', { id: 'td-bp-h' }, 'ضغط البيت'), h('small', {}, sub),
+      h('a', { class: 'td-lnk', href: '#/workout/heart?tab=bp' }, 'السجل')),
+    h('div', { class: 'td-bpin' }, sys.el, h('span', { class: 'td-slash', 'aria-hidden': 'true' }, '/'), dia.el, save),
+    h('p', { class: 'td-hint' }, 'جهاز دراع، بعد 5 دقايق راحة وإنت قاعد · قراءتين بينهم دقيقة'));
+}
+
+function kegelCard(st, ctx) {
+  const kg = st.health.kegel || {};
+  let week = 1; try { if (kg.start) week = Math.floor(diffDays(kg.start, st.day) / 7) + 1; } catch { /* default */ }
+  const due = kegelDue({ kegel: kg, day: st.day, week });
+  if (!due) return null;
+  const go = h('button', { type: 'button', class: 'td-go', dataset: { quick: 'kegel' } }, I('play', { size: 16 }), 'ابدأ');
+  go.addEventListener('click', () => { haptic(); ctx.go('workout/kegel'); });
+  return h('section', { class: 'td-wo td-kegel gl', 'aria-label': `تمرين قاع الحوض: مرة ${due.done + 1} من ${due.perDay} النهارده` },
+    h('div', { class: 'td-ic', 'aria-hidden': 'true' }, I('timer')),
+    h('div', { class: 't' }, h('small', {}, 'في البيت · حوالي 4 دقايق'), h('b', {}, 'تمرين قاع الحوض'),
+      h('span', {}, `مرة ${due.done + 1} من ${due.perDay} النهارده`)), go);
+}
+
 function moreMenu(st, ctx) {
   const day = st.day; const flip = st.type === 'training' ? 'rest' : 'training';
   const body = h('div', {});
@@ -300,22 +457,48 @@ function moreMenu(st, ctx) {
   item('settings', 'الملف والإعدادات', () => ctx.go('profile'));
 }
 
-export async function renderToday(el, ctx) {
+
+/**
+ * Home-screen shortcuts (manifest `shortcuts`) land here: #/today?weigh=1 · ?usual=breakfast · ?bp=1 (+ quick=1).
+ * Each opens straight into its action, then the hash is cleaned so a reload does not repeat it.
+ */
+async function quickAction(ctx, params, getSt, setForceBP) {
+  const clean = () => { try { history.replaceState(null, '', '#/today'); } catch { /* ignore */ } };
+  const focus = (sel) => requestAnimationFrame(() => { const i = document.querySelector(sel); if (i) { i.focus(); try { i.select(); } catch { /* ignore */ } } });
+  if (params.weigh) {
+    clean();
+    if (document.getElementById('td-kg')) focus('#td-kg'); else await openWeightSheet(ctx);
+  } else if (params.usual) {
+    clean();
+    const st = getSt();
+    const m = mealFor(st, params.usual === 'lunch' ? 13 : params.usual === 'dinner' ? 18 : 7);
+    if (m) await logMeal(ctx, st, m);
+    else ctx.toast(`${SECTION_LABEL[params.usual] || 'الفطار'} متسجّل النهارده خلاص.`);
+  } else if (params.bp) {
+    clean(); setForceBP(true); focus('#td-sys');
+  }
+}
+
+export async function renderToday(el, ctx, params = {}) {
   let st; let alive = true; let first = true;
+  let forceBP = !!params.bp;
   const paint = () => {
     if (!alive) return;
     const hour = new Date().getHours();
     const greet = st.name ? `${hour < 12 ? 'صباح الفل' : 'مساء الفل'} يا ${st.name}` : dayTitle(st.day);
     const more = h('button', { type: 'button', class: 'td-ib gl', 'aria-label': 'خيارات اليوم', 'aria-haspopup': 'dialog', onclick: () => moreMenu(st, ctx) }, I('more'));
     const openW = () => wellnessSheet(st, ctx, paint);
+    const weighed = st.weights.some((w) => w.day === st.day);
     fill(el, h('div', { class: `td${first && !reduced() ? ' td-in' : ''}` },
       h('header', { class: 'td-hd' }, h('div', {}, h('p', { class: 'td-dayp' }, st.name ? dayTitle(st.day) : '', h('b', { class: st.type === 'training' ? 'tr' : st.type === 'heart' ? 'hd' : 'rs' }, DAY_TYPE_LABEL[st.type])), h('h1', {}, greet)), more),
-      gauge(st), macros(st, ctx), workoutCard(st, ctx), tiles(st, ctx, openW), intel(st, ctx, openW), goals(st, ctx, paint)));
+      weightDue({ hour, weighed }) ? weightRow(st, ctx) : null, mealCard(st, ctx, hour), bpCard(st, ctx, forceBP),
+      gauge(st), macros(st, ctx), workoutCard(st, ctx), kegelCard(st, ctx), tiles(st, ctx, openW), intel(st, ctx, openW), goals(st, ctx, paint)));
     first = false;
   };
   const refresh = async () => { st = await load(ctx); paint(); };
   await refresh();
-  const offs = ['food:changed', 'session:changed', 'weight:changed', 'settings:changed', 'wellness:changed'].map((e) => ctx.on(e, () => refresh()));
+  await quickAction(ctx, params, () => st, (v) => { forceBP = v; paint(); });
+  const offs = ['food:changed', 'session:changed', 'weight:changed', 'settings:changed', 'wellness:changed', 'health:changed'].map((e) => ctx.on(e, () => { if (e === 'health:changed') forceBP = false; refresh(); }));
   const onVis = () => { if (document.visibilityState === 'visible' && st && st.day !== ctx.today()) refresh(); };
   document.addEventListener('visibilitychange', onVis);
   return () => { alive = false; offs.forEach((f) => f()); document.removeEventListener('visibilitychange', onVis); };

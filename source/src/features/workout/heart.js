@@ -9,6 +9,7 @@ import { reduced } from '../../ui/anim.js';
 import { dayKey, diffDays, weekStart } from '../../core/date.js';
 import { wallSitArt, bikeArt } from './kegel-art.js';
 import { latestBP, bpGate } from './bp.js';
+import * as WL from './logic.js';
 
 export { latestBP, bpGate };
 
@@ -55,7 +56,7 @@ const B = (id, kind, dur, label, sub, extra = {}) => ({ id, kind, dur, label, su
  * transfer 0:30 · wall sit 5 · pelvic floor 2:30. Wk 5, 6, 12: 2×4 intervals + 7 min Zone 2.
  * gate ≠ 'ok' (BP baseline missing, GP or doctor needed): walking / Zone 2 only, still 30:00.
  */
-export function heartPlan(week = 1, { gate = 'ok' } = {}) {
+export function heartPlan(week = 1, { gate = 'ok', noIntervals = false } = {}) {
   const w = clampN(Math.round(+week || 1), 1, 12);
   const pf = w <= 4 ? 180 : 150;
   const warm = B('warm', 'warm', 180, 'تسخين وحركة', 'ابدأ هادي وزوّد تدريجي · لف الورك ومرجحة الرجل');
@@ -64,7 +65,7 @@ export function heartPlan(week = 1, { gate = 'ok' } = {}) {
   const wall = [B('wall1', 'wall', 120, 'جلوس على الحيطة 1 من 2', 'اتنفس طبيعي · ممنوع تكتم نفسك'),
     B('wrest', 'rest', 60, 'راحة', 'قوم وامشي خطوتين'),
     B('wall2', 'wall', 120, 'جلوس على الحيطة 2 من 2', 'اتنفس طبيعي · ممنوع تكتم نفسك')];
-  if (w <= 4) return [warm, B('z2', 'z2', 1080, 'Zone 2', 'ثابت ومستمر · تقدر تتكلم بجمل كاملة', { hrr: true }),
+  if (w <= 4 || noIntervals) return [warm, B('z2', 'z2', 1080, 'Zone 2', 'ثابت ومستمر · تقدر تتكلم بجمل كاملة', { hrr: true }),
     B('hrr', 'easy', 60, 'انتقال + اختبار نزول النبض', 'سجّل نبضك وامشي هادي دقيقة'), ...wall, pelvic];
   const n = intervalsFor(w);
   const out = [warm];
@@ -471,8 +472,8 @@ function hrrCard(ctx, getRec, setPending) {
 
 // ── BP log ──
 function bpLog(ctx, health, rerender) {
-  const sys = numField({ id: 'hk-sys', label: 'الكبير', min: 70, max: 260 });
-  const dia = numField({ id: 'hk-dia', label: 'الصغير', min: 40, max: 160 });
+  const sys = numField({ id: 'hk-sys', label: 'الانقباضي (الكبير)', min: 70, max: 260 });
+  const dia = numField({ id: 'hk-dia', label: 'الانبساطي (الصغير)', min: 40, max: 160 });
   const pul = numField({ id: 'hk-pul', label: 'النبض (اختياري)', min: 30, max: 220 });
   const cuffId = 'hk-cuff';
   const cuff = h('input', { type: 'checkbox', id: cuffId, role: 'switch', checked: health.cuffArm === false ? null : true });
@@ -578,19 +579,21 @@ export async function renderHeart(el, ctx, params = {}) {
   }
 
   // ── Heart Day: the player (main action) first, then the gate note, week picker and the info cards (QA r3 #5) ──
-  const n = intervalsFor(week);
+  // re-entry weeks (logic.js isReentry): no hard intervals yet, Zone 2 only
+  const reOn = (() => { try { return typeof WL.isReentry === 'function' && WL.isReentry(ctx, today); } catch { return false; } })();
+  const n = reOn ? 0 : intervalsFor(week);
   const weekPick = (h('div', { class: 'hk-week' },
     h('label', { for: 'hk-wk' }, 'الأسبوع'),
     h('select', { id: 'hk-wk', onchange: (e) => ctx.go('workout/heart', +e.target.value === autoWeek ? {} : { week: e.target.value }) },
       ...Array.from({ length: 12 }, (_, i) => h('option', { value: i + 1, selected: i + 1 === week ? true : null }, `${i + 1}${i + 1 === autoWeek ? ' (أسبوعك)' : ''}`))),
-    h('small', {}, gate !== 'ok' ? 'مشي / Zone 2 لحد ما الضغط يتأكد' : n ? `فترات ${n} × 4 دقايق` : 'Zone 2 ‏18 دقيقة')));
+    h('small', {}, gate !== 'ok' ? 'مشي / Zone 2 لحد ما الضغط يتأكد' : n ? `فترات ${n} × 4 دقايق` : reOn ? 'أسبوع رجوع · Zone 2 ‏18 دقيقة من غير فترات' : 'Zone 2 ‏18 دقيقة')));
   const infoCards = () => { root.appendChild(minutesCard(ctx, weeklyAerobic(sessions, health.walks, today, startDow), rerender)); root.appendChild(zonesCard(z)); };
 
   if (gate === 'stop') {
     root.appendChild(gateNote(g, ctx)); root.appendChild(tipsCard('hk-st-h', 'وقّف فوراً واطلب مساعدة لو', STOP_SIGNS));
     root.appendChild(weekPick); infoCards(); return () => {};
   }
-  const blocks = heartPlan(week, { gate });
+  const blocks = heartPlan(week, { gate, noIntervals: reOn });
   const hrLog = [];
   let savedRec = null, pendingHrr = null;
   const hr = hrEntry(z, hrLog);

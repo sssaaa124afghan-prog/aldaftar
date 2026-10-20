@@ -59,16 +59,26 @@ async function progress(el, ctx, params) {
   let st = null;
   const ui = { lift: null, vol: '8w', kcal: 7, cmpA: null, cmpB: null, prAll: false };
 
+  // Progressive disclosure: «الأسبوع ده» opens first, every other section starts collapsed.
+  // Open/closed is remembered per section in kv.progress.open (Hick's law: one summary, then choose).
+  const isOpen = (id) => { const o = st.progress.open || {}; return id in o ? !!o[id] : id === 'week'; };
+  const setOpen = async (id, open) => {
+    st.progress.open = { ...(st.progress.open || {}), [id]: open };
+    try { await patchProgress(ctx, (p) => ({ ...p, open: { ...(p.open || {}), [id]: open } })); } catch { /* memory only */ }
+  };
   const section = (id, title, info, ...children) => {
-    const collapsed = !!(st.progress.collapsed || {})[id];
+    const collapsed = !isOpen(id);
     const body = h('div', { class: 'pg-sec-body', id: `pg-b-${id}`, hidden: collapsed });
-    body.append(...children.flat().filter(Boolean));
+    // collapsed sections are built on first open (keeps the first paint light)
+    const build = () => { if (!body.childNodes.length) body.append(...[].concat(typeof children[0] === 'function' ? children[0]() : children).flat().filter(Boolean)); };
+    if (!collapsed) build();
     const tog = h('button', { type: 'button', class: 'pg-tog', 'aria-expanded': String(!collapsed), 'aria-controls': `pg-b-${id}` }, h('h2', { id: `pg-h-${id}` }, title), I('chevron'));
-    tog.addEventListener('click', async () => {
-      const open = body.hidden; body.hidden = !open; tog.setAttribute('aria-expanded', String(open));
-      try { await patchProgress(ctx, (p) => ({ ...p, collapsed: { ...(p.collapsed || {}), [id]: !open } })); } catch { /* memory only */ }
-    });
-    return h('section', { class: 'pg-sec', id: `pg-${id}`, 'aria-labelledby': `pg-h-${id}` }, h('div', { class: 'pg-sec-h' }, tog, infoBtn(ctx, info)), body);
+    const toggle = (open) => { if (open) build(); body.hidden = !open; tog.setAttribute('aria-expanded', String(open)); setOpen(id, open); };
+    tog.addEventListener('click', () => toggle(body.hidden));
+    tog._open = () => { if (body.hidden) toggle(true); };
+    const sec = h('section', { class: 'pg-sec', id: `pg-${id}`, 'aria-labelledby': `pg-h-${id}` }, h('div', { class: 'pg-sec-h' }, tog, infoBtn(ctx, info)), body);
+    sec._open = tog._open;
+    return sec;
   };
   const card = (cls, ...kids) => h('div', { class: `pg-card ${cls || ''}` }, ...kids.flat().filter(Boolean));
   const head = (title, sub, info) => h('div', { class: 'pg-ch' }, h('h3', {}, title), sub ? h('small', {}, sub) : null, info ? infoBtn(ctx, info) : null);
@@ -76,6 +86,30 @@ async function progress(el, ctx, params) {
   function tOf(d) {
     const done = new Set(M.lifting(st.sessions).map((s) => s.day));
     return targetsForDay(d, { targets: st.targets, trainingDays, overrides: st.overrides, sessionDays: done, heartDays: heartDaysOf(st.sessions), heartDow: st.heartDow });
+  }
+
+  // ───────── this week (first, open) ─────────
+  function thisWeek() {
+    const adh = weekAdherence({ anchorDay: today, weekStartDow: startDow, trainingDays, sessions: st.sessions, foodLog: st.foodLog, targets: st.targets, overrides: st.overrides, heartDow: st.heartDow });
+    const prevAdh = weekAdherence({ anchorDay: addDays(today, -7), weekStartDow: startDow, trainingDays, sessions: st.sessions, foodLog: st.foodLog, targets: st.targets, overrides: st.overrides, heartDow: st.heartDow });
+    const wc = M.weekCompareTraining(st.sessions, today, startDow);
+    const trend = weeklyTrend(st.weights);
+    const d = (a, b, dp = 0, unit = '') => (a === null || a === undefined || b === null || b === undefined ? null
+      : h('em', { class: `pg-wd ${a > b ? 'up' : a < b ? 'down' : ''}` }, `${fmt(Math.round((a - b) * 10 ** dp) / 10 ** dp, { dp, sign: true })}${unit}`, h('span', { class: 'vh' }, ' عن الأسبوع اللي فات')));
+    const fig = (label, val, delta, sub) => h('div', { class: 'pg-fig4' }, h('small', {}, label), h('b', {}, val), delta || (sub ? h('em', {}, sub) : null));
+    const ws = weekStart(today, startDow);
+    const card1 = card('pg-thisweek',
+      h('div', { class: 'pg-ch' }, h('h3', {}, 'حساب الأسبوع لحد النهارده'), h('small', {}, `${dm(ws)} – ${dm(addDays(ws, 6))} · الفرق عن نفس الوقت الأسبوع اللي فات`)),
+      h('div', { class: 'pg-grid4' },
+        fig('جلسات', h('span', { class: 'num' }, `${adh.sessionsDone}/${adh.sessionsPlanned}`), d(wc.cur.sessions, wc.prev.sessions)),
+        fig('أيام البروتين', h('span', { class: 'num' }, `${adh.proteinDaysHit}/${adh.daysLogged}`), d(adh.proteinDaysHit, prevAdh.proteinDaysHit)),
+        fig('متوسط السعرات', adh.avgKcal ? N(adh.avgKcal) : '—', d(adh.avgKcal, prevAdh.avgKcal)),
+        fig('الوزن', trend ? h('span', {}, N(trend.kgPerWeek, 1, { sign: true }), h('small', {}, ' كجم/أسبوع')) : '—', null, trend ? 'متوسط 7 أيام' : 'محتاج وزنات أكتر')),
+      h('div', { class: 'pg-grid4 pg-grid2' },
+        fig('حجم التمرين', h('span', {}, N(wc.cur.volume), h('small', {}, ' كجم')), d(wc.cur.volume, wc.prev.volume)),
+        fig('أرقام قياسية', N(wc.cur.prs), d(wc.cur.prs, wc.prev.prs))),
+      aiBlock('weekly', 'اسأل المدرب عن أسبوعي', 'تقرير الأسبوع + تركيز الأسبوع الجاي'));
+    return [card1];
   }
 
   // ───────── summary ─────────
@@ -298,7 +332,7 @@ async function progress(el, ctx, params) {
             h('td', { class: 'num' }, fmt(r.b.vol), r.dVol !== null ? h('small', { class: r.dVol > 0 ? 'up' : r.dVol < 0 ? 'down' : '' }, ` ${fmt(r.dVol, { sign: true })}`) : null))),
           h('tr', { class: 'pg-tot' }, h('th', { scope: 'row' }, 'الجلسة'), h('td', { class: 'num' }, c.dur[1] ? `${c.dur[1]} د` : '—'), h('td', { class: 'num' }, fmt(c.vol[1]), h('small', {}, ` ${fmt(c.vol[1] - c.vol[0], { sign: true })}`))))));
     }
-    return [setsCard, vCard, dual, shade, cmp, stats, calCard, cmpCard];
+    return [cmp, setsCard, vCard, dual, shade, stats, calCard, cmpCard];
   }
 
   // ───────── body ─────────
@@ -400,7 +434,7 @@ async function progress(el, ctx, params) {
         h('span', { 'aria-hidden': 'true' }, ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'][new Date(`${d.day}T12:00:00`).getDay()]), h('i', { class: `mk ${mark}`, 'aria-hidden': 'true' }), h('em', { class: d.pHit ? 'hit' : '', 'aria-hidden': 'true' }));
     }));
     const wk = card('pg-week', head('حساب الأسبوع', `${dm(ws)} – ${dm(addDays(ws, 6))}`), strip, h('ul', { class: 'pg-report' }, ...lines.map((l) => h('li', {}, l))),
-      aiBlock('weekly', 'التقرير الأسبوعي من المدرب', 'فيه «تركيز الأسبوع»'));
+      h('p', { class: 'pg-hint' }, 'تقرير المدرب الأسبوعي في «الأسبوع ده» فوق.'));
 
     // patterns (local data, always visible) + AI
     const pdays = Array.from({ length: 30 }, (_, i) => addDays(today, -i));
@@ -478,20 +512,27 @@ async function progress(el, ctx, params) {
   }
 
   // ───────── paint ─────────
-  const nav = [['sum', 'الملخص'], ['str', 'القوة'], ['vol', 'الحجم'], ['body', 'الجسم'], ['rep', 'التقارير']];
+  const nav = [['str', 'القوة'], ['vol', 'الحجم'], ['body', 'الجسم'], ['rep', 'التقارير'], ['sum', 'الملخص']];
   function paint() {
     if (!alive || !st) return;
     const y = window.scrollY;
     const segBtns = PERIOD_KEYS.map((k) => h('button', { type: 'button', 'aria-pressed': String(k === period), onclick: () => ctx.go('progress', k === 'q' ? {} : { p: k }) }, M.PERIODS[k].label));
-    fill(el, 
-      h('header', { class: 'pg-head' }, h('h1', {}, 'التقدّم'), h('div', { class: 'pg-seg', role: 'group', 'aria-label': 'الفترة' }, ...segBtns)),
-      h('nav', { class: 'pg-nav', 'aria-label': 'أقسام التقدّم' }, ...nav.map(([id, l]) => h('a', { href: `#pg-${id}`, onclick: (e) => { e.preventDefault(); const t = document.getElementById(`pg-${id}`); t && t.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); } }, l))),
-      h('div', { class: 'pg-body' },
-        section('sum', 'الملخص', 'summary', summary()),
-        section('str', 'القوة', 'e1rm', strength()),
-        section('vol', 'الحجم', 'hardsets', volume()),
-        section('body', 'الجسم', 'avg7', body()),
-        section('rep', 'التقارير', 'reports', reports())));
+    const secs = {
+      week: section('week', 'الأسبوع ده', 'weekCompare', () => thisWeek()),
+      sum: section('sum', 'الملخص', 'summary', () => summary()),
+      str: section('str', 'القوة', 'e1rm', () => strength()),
+      vol: section('vol', 'الحجم', 'hardsets', () => volume()),
+      body: section('body', 'الجسم', 'avg7', () => body()),
+      rep: section('rep', 'التقارير', 'reports', () => reports()),
+    };
+    // one row: section chips (open + jump) and the period control
+    fill(el,
+      h('header', { class: 'pg-head' }, h('h1', {}, 'التقدّم')),
+      h('nav', { class: 'pg-nav', 'aria-label': 'أقسام التقدّم' }, h('div', { class: 'pg-seg', role: 'group', 'aria-label': 'الفترة' }, ...segBtns), ...nav.map(([id, l]) => h('a', { href: `#pg-${id}`, onclick: (e) => {
+        e.preventDefault(); const t = secs[id]; if (!t) return; t._open && t._open();
+        t.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+      } }, l))),
+      h('div', { class: 'pg-body' }, ...Object.values(secs)));
     if (y) window.scrollTo(0, y);
   }
   async function refresh() { st = await loadAll(ctx); if (!st.progress.goals) st.progress.goals = []; paint(); }
