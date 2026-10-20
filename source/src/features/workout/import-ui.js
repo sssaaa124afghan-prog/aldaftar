@@ -38,7 +38,13 @@ export async function renderImport(el, ctx) {
       if (!r.ok) { status.textContent = 'ده مش ملف نسخة احتياطية من GymPro. اختار ملف .json تاني.'; return; }
       const { program } = await loadProgram(ctx.db).catch(() => ({ program: null }));
       model = O.buildImport(r.data, { program, today });
-      if (!model.rows.length) { status.textContent = 'مالقيناش تمارين في الملف تنفع للخطة. اختار ملف تاني.'; return; }
+      if (!model.rows.length) {
+        const nEx = r.data.ses.reduce((n, s) => n + s.exs.length, 0);
+        status.textContent = r.data.ses.length
+          ? `قرينا ${r.data.ses.length} جلسة (${nEx} تمرين) بس مالقيناش تمرين يطابق الخطة. ابعت الملف للمدرب أو جرّب ملف تاني.`
+          : 'الملف ده مفيهوش جلسات تمرين (ses). اتأكد إنه النسخة الاحتياطية من GymPro.';
+        return;
+      }
       reviewScreen();
     });
     root.append(

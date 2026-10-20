@@ -76,7 +76,13 @@ const str = (v, n = 120) => (typeof v === 'string' ? v.slice(0, n) : '');
  */
 export function pickSafe(text) {
   let o;
-  try { o = JSON.parse(String(text || '')); } catch { return { ok: false, reason: 'json' }; }
+  try { o = JSON.parse(String(text || '').replace(/^﻿/, '')); } catch { return { ok: false, reason: 'json' }; }
+  // wrapped exports: {gymProAI_v12_fixed: "<json string>"} or {data: {...}}
+  for (let i = 0; i < 3 && o && typeof o === 'object' && !Array.isArray(o) && !Array.isArray(o.ses); i++) {
+    const inner = Object.values(o).find((v) => (typeof v === 'string' && /"ses"\s*:/.test(v)) || (v && typeof v === 'object' && Array.isArray(v.ses)));
+    if (!inner) break;
+    try { o = typeof inner === 'string' ? JSON.parse(inner) : inner; } catch { break; }
+  }
   if (!o || typeof o !== 'object' || Array.isArray(o)) return { ok: false, reason: 'shape' };
   const ses = [];
   for (const s of Array.isArray(o.ses) ? o.ses.slice(0, 5000) : []) {
@@ -287,7 +293,10 @@ export function buildImport(data, { program = null, today = null } = {}) {
     return row;
   };
   const days = [];
-  for (const d of planDays(program)) {
+  // the user's own plan first; if nothing in it maps (renamed/custom items), fall back to the default ul4c template
+  let pdays = planDays(program);
+  if (!pdays.some((d) => d.items.some((it) => libById(it.lib) && historyFor(it.lib).sessions.length))) pdays = planDays(null);
+  for (const d of pdays) {
     const rows = d.items.map((it) => mkRow(d, it)).filter(Boolean);
     // pull-up history stays as pull-up history (the plan has the pulldown until the pull-up gate passes)
     if (d.id === 'upperA' && !d.items.some((x) => x.lib === 'exWPU' || x.lib === 'ex12') && historyFor('exWPU').sessions.length) {
