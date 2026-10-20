@@ -54,3 +54,24 @@
 .co-done i{width:8px;height:8px;border-radius:50%;border:1.5px solid currentColor;flex:none}
 .co-done.ok{color:var(--carb,#86EFAC)} .co-done.ok i{background:currentColor}
 @media (prefers-reduced-motion:reduce){.co-skel i{animation:none}}
+/* plan / targets proposals (diff + weekly sets per muscle) */
+.co-prop .co-sub{font-size:var(--t-12,12px);color:var(--mu,#C3BEE3)}
+.co-diff .co-l{min-width:0;overflow-wrap:anywhere}
+.co-ba{display:inline-flex;align-items:baseline;gap:2px;flex-wrap:wrap;justify-content:flex-end;text-align:end}
+.co-ba s{color:var(--mu,#C3BEE3);text-decoration-thickness:1px}
+.co-ba .co-a{color:var(--tx,#F7F5FF)}
+.co-mus{display:flex;flex-direction:column;margin-top:4px;font-size:var(--t-12,12px)}
+.co-mus-h,.co-mus-r{display:grid;grid-template-columns:1.1fr 1fr 1.3fr;gap:6px;align-items:baseline;padding:4px 0}
+.co-mus-h{color:var(--mu,#C3BEE3);border-bottom:1px solid var(--edge-soft,rgba(255,255,255,.08))}
+.co-mus-r{border-bottom:1px solid var(--edge-soft,rgba(255,255,255,.08))}
+.co-pill{font-style:normal;font-size:11px;padding:1px 6px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.co-mus-r.s-in .co-pill{color:var(--carb,#86EFAC)}
+.co-mus-r.s-high .co-pill{color:var(--cal,#FDE68A)}
+.co-mus-r.s-under .co-pill,.co-mus-r.s-over .co-pill{color:var(--danger,#FB7185)}
+.co-why{font-size:var(--t-12,12px);line-height:1.6;color:var(--tx,#F7F5FF)}
+.co-warn{font-size:var(--t-12,12px);line-height:1.6;color:var(--cal,#FDE68A);padding:6px 8px;border-radius:10px;background:rgba(253,230,138,.1)}
+.co-ackl{display:flex;gap:8px;align-items:flex-start;font-size:var(--t-12,12px);line-height:1.6;min-height:44px;padding-top:6px}
+.co-ackl input{width:20px;height:20px;flex:none;accent-color:var(--violet,#A78BFA)}
+.co-done .grow{flex:1;min-width:0}
+.co-undo{min-height:44px}
+.co-eq{white-space:nowrap;display:inline-block}

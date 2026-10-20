@@ -192,26 +192,11 @@ export async function renderPlan(el, ctx, params = {}) {
 
   /** P7: coach drafts a plan → diff → applied only on confirm. Expects an action {type:'workout.plan', days:{id:{name, items:[{en|ar|lib, sets, reps}]}}}. */
   async function aiDraft() {
-    ctx.toast('بنجهّز اقتراح المدرب…');
-    let res;
-    try { res = await coach.askCoach(ctx, { intent: 'plan-draft', prompt: 'اقترح خطة تمرين أسبوعية مناسبة لسجلّي وأيام تمريني. استخدم أسماء التمارين بالإنجليزي.', extra: { program, trainingDays: ctx.settings.get('trainingDays') } }); }
-    catch { ctx.toast('المدرب مش متاح دلوقتي — جرّب تاني.'); return; }
-    const act = (res?.actions || []).find((a) => a && a.type === 'workout.plan' && a.days && typeof a.days === 'object');
-    const draft = act ? L.normalizeProgram({ v: 2, activeProgram: 'custom', order: Object.keys(act.days).slice(0, 7), days: Object.fromEntries(Object.entries(act.days).slice(0, 7).map(([id, d]) => [String(id).slice(0, 20), {
-      name: String(d?.name || id).slice(0, 40), items: (Array.isArray(d?.items) ? d.items : []).slice(0, 12).map((x) => { const Lb = (x?.lib && L.LIBRARY.find((e) => e.id === x.lib)) || findLib(x?.en || x?.ar || x?.name); return Lb ? { id: Lb.id, lib: Lb.id, sets: x.sets, reps: x.reps } : null; }).filter(Boolean) }])) }) : null;
-    const valid = draft && draft.activeProgram === 'custom';
-    const body = h('div', {}, h('p', { class: 'wk-ai-text' }, String(res?.text || '').slice(0, 1500)),
-      valid ? h('div', { class: 'wk-diff' }, ...draft.order.map((id) => {
-        const cur = program.days[id]?.items.map((x) => x.ar) || [];
-        const nx = draft.days[id].items.map((x) => x.ar);
-        return h('div', { class: 'glass wk-card' }, h('b', {}, draft.days[id].name),
-          h('ul', {}, ...nx.map((n) => h('li', { class: cur.includes(n) ? '' : 'add' }, cur.includes(n) ? '' : '+ ', n)),
-            ...cur.filter((n) => !nx.includes(n)).map((n) => h('li', { class: 'del' }, '− ', n))));
-      })) : h('p', { class: 'wk-muted' }, 'الاقتراح ده نص بس. خطتك ماتغيّرتش.'));
-    ctx.sheet({ title: 'اقتراح المدرب للخطة', body, actions: valid ? [
-      { label: 'طبّق الخطة دي', run: async () => { program = { ...draft, schedule: undefined, startDay: program.startDay }; dayId = program.order[0]; await persist(); draw(); ctx.toast('اتطبّقت الخطة الجديدة. سجلّك محفوظ.'); } },
-      { label: 'سيب خطتي', ghost: true, run: () => {} }] : [] });
+    // Plan edits now go through the coach's validated, confirm-card actions (workout.swap/sets/add/remove/prefill).
+    try { coach.openCoachSheet(ctx, { intent: 'plan_edit', prompt: 'راجع خطتي حسب أدائي الأخير والحجم لكل عضلة، واقترح تعديلات صغيرة لو محتاجة (تبديل، مجموعات، إضافة أو شيل تمرين).' }); }
+    catch { ctx.toast('المدرب مش متاح دلوقتي — جرّب تاني.'); }
   }
+
 
   async function move(i, d) {
     const items = program.days[dayId].items; const j = i + d;

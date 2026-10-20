@@ -56,7 +56,7 @@ async function putCache(ctx, key, val) {
  */
 export async function askCoach(ctx, { intent = 'chat', prompt = '', extra = {} } = {}) {
   const { history, cacheKey, refresh, ...attach } = extra || {};
-  if (cacheKey && !refresh) { const hit = await cached(ctx, cacheKey); if (hit) return { text: hit.text, actions: hit.actions || [], cached: true }; }
+  if (cacheKey && !refresh) { const hit = await cached(ctx, cacheKey); if (hit) return { text: hit.text, actions: hit.actions || [], errors: [], cached: true }; }
   const effective = intent === 'chat' ? detectIntent(prompt) : intent;
   const spec = intentOf(effective);
   const ctxText = (await coachContext(ctx, { blocks: spec.blocks, extra: Object.keys(attach).length ? attach : null })).text;
@@ -65,7 +65,7 @@ export async function askCoach(ctx, { intent = 'chat', prompt = '', extra = {} }
   const turns = Array.isArray(history) && history.length ? history : [{ role: 'user', content: String(prompt) }];
   const r = await client(ctx, { model: MODELS[spec.model] || MODELS.coach, system, maxTokens: spec.maxTokens }).chat(turns, {});
   const out = parseActions(r.text);
-  if (!writes) out.actions = [];
+  if (!writes) { out.actions = []; out.errors = []; }
   if (cacheKey) await putCache(ctx, cacheKey, out);
   return { ...out, model: r.model };
 }

@@ -13,6 +13,7 @@ import { nextTrainLabel } from './overview.js';
 import { spark, tone, speak, notifyRestEnd, loadCoach, pref, prefSwitch, askNotifyPermission, coachingFor } from './kit.js';
 import { STRETCH_PROTOCOLS } from './content.js';
 import { libById } from './exercises.js';
+import * as V from './voice.js';
 
 const TYPES = [['normal', 'عادية'], ['drop', 'Drop'], ['rp', 'Rest-pause'], ['myo', 'Myo']];
 const TYPE_LABEL = Object.fromEntries(TYPES);
@@ -37,6 +38,17 @@ export async function renderSession(el, ctx) {
   const recentBest = (e) => L.recentBestE1rm(history, e, 15, { excludeId: live.id });
   const lastVol = L.lastDayVolume(history, live.dayKey, live.id);
   if (!live.cur || !live.exercises[live.cur.ex]) live.cur = L.nextOpen(live) || { ex: 0, set: 0 };
+  // coach bridge contract: one prefill per fresh program-day session, applied before the first render (optional module)
+  if (!live.coachPf && live.dayKey && !L.liveProgress(live).done) {
+    live.coachPf = 'tried';
+    try {
+      const load = import.meta.glob('./coach-bridge.js')['./coach-bridge.js'];
+      const m = load ? await load() : null;
+      const pf = await m?.consumePrefill?.(ctx, live.dayKey);
+      if (pf && V.applyPrefill(live, pf)) live.coachPf = 'applied';
+    } catch { /* bridge missing or failed: keep the planned prefill */ }
+    await safeWrite(ctx, () => putSession(ctx.db, live));
+  }
 
   // drawn exercise thumbnails (optional module; the session works without it)
   let imgMod = null;
@@ -47,6 +59,8 @@ export async function renderSession(el, ctx) {
   let clockEl = null, closed = false, hero = null, dock = null, justSet = null;
   // inline entry state: typing updates the model + the touched bits only (never a full re-render under the finger)
   let rowUI = [], stepUI = null, rirBox = null, typeChip = null, volEl = null, bestW = 0, apply = null, saveT = 0, redrawLater = false, lastTap = { ev: null, k: '', t: -1 };
+  let lastUndo = null; // the latest «تراجع» of a logged set (voice «امسح» runs it)
+  const vc = V.createVoiceUI({ h, ico, onInput: (alts) => onVoice(alts) });
 
   const save = () => { clearTimeout(saveT); saveT = 0; return safeWrite(ctx, () => putSession(ctx.db, live)); };
   const queueSave = () => { clearTimeout(saveT); saveT = setTimeout(() => { saveT = 0; save(); }, 400); };
@@ -96,11 +110,14 @@ export async function renderSession(el, ctx) {
     draw('done');
     const idx = e.sets.indexOf(t) + 1;
     const ssHop = nx.rest === 'none' && nx.cur && nx.cur.ex !== exIdx;
-    ctx.toast(t.pr ? `رقم شخصي جديد · ${L.fmtW(t.w)} × ${t.r}` : ssHop ? `سوبر سِت · على ${live.exercises[nx.cur.ex].name} من غير راحة` : `المجموعة ${idx} اتسجّلت`, { action: { label: 'تراجع', run: async () => {
+    const undo = async () => {
+      if (lastUndo === undo) lastUndo = null;
       t.done = false; delete t.at; recomputePR(e);
       live.cur = was.cur; live.rest = null;
       await save(); draw('done');
-    } } });
+    };
+    lastUndo = undo;
+    ctx.toast(t.pr ? `رقم شخصي جديد · ${L.fmtW(t.w)} × ${t.r}` : ssHop ? `سوبر سِت · على ${live.exercises[nx.cur.ex].name} من غير راحة` : `المجموعة ${idx} اتسجّلت`, { action: { label: 'تراجع', run: undo } });
     if (!e.sets.some((s) => !s.done)) afterExercise(e);
     if (!L.nextOpen(live)) announce('خلصت كل المجموعات. اقفل الجلسة لما تكون جاهز.');
   }
@@ -242,6 +259,48 @@ export async function renderSession(el, ctx) {
     if (!e.sets.some((t) => !t.done)) afterExercise(e);
     if (!L.nextOpen(live)) announce('خلصت كل المجموعات.');
   }
+  // ── voice / typed set logging: fills the CURRENT set in place (paintLive), never other sets ──
+  async function onVoice(alts) {
+    if (closed) return;
+    const cmd = V.parseBest(alts);
+    const e = curEx(), j = live.cur.set;
+    const res = V.resolveCommand(cmd, e, j);
+    if (res.action === 'error') { vc.say(res.msg); return; }
+    if (res.action === 'undo') {
+      if (vc.cancelPending()) { vc.say('اتلغى.'); return; }
+      if (lastUndo) { const u = lastUndo; lastUndo = null; await u(); vc.say('رجّعنا آخر مجموعة.'); return; }
+      vc.say('مفيش حاجة نرجّعها.'); return;
+    }
+    if (res.action === 'next') {
+      const n = live.exercises.length;
+      const nx = n > 1 ? L.nextOpen(live, (live.cur.ex + 1) % n) : null;
+      if (!nx || nx.ex === live.cur.ex) { vc.say('مفيش تمرين تاني مفتوح.'); return; }
+      vc.clear(); select(nx.ex, nx.set); haptic(10);
+      announce(`التمرين الجاي: ${live.exercises[nx.ex].name}`);
+      return;
+    }
+    const t = curSet();
+    if (!t) { vc.say('مفيش مجموعة مفتوحة دلوقتي.'); return; }
+    vc.cancelPending();
+    const before = { w: t.w, r: t.r, rir: t.rir ?? null };
+    setField(j, 'w', Math.round(res.w * 100) / 100, null);
+    setField(j, 'r', res.r, null);
+    if (res.rir !== null && res.rir !== undefined) { t.rir = Math.min(4, res.rir); fillRir(); }
+    paintLive(); haptic(10);
+    const label = `${L.fmtW(t.w)} × ${t.r}`;
+    announce(`المجموعة ${j + 1}: ${L.fmtW(t.w)} كجم في ${t.r}`);
+    if (res.commit) { vc.clear(); await completeAt(j); return; }
+    vc.chip(label, () => {
+      const i = live.exercises.indexOf(e);
+      if (i < 0 || !e.sets[j] || e.sets[j].done) return;
+      live.cur = { ex: i, set: j }; completeAt(j);
+    }, () => {
+      if (!e.sets[j] || e.sets[j].done) return;
+      Object.assign(e.sets[j], { w: before.w, r: before.r, rir: before.rir });
+      apply = null; paintLive(); queueSave();
+    });
+  }
+
   // ── Zone 2 after lifting (last step of the session) ──
   const z2On = () => !!(live.z2 && live.z2.plan);
   const liftMin = () => ((live.z2?.startedAt || Date.now()) - (live.startedMs || Date.parse(live.startedAt))) / 60000;
@@ -725,7 +784,7 @@ export async function renderSession(el, ctx) {
     bindField(w, 'w', () => j, () => rowUI[j]?.r);
     bindField(r, 'r', () => j);
     const up = h('small', { class: 'wk-upby', hidden: true });
-    const prev = h('span', { class: 'prev num' }, pv ? `${L.fmtW(pv.w)} × ${pv.r}` : '—', up);
+    const prev = h('span', { class: 'prev num' }, pv ? `${L.fmtW(pv.w)} × ${pv.r}` : '—', up, s.coach && !s.done ? h('small', { class: 'wk-cotag' }, 'اقتراح المدرب') : null);
     const applyBtn = h('button', { type: 'button', class: 'wk-apply', hidden: true, dataset: { fk: `ap${j}` }, onclick: () => applyRest(j) }, 'طبّق على الباقي');
     const n = h('button', { type: 'button', class: 'n', 'aria-label': `خيارات المجموعة ${j + 1}`, 'aria-haspopup': 'dialog', dataset: { fk: `opt${j}` }, onclick: () => setSheet(j) },
       h('b', { class: 'num' }, String(j + 1)), s.type ? h('small', { class: 'wk-tag' }, TYPE_LABEL[s.type]) : h('i', { 'aria-hidden': 'true' }, '⋯'));
@@ -865,7 +924,9 @@ export async function renderSession(el, ctx) {
 
   function drawDock() {
     if (!dock) return;
-    dock.textContent = '';
+    const micFocused = document.activeElement === vc.mic;
+    for (const c of [...dock.children]) if (c !== vc.panel) c.remove();
+    if (vc.panel.parentNode !== dock) dock.prepend(vc.panel);
     const allDone = !L.nextOpen(live);
     const t = curSet();
     const nextName = (() => { const n = L.nextAfter(live, live.cur.ex).cur; const ex = n ? live.exercises[n.ex] : null; return ex && ex !== curEx() ? ex.name : (curEx()?.name || ''); })();
@@ -875,7 +936,8 @@ export async function renderSession(el, ctx) {
     else if (t && t.done) btn = h('button', { type: 'button', class: 'btn wk-cta', onclick: complete }, ico('check'), 'احفظ التعديل');
     else btn = h('button', { type: 'button', class: 'btn wk-cta', disabled: !(t && +t.r > 0), onclick: complete }, ico('check'), 'سجّل المجموعة');
     dock.appendChild(h('div', { class: 'wk-logbar' },
-      h('div', { class: 'meta' }, allDone ? (z2On() && !live.z2.doneAt ? 'آخر خطوة' : 'الجلسة') : 'الجاي', h('b', {}, allDone ? (z2On() && !live.z2.startedAt ? 'Zone 2 على العجلة' : 'جاهزة تتقفل') : nextName)), btn));
+      h('div', { class: 'meta' }, allDone ? (z2On() && !live.z2.doneAt ? 'آخر خطوة' : 'الجلسة') : 'الجاي', h('b', {}, allDone ? (z2On() && !live.z2.startedAt ? 'Zone 2 على العجلة' : 'جاهزة تتقفل') : nextName)), t ? vc.mic : null, btn));
+    if (micFocused && vc.mic.isConnected) vc.mic.focus({ preventScroll: true });
   }
   function focusDock() { dock?.querySelector('button')?.focus({ preventScroll: true }); }
 
@@ -926,6 +988,7 @@ export async function renderSession(el, ctx) {
     if (saveT) save();
     closed = true;
     clearInterval(timer);
+    vc.destroy();
     document.removeEventListener('visibilitychange', onVis);
     try { lock && lock.release(); } catch { /* ignore */ }
   };

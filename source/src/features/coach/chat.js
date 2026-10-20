@@ -87,6 +87,7 @@ export async function mountChat(el, ctx, { intent = 'chat', attach = null, promp
         wait.remove();
         list.appendChild(bubble(am));
         for (const a of r.actions) list.appendChild(actionCard(ctx, a, { said: text }));
+        for (const m of r.errors || []) list.appendChild(h('p', { class: 'co-err co-ignored', role: 'alert' }, m));
         list.lastChild.scrollIntoView({ block: 'nearest' });
       } catch (e) {
         wait.remove();

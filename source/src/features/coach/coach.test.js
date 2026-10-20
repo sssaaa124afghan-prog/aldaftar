@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseActions, parseLogCommand, validateAction } from './actions.js';
+import { parseActions, parseLogCommand, validateAction, jsonEnd } from './actions.js';
+import * as WK from '../workout/logic.js';
+import { ACTION_PROTOCOL } from './prompts.js';
 import { buildContext, sanitizeAttach } from './context.js';
 import { detectIntent, QUICK, INTENTS, modelFor } from './prompts.js';
 import { addDays } from '../../core/date.js';
@@ -41,7 +43,8 @@ test('local fast path parses Egyptian log commands without an API call', () => {
 test('intent detection + all 10 old quick prompts present', () => {
   assert.equal(detectIntent('فاضل كام بروتين؟'), 'nutrition');
   assert.equal(detectIntent('البنش واقف عندي'), 'training');
-  assert.equal(QUICK.training.length + QUICK.nutrition.length, 10);
+  assert.equal(QUICK.training.length + QUICK.nutrition.length, 14);
+  for (const l of ['جهّزلي أوزان الحصة الجاية', 'عدّل خطتي حسب أدائي', 'عضلة متأخرة؟ زوّدها', 'أعمل ديلود؟']) assert.ok(QUICK.training.some((q) => q.label === l && INTENTS[q.intent].writes), l);
   assert.ok(modelFor('advice').includes('haiku'));
   assert.ok(modelFor('chat').includes('sonnet'));
   assert.ok(Object.values(INTENTS).every((i) => Array.isArray(i.blocks)));
@@ -73,4 +76,58 @@ test('attachments are sanitised (no secrets / identifiers)', () => {
   assert.equal(a.name, undefined); assert.equal(a.apiKey, undefined);
   assert.equal(a.liveSession.exercises[0].name, 'بنش');
   assert.match(a.note, /redacted/);
+});
+
+test('workout action schemas: valid ones normalised, invalid ones rejected', () => {
+  assert.deepEqual(validateAction({ type: 'workout.swap', day: 'upperA', fromExId: 'uaID', toExId: 'exFDP', reason: 'الكتف' }),
+    { type: 'workout.swap', day: 'upperA', fromExId: 'uaID', toExId: 'exFDP', reason: 'الكتف' });
+  assert.equal(validateAction({ type: 'workout.swap', day: 'upperA', fromExId: 'uaID', toExId: 'uaID' }), null);
+  assert.equal(validateAction({ type: 'workout.swap', day: 'upperA', fromExId: '<x>', toExId: 'ex2' }), null);
+  assert.deepEqual(validateAction({ type: 'workout.sets', day: 'lowerA', exId: 'la1', sets: '5', reps: '٦–١٠' }), { type: 'workout.sets', day: 'lowerA', exId: 'la1', sets: 5, reps: '6-10' });
+  assert.equal(validateAction({ type: 'workout.sets', day: 'lowerA', exId: 'la1', sets: 11 }), null);
+  assert.equal(validateAction({ type: 'workout.sets', day: 'lowerA', exId: 'la1', sets: 3, reps: '2-5' }), null, 'reps below 3');
+  assert.equal(validateAction({ type: 'workout.sets', day: 'lowerA', exId: 'la1', sets: 3, reps: '20-35' }), null, 'reps above 30');
+  assert.equal(validateAction({ type: 'workout.sets', day: 'lowerA', exId: 'la1', sets: 2.5 }), null);
+  assert.ok(validateAction({ type: 'workout.addExercise', day: 'upperB', exId: 'ex30', sets: 2, reps: '10-15', pairWith: 'ub6b' }));
+  assert.equal(validateAction({ type: 'workout.addExercise', day: 'upperB', exId: 'ex30', sets: 2 }), null, 'reps required');
+  assert.ok(validateAction({ type: 'workout.removeExercise', day: 'lowerB', exId: 'lbSH' }));
+  const pf = validateAction({ type: 'workout.prefill', day: 'lowerA', items: [{ exId: 'la1', sets: [{ w: '100', r: 6 }], note: '<b>x</b>' }] });
+  assert.deepEqual(pf.items[0].sets, [{ w: 100, r: 6 }]); assert.ok(!/[<>]/.test(pf.items[0].note));
+  assert.equal(validateAction({ type: 'workout.prefill', day: 'lowerA', items: [{ exId: 'la1', sets: [{ w: 900, r: 6 }] }] }), null);
+  assert.equal(validateAction({ type: 'workout.prefill', day: 'lowerA', items: [] }), null);
+  assert.deepEqual(validateAction({ type: 'workout.deload', now: true }), { type: 'workout.deload', now: true });
+  assert.deepEqual(validateAction({ type: 'workout.deload', startWeek: 2 }), { type: 'workout.deload', startWeek: 2 });
+  assert.deepEqual(validateAction({ type: 'workout.deload', startWeek: 0 }), { type: 'workout.deload', now: true });
+  assert.equal(validateAction({ type: 'workout.deload' }), null);
+  assert.deepEqual(validateAction({ type: 'targets.set', dayType: 'heart', kcal: 2300, p: 160, c: 260, f: 68 }), { type: 'goal', dayType: 'heart', values: { kcal: 2300, p: 160, c: 260, f: 68 } });
+  assert.equal(validateAction({ type: 'targets.set', dayType: 'cheat', kcal: 2300 }), null);
+});
+
+test('parser: [[ACTION]], fenced and unfenced JSON; unknown dropped, invalid reported in Arabic', () => {
+  const nested = '[[ACTION:{"type":"workout.prefill","day":"lowerA","items":[{"exId":"la1","sets":[{"w":100,"r":6}]}]}]]';
+  const r1 = parseActions(`جاهز.\n${nested}`);
+  assert.equal(r1.text, 'جاهز.'); assert.equal(r1.actions[0].items[0].sets[0].w, 100);
+  const fenced = 'شوف ده:\n```json\n{"type":"workout.swap","day":"upperA","fromExId":"uaID","toExId":"exFDP"}\n```\nوكمان:\n```\n[{"type":"workout.deload","now":true},{"type":"targets.set","dayType":"heart","kcal":2300,"p":160,"c":260,"f":68}]\n```';
+  const r2 = parseActions(fenced);
+  assert.deepEqual(r2.actions.map((a) => a.type), ['workout.swap', 'workout.deload', 'goal']);
+  assert.ok(!/```|\{/.test(r2.text), r2.text);
+  const bare = 'اقتراحي {"type":"workout.sets","day":"lowerA","exId":"la1","sets":5} و {"type":"workout.sets","day":"lowerA","exId":"la1","sets":50} و {"type":"evil","x":1}.';
+  const r3 = parseActions(bare);
+  assert.equal(r3.actions.length, 1); assert.equal(r3.actions[0].sets, 5);
+  assert.equal(r3.errors.length, 1); assert.match(r3.errors[0], /تعديل المجموعات/);
+  assert.ok(r3.text.includes('{"type":"evil"'), 'unknown JSON is left as text, never applied');
+  const code = parseActions('مثال كود:\n```js\nconst x = {a:1}\n```');
+  assert.equal(code.actions.length, 0); assert.ok(code.text.includes('const x'));
+  assert.equal(jsonEnd('{"a":"}"}', 0), 9);
+});
+
+test('program block is in the context (compact) and the protocol lists every new action', () => {
+  const program = WK.fromTemplate('ul4c', { startDay: '2026-10-05' });
+  const t = buildContext({ ...data, program }, { blocks: ['program'] });
+  assert.match(t, /- upperA «Upper A» ~48min lifting: uaFB\/ex1 بنش بريس بالبار 4×5-8 r110 ssA/);
+  assert.match(t, /Planned weekly sets per muscle \[MEV-MRV\]: صدر 11 \[8-22\]/);
+  assert.match(t, /Next session: /); assert.match(t, /Block: week 3 of 6/);
+  assert.ok(t.length < 2600, `small: ${t.length}`);
+  for (const k of ['workout.prefill', 'workout.swap', 'workout.sets', 'workout.addExercise', 'workout.removeExercise', 'workout.deload', 'training|rest|heart', 'MRV', '60 min', 'axially', 'blood-pressure']) assert.ok(ACTION_PROTOCOL.includes(k), k);
+  assert.ok(buildContext({ ...data, program }).includes('Program ul4c'), 'chat context includes it');
 });

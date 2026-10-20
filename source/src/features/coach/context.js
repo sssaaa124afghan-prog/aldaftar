@@ -8,6 +8,8 @@ import * as NU from '../nutrition/logic.js';
 import * as M from '../progress/metrics.js';
 import { cleanWeights, movingAvg7, weeklyTrend, weekAdherence } from '../progress/logic.js';
 import { ALL_BLOCKS } from './prompts.js';
+import { MUSCLE_LM } from '../workout/exercises.js';
+import { weeklyPlanned } from '../workout/coach-bridge.js';
 
 const r1 = (x) => Math.round(x * 10) / 10;
 const s = (v, max = 60) => String(v ?? '').replace(/[\r\n]+/g, ' ').replace(/\[\[|\]\]/g, '').slice(0, max);
@@ -135,6 +137,8 @@ export function buildContext(data, { blocks = ALL_BLOCKS, extra = null } = {}) {
     if (lag) L.push(`Lagging muscle (28d): ${lag.muscle} ${lag.sets} hard sets vs ${lag.top} ${lag.topSets}`);
   }
 
+  if (want.has('program') && data.program && Array.isArray(data.program.order)) L.push(...programLines(data, sessions, today));
+
   if (want.has('injuries')) {
     const inj = Array.isArray((data.training || {}).injuries) ? data.training.injuries : [];
     const act = inj.filter((x) => x && !x.healed && !x.healedAt).slice(0, 6);
@@ -189,6 +193,38 @@ export function buildContext(data, { blocks = ALL_BLOCKS, extra = null } = {}) {
   return L.join('\n');
 }
 
+/**
+ * Compact program block (lives in the cached context): day → items «itemId/libId Arabic sets×reps rRest ssTag», weekly planned
+ * sets per muscle vs MEV–MRV, the next session's last sets (for prefill), deload / block week and any pending prefill.
+ */
+export function programLines(data, sessions, today) {
+  const pg = data.program; const out = [];
+  const tr = data.training || {};
+  out.push(`Program ${s(pg.activeProgram, 20)} (item: id/libId Arabic sets×reps rRestSec ssTag):`);
+  for (const id of pg.order) {
+    const d = pg.days[id]; if (!d) continue;
+    let mins = null; try { mins = WK.estimateMinutes(d.items); } catch { /* ignore */ }
+    out.push(`- ${s(id, 20)} «${s(d.name, 24)}»${mins ? ` ~${mins}min lifting` : ''}: ${d.items.slice(0, 12).map((it) => `${s(it.id, 20)}/${s(it.lib || '-', 12)} ${s(it.ar, 28)} ${it.sets}×${s(it.reps, 12)}${it.restS ? ` r${it.restS}` : ''}${it.ss ? ` ss${it.ss}` : ''}`).join('; ')}`);
+  }
+  const wk = weeklyPlanned(pg);
+  out.push(`Planned weekly sets per muscle [MEV-MRV]: ${Object.keys(MUSCLE_LM).filter((m) => wk[m] !== undefined).map((m) => `${m} ${wk[m]} [${MUSCLE_LM[m].mev}-${MUSCLE_LM[m].mrv}]`).join(', ')}`);
+  if (today) {
+    let nid = null; try { nid = WK.nextDayId(pg, sessions, today); } catch { /* ignore */ }
+    const nd = nid && pg.days[nid];
+    if (nd) {
+      const last = nd.items.map((it) => { const e = WK.exposures(sessions, it)[0]; return e ? `${s(it.id, 20)} ${s(e.session.day, 10)} ${setsTxt(e.ex)}` : `${s(it.id, 20)} new`; });
+      out.push(`Next session: ${s(nid, 20)} «${s(nd.name, 24)}»; last sets: ${last.join('; ')}`);
+    }
+    const flags = WK.programFlags(pg);
+    const mw = flags.meso ? WK.mesoWeek(pg.startDay, today) : null;
+    const dl = tr.deload;
+    out.push(`Block: ${mw ? `week ${mw} of 6 (week 6 = automatic deload)` : 'no 6-week block'}; deload ${WK.deloadActive(dl, today) ? `active since ${s(dl.start, 10)}` : dl && dl.active && dl.start > today ? `scheduled ${s(dl.start, 10)}` : 'none'}`);
+    const pf = tr.coachPrefill && typeof tr.coachPrefill === 'object' ? Object.keys(tr.coachPrefill) : [];
+    if (pf.length) out.push(`Pending next-session weights from you for: ${pf.map((x) => s(x, 20)).join(', ')}`);
+  }
+  return out;
+}
+
 /** Read everything buildContext needs from ctx.db (all reads wrapped). */
 export async function loadCoachData(ctx) {
   const db = ctx.db; const today = ctx.today();
@@ -206,5 +242,6 @@ export async function loadCoachData(ctx) {
     profile: { age, sex: p.sex || null, heightCm: p.heightCm || null }, // whitelist: no name / identifiers
     weights, sessions, foodLog, daily, measurements, targets: targets.training && targets.rest ? targets : null,
     overrides: nutrition.dayTypeOverrides || {}, heartDow: heartDowOf(programRec), training, progress, nutrition,
+    program: (() => { try { return WK.normalizeProgram(programRec); } catch { return null; } })(),
   };
 }
