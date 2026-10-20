@@ -194,7 +194,7 @@ export async function renderOverview(el, ctx, params = {}) {
         onclick: () => ctx.go('workout', id === nextId ? {} : { day: id }) }, program.days[id].name))),
     h('div', { class: 'wk-row wk-head' }, h('span', {}, 'التمرين'), h('span', {}, 'المجموعات'), h('span', {}, 'آخر مرة')));
   for (const it of day.items) {
-    const lastEx = L.exposures(done, it)[0];
+    const lastEx = L.exposures(all, it, { seeds: true })[0];
     const top = lastEx ? L.doneSets(lastEx.ex).reduce((b, t) => (t.w > b.w || (t.w === b.w && t.r > b.r) ? t : b), { w: 0, r: 0 }) : null;
     plan.appendChild(h('div', { class: 'wk-row' },
       h('span', {}, h('b', {}, it.ar), h('small', {}, it.muscle)),

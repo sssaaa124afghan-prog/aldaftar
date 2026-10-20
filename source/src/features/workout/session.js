@@ -32,6 +32,7 @@ export async function renderSession(el, ctx) {
   }
   const live = found;
   const history = L.finished(all);
+  const seeded = L.finished(all, { seeds: true }); // + imported baselines: prefill only (add / swap exercise)
   let tr = training;
   const coach = await loadCoach(ctx);
   const priorCache = new Map();
@@ -488,7 +489,7 @@ export async function renderSession(el, ctx) {
     const id = await pickExercise(ctx, { exclude: live.exercises.map((e) => e.lib).filter(Boolean) });
     if (!id) return;
     const it = L.itemFromLib(id);
-    const ex = L.liveExercise(it, history, { deload: live.deload, lighter: live.lighter, readiness: live.readiness });
+    const ex = L.liveExercise(it, seeded, { deload: live.deload, lighter: live.lighter, readiness: live.readiness });
     const at = Math.min(live.exercises.length, live.cur.ex + 1);
     live.exercises.splice(at, 0, ex);
     if (!curSet() || curSet().done) live.cur = { ex: at, set: 0 };
@@ -510,7 +511,7 @@ export async function renderSession(el, ctx) {
   async function doSwap(i, libId) {
     const e = live.exercises[i];
     const it = { ...L.itemFromLib(libId), id: libId, sets: e.sets.length, reps: e.reps };
-    const nx = L.liveExercise(it, history, { deload: live.deload, lighter: live.lighter, readiness: live.readiness });
+    const nx = L.liveExercise(it, seeded, { deload: live.deload, lighter: live.lighter, readiness: live.readiness });
     // keep done sets? only when none done: a swap replaces the exercise
     nx.swappedFrom = e.exId; if (e.ss) nx.ss = e.ss;
     live.exercises[i] = nx;

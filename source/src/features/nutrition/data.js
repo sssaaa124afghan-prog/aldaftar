@@ -111,7 +111,7 @@ export async function coachContext(ctx, extra = {}) {
     out.today = { day, type: t.type, targets: { kcal: t.kcal, p: t.p, c: t.c, f: t.f }, intake: sumEntries(entries), waterMl: daily && daily.waterMl };
   } catch { /* skip */ }
   try {
-    const ss = (await ctx.db.getAll('sessions')).filter((s) => s && s.day && s.status !== 'live' && !s.discarded).sort((a, b) => String(a.day).localeCompare(String(b.day)));
+    const ss = (await ctx.db.getAll('sessions')).filter((s) => s && s.day && s.status !== 'live' && !s.discarded && !s.seed).sort((a, b) => String(a.day).localeCompare(String(b.day)));
     if (ss.length) out.lastSession = ss[ss.length - 1];
   } catch { /* skip */ }
   return { ...out, ...extra };

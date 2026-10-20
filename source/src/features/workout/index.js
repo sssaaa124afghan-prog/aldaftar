@@ -11,6 +11,7 @@ import { renderKegel } from './kegel.js';
 import { renderLibrary } from './library.js';
 import { renderTools } from './tools.js';
 import { renderInjuries } from './injuries.js';
+import { renderImport } from './import-ui.js';
 import { loadTraining } from './store.js';
 import { registerCustom } from './exercises.js';
 
@@ -39,4 +40,5 @@ export const routes = {
   'workout/library': wrap(renderLibrary),
   'workout/tools': wrap(renderTools),
   'workout/injuries': wrap(renderInjuries),
+  'workout/import': wrap(renderImport), // «استورد أوزانك القديمة» (Profile)
 };

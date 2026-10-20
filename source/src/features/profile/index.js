@@ -186,7 +186,9 @@ async function renderProfile(el, ctx) {
   exp.addEventListener('click', () => exportNow(ctx));
   const imp = h('button', { type: 'button', class: 'list-row' }, raw(icon('upload')), h('span', { class: 'grow' }, h('b', {}, 'استورد نسخة'), h('small', {}, 'من التطبيق ده أو من Solo Gym / NutriPro')));
   imp.addEventListener('click', () => pickAndImport(ctx, { after: () => ctx.go('profile') }));
-  const backupRows = [exp, imp];
+  // «استورد أوزانك القديمة»: old GymPro Elite backup → working weights for the plan (#/workout/import, parsed on the device)
+  const oldW = h('a', { class: 'list-row', href: '#/workout/import' }, raw(icon('dumbbell')), h('span', { class: 'grow' }, h('b', {}, 'استورد أوزانك القديمة'), h('small', {}, 'من ملف GymPro Elite · أول جلسة تفتح بأوزانك')), raw(icon('chevron')));
+  const backupRows = [exp, imp, oldW];
   if (!meta || !meta.migratedAt) {
     const mig = h('a', { class: 'list-row', href: '#/profile/migrate' }, raw(icon('repeat')), h('span', { class: 'grow' }, h('b', {}, 'انقل بياناتك القديمة'), h('small', {}, 'من Solo Gym و NutriPro على الجهاز ده')), raw(icon('chevron')));
     backupRows.unshift(mig);

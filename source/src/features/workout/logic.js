@@ -101,17 +101,22 @@ export const ACTIVE = 'active';
 const LIVE = new Set(['active', 'running', 'live']);
 export const isActive = (s) => !!s && LIVE.has(s.status);
 
-/** Finished sessions sorted oldest → newest (excludes discarded / active). */
-export function finished(sessions) {
+/** Imported baseline («استورد أوزانك القديمة»): a synthetic session that only seeds prefill / re-entry / progression. */
+export const isSeed = (s) => !!s && (s.seed === true || s.kind === 'baseline');
+/**
+ * Finished sessions sorted oldest → newest (excludes discarded / active). Seed (baseline) sessions are left out by default,
+ * so volume, streaks, PRs, weekly counts and charts never see them; prefill passes {seeds:true}.
+ */
+export function finished(sessions, { seeds = false } = {}) {
   return (Array.isArray(sessions) ? sessions : [])
-    .filter((s) => s && !LIVE.has(s.status) && !s.discarded && s.kind !== 'recovery' && Array.isArray(s.exercises))
+    .filter((s) => s && !LIVE.has(s.status) && !s.discarded && s.kind !== 'recovery' && (seeds || !isSeed(s)) && Array.isArray(s.exercises))
     .sort((a, b) => String(a.finishedAt || a.startedAt || a.day || '').localeCompare(String(b.finishedAt || b.startedAt || b.day || '')));
 }
 
-/** All past exposures of an exercise, newest first: [{session, ex}] (only with ≥1 done set). */
-export function exposures(sessions, item, { excludeId } = {}) {
+/** All past exposures of an exercise, newest first: [{session, ex}] (only with ≥1 done set). {seeds:true} includes baselines. */
+export function exposures(sessions, item, { excludeId, seeds = false } = {}) {
   const out = [];
-  for (const s of finished(sessions)) {
+  for (const s of finished(sessions, { seeds })) {
     if (excludeId && s.id === excludeId) continue;
     for (const e of s.exercises) if (sameExercise(e, item) && doneSets(e).length) { out.push({ session: s, ex: e }); break; }
   }
@@ -533,7 +538,7 @@ export function restRemaining(rest, now = Date.now()) {
 // ── live session ────────────────────────────────────────────
 /** One live exercise from a plan item + history (shared by buildLive, add exercise and swap). */
 export function liveExercise(it, sessions, opts = {}) {
-  const last = exposures(sessions, it)[0];
+  const last = exposures(sessions, it, { seeds: true })[0]; // an imported baseline counts as the last exposure (prefill only)
   let p = prescribe(it, last?.ex, opts.reentry?.active ? { ...opts, lighter: false } : opts);
   if (opts.reentry?.active) p = reentryAdjust(p, opts.reentry, { item: it, sets: !it.reSets });
   const ex = {
@@ -1199,6 +1204,30 @@ export function reentryRir(item, info) {
 }
 const reLoad = (w, f) => { w = +w || 0; if (!w) return 0; const x = w * f; return x >= 20 ? roundTo(x) : Math.max(1, Math.round(x)); };
 /**
+ * Load step of the equipment for a weight: barbell 2.5; dumbbells 2.5 when the pair he uses is on a 2.5 grid (17.5, 22.5 …),
+ * else 2 (1 under 10 kg); cable / machine 2.5 under 50 kg, then 5. Unknown equipment → null (old rule).
+ */
+export function equipStep(eq, w, base = w) {
+  w = +w || 0; base = +base || 0;
+  if (eq === 'بار') return 2.5;
+  if (eq === 'دمبل') { if (base % 2 !== 0 && base % 2.5 === 0) return 2.5; return w < 10 ? 1 : 2; }
+  if (eq === 'جهاز' || eq === 'كابل') return w < 50 ? 2.5 : 5;
+  return null;
+}
+/** Round a load to the equipment step (min one step). Unknown equipment keeps the re-entry rule (2.5 from 20 kg, else 1). */
+export function roundLoad(x, eq, base = x) {
+  x = +x || 0; if (!(x > 0)) return 0;
+  const st = equipStep(eq, x, base);
+  if (!st) return x >= 20 ? roundTo(x) : Math.max(1, Math.round(x));
+  return Math.max(st, Math.round(x / st) * st);
+}
+/** Re-entry load for an item: × 0.8 / 0.9 of the last load, rounded by the item's equipment (library entry) when known. */
+export function reentryLoad(w, f, item = null) {
+  w = +w || 0; if (!w) return 0;
+  const L = item && ((item.lib && libById(item.lib)) || findLib(item.en || item.name));
+  return L && equipStep(L.eq, w) ? roundLoad(w * f, L.eq, w) : reLoad(w, f);
+}
+/**
  * reentryAdjust(prescription, info, {item, sets}) → the prescribe() result for a re-entry week: fewer sets (last ones dropped,
  * unless the plan already cut them: sets:false), loads × 0.8 / 0.9 of the last logged, no increase, gate line, RIR target.
  */
@@ -1207,7 +1236,7 @@ export function reentryAdjust(prescription, info, { item = null, sets: cut = tru
   const c = reCfg(info);
   const list = prescription.sets || [];
   const k = cut ? Math.min(list.length, reentrySets(list.length, info)) : list.length;
-  const out = list.slice(0, k).map((t) => ({ w: reLoad(t.w, c.load), r: t.r }));
+  const out = list.slice(0, k).map((t) => ({ w: reentryLoad(t.w, c.load, item), r: t.r }));
   const gates = [c.gate, ...(prescription.gates || []).filter((g) => g !== 'readiness' && g !== 'phase' && g !== c.gate)];
   const { mode, ...rest } = prescription;
   return { ...rest, sets: out, ready: false, inc: 0, gates, hold: true, reentry: { week: info.week, of: info.of }, ...(item ? { rirT: reentryRir(item, info) } : {}) };

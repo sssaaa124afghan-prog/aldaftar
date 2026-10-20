@@ -19,7 +19,7 @@ export async function loadTargets(db) {
   return withDayTypes(await kv(db, 'targets'));
 }
 
-const liftDays = (sessions) => new Set(sessions.filter((s) => s && s.day && s.kind !== 'recovery' && s.kind !== 'heart' && s.mode !== 'iso' && sessionState(s) === 'done').map((s) => s.day));
+const liftDays = (sessions) => new Set(sessions.filter((s) => s && s.day && s.kind !== 'recovery' && s.kind !== 'heart' && !s.seed && s.kind !== 'baseline' && s.mode !== 'iso' && sessionState(s) === 'done').map((s) => s.day));
 async function allSessions(db) { try { return (await db.getAll('sessions')) || []; } catch { return []; } }
 
 export async function sessionDays(db) { return liftDays(await allSessions(db)); }

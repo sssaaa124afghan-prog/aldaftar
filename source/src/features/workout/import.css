@@ -1,0 +1,61 @@
+/* «استورد أوزانك القديمة» review (import-ui.js). Tokens from styles/tokens.css, each with a fallback. */
+.oi{padding-bottom:var(--s4,16px)}
+.oi .sheet-card{margin-bottom:var(--s4,16px)}
+.oi-intro p{margin:var(--s2,8px) 0;line-height:1.55}
+.oi-intro .hint{display:flex;gap:8px;align-items:flex-start;color:var(--mu,#C4BFE3);font-size:var(--t-14,14px)}
+.oi-intro .hint svg{flex:none;width:18px;height:18px;margin-top:2px}
+.oi-pick{margin-top:var(--s3,12px);cursor:pointer}
+.oi-pick:focus-within,.oi-intro input[type=file]:focus-visible+.status{outline:2px solid var(--amber,#FCD34D);outline-offset:3px}
+.oi .status{min-height:1.5em;margin:var(--s3,12px) 0 0;color:var(--mu,#C4BFE3);font-size:var(--t-14,14px)}
+.oi-have{display:flex;flex-direction:column;gap:var(--s3,12px)}
+.oi-have p{margin:var(--s2,8px) 0 0}
+.oi-switch{display:flex;align-items:center;gap:12px;min-height:var(--tap,48px);margin-top:var(--s3,12px);padding-top:var(--s3,12px);border-top:1px solid var(--edge-soft,rgba(255,255,255,.08));cursor:pointer;position:relative}
+.oi-switch>span{flex:1;display:flex;flex-direction:column;gap:2px;font-size:var(--t-14,14px)}
+.oi-switch small{color:var(--mu,#C4BFE3);font-size:var(--t-12,12px);line-height:1.45}
+.oi-switch input{position:absolute;opacity:0;width:1px;height:1px}
+.oi-switch i{flex:none;width:44px;height:26px;border-radius:999px;background:rgba(255,255,255,.16);border:1px solid var(--edge,rgba(255,255,255,.13));position:relative;transition:background-color var(--d,200ms)}
+.oi-switch i::after{content:"";position:absolute;top:2px;inset-inline-start:2px;width:20px;height:20px;border-radius:50%;background:var(--tx,#F7F5FF);transition:transform var(--d,200ms) var(--ease,ease)}
+.oi-switch input:checked+i{background:var(--carb,#86EFAC)}
+.oi-switch input:checked+i::after{transform:translateX(-18px)}
+.oi-switch input:focus-visible+i{outline:2px solid var(--amber,#FCD34D);outline-offset:2px}
+.oi-switch input:disabled+i{opacity:.6}
+.oi-flag{display:inline-flex;align-items:center;min-height:22px;padding:0 8px;margin-inline-start:6px;border-radius:999px;border:1px solid var(--warn,#FDBA74);color:var(--warn,#FDBA74);font:600 var(--t-12,12px)/1 var(--f,inherit);vertical-align:middle}
+.oi-day{margin:0 var(--gutter,18px) var(--s5,24px)}
+.oi-day h2{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s2,8px);font:700 var(--t-17,17px)/1.3 var(--f,inherit);margin:0 0 var(--s3,12px)}
+.oi-day h2 small{font:500 var(--t-12,12px) var(--f,inherit);color:var(--mu,#C4BFE3)}
+.oi-t{width:100%;border-collapse:separate;border-spacing:0 8px}
+.oi-t th,.oi-t td{text-align:start;vertical-align:middle;font-weight:400}
+.oi-t thead th{font:500 var(--t-12,12px) var(--f,inherit);color:var(--mu,#C4BFE3);padding:0 8px}
+.oi-t tbody tr{background:var(--glass,rgba(255,255,255,.065));border-radius:var(--r-inner,16px)}
+.oi-t tbody tr.rv{box-shadow:inset 0 0 0 1px var(--warn,#FDBA74)}
+.oi-t tbody th,.oi-t tbody td{padding:10px 8px}
+.oi-n b{font:600 var(--t-14,14px)/1.35 var(--f,inherit)}
+.oi-n small{display:block;margin-top:3px;font-size:var(--t-12,12px);line-height:1.4;color:var(--mu,#C4BFE3)}
+.oi-n .oi-why{color:var(--warn,#FDBA74)}
+.oi-old span{display:block;font-size:var(--t-12,12px);color:var(--mu,#C4BFE3);white-space:nowrap}
+.oi-old .num{color:var(--tx,#F7F5FF);font-weight:600}
+.oi-w .num{font:700 var(--t-16,16px)/1 var(--f,inherit)}
+.oi-w small{color:var(--mu,#C4BFE3);font-size:var(--t-12,12px)}
+.oi-bw{font-size:var(--t-14,14px);color:var(--mu,#C4BFE3)}
+.oi-step{grid-template-columns:var(--tap,48px) minmax(56px,1fr) var(--tap,48px);min-width:152px}
+.oi-step input{width:100%;min-height:var(--tap,48px);border:0;background:transparent;color:var(--tx,#F7F5FF);text-align:center;font:700 var(--t-20,20px)/1 var(--f,inherit);padding:0}
+.oi-step input:focus-visible{outline:2px solid var(--amber,#FCD34D);outline-offset:-2px;border-radius:8px}
+.oi-step input[aria-invalid=true]{color:var(--danger-tx,#FDAEB9)}
+.oi-step button svg{width:20px;height:20px}
+.oi-spacer{height:110px}
+.oi-dock .btn-row .btn{min-height:56px}
+/* every row is a card (name / old / stepper / weeks): the app column is ≤ 560 px, so the 5-column table never fits;
+   the table keeps its semantics (headers stay for screen readers) */
+@supports (display:grid){
+  .oi-t thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+  .oi-t,.oi-t tbody{display:block}
+  .oi-t tbody tr{display:grid;grid-template-columns:1fr 1fr;grid-template-areas:"n n" "o o" "c c" "w1 w2";gap:8px 12px;padding:12px;margin-bottom:10px}
+  .oi-t tbody th,.oi-t tbody td{padding:0}
+  .oi-n{grid-area:n}
+  .oi-old{grid-area:o;display:flex;gap:16px}
+  .oi-c{grid-area:c}
+  .oi-w1{grid-area:w1}
+  .oi-w2{grid-area:w2}
+  .oi-w::before{content:attr(data-l);display:block;font-size:var(--t-12,12px);color:var(--mu,#C4BFE3);margin-bottom:4px}
+  .oi-step{min-width:0}
+}
