@@ -265,6 +265,10 @@
 .wk-mic svg{width:22px;height:22px}
 .wk-mic:active{transform:scale(.94)}
 .wk-mic.on{background:rgba(252,211,77,.18);border-color:rgba(252,211,77,.6);color:var(--amber,#FCD34D);box-shadow:0 0 0 4px rgba(252,211,77,.14)}
+.wk-mic.on{animation:wk-listen 1.4s ease-in-out infinite}
+.wk-mic.on.heard{box-shadow:0 0 0 8px rgba(252,211,77,.28);animation-duration:.7s}
+@keyframes wk-listen{50%{box-shadow:0 0 0 9px rgba(252,211,77,.06)}}
+@media (prefers-reduced-motion:reduce){.wk-mic.on{animation:none}}
 .wk-mic:focus-visible,.wk-vpanel button:focus-visible,.wk-vin:focus-visible{outline:2px solid var(--violet,#A78BFA);outline-offset:2px}
 .wk-vpanel{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
 .wk-vmsg{font-size:var(--t-12,12px);line-height:1.5;color:var(--mu,#C3BEE3)}

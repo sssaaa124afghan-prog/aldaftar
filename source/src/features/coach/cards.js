@@ -9,9 +9,11 @@ import { loadTargets } from '../../app/day.js';
 import { planChange, applyChange } from '../workout/coach-bridge.js';
 import { loadProgram, loadTraining } from '../workout/store.js';
 import { isWorkoutAction } from './actions.js';
+import { resolveItems, withAmount, withFood, totals, entriesFor, resolveDay } from './foodlog.js';
+import { loadUsage } from '../nutrition/data.js';
 
 const n0 = (v) => h('span', { class: 'num' }, fmt(v));
-const TYPE_TITLE = { log: 'تسجّل الأكل ده؟', adddb: 'تضيف الأكلة دي لأكلاتي؟', goal: 'تغيّر الأهداف؟', delete: 'تمسح التسجيل ده؟', water: 'تسجّل المية؟' };
+const TYPE_TITLE = { 'food.log': 'تسجّل الأكل ده؟', log: 'تسجّل الأكل ده؟', adddb: 'تضيف الأكلة دي لأكلاتي؟', goal: 'تغيّر الأهداف؟', delete: 'تمسح التسجيل ده؟', water: 'تسجّل المية؟' };
 
 function shell(action, bodyNodes, confirmLabel, run, { danger = false } = {}) {
   const ok = h('button', { type: 'button', class: `btn sm co-ok${danger ? ' danger' : ''}` }, confirmLabel);
@@ -31,24 +33,12 @@ const fail = (m) => Object.assign(new Error(m), { userMessage: m });
 /** actionCard(ctx, action, {said}) → element. */
 export function actionCard(ctx, action, { said = '' } = {}) {
   const day = ctx.today();
+  if (action.type === 'food.log') return foodLogCard(ctx, action, { said });
   if (action.type === 'log') {
+    // legacy proposal shape → the same editable card
     const named = SECTIONS.find((x) => said.includes(x.label));
-    let section = action.section || (named ? named.key : sectionForHour(new Date().getHours()));
-    const tot = sumEntries(action.items);
-    const chips = h('div', { class: 'chips', role: 'group', 'aria-label': 'الوجبة' });
-    let card;
-    const draw = () => { chips.textContent = ''; for (const s of SECTIONS) chips.appendChild(h('button', { type: 'button', class: 'chip', 'aria-pressed': String(s.key === section), onclick: () => { section = s.key; draw(); const b = card.querySelector('.co-ok'); if (b) b.textContent = `سجّل في ${SECTION_LABEL[section]}`; } }, s.label)); };
-    draw();
-    card = shell(action, [
-      ...action.items.map((it) => h('div', { class: 'co-row' }, h('span', {}, h('b', {}, it.name), ' ', h('em', {}, n0(it.grams), ' جم')), h('span', {}, n0(it.kcal), h('small', {}, ' سعرة · '), n0(it.p), h('small', {}, ' بروتين')))),
-      h('div', { class: 'co-row co-total' }, h('span', {}, 'المجموع'), h('span', {}, n0(tot.kcal), h('small', {}, ' سعرة · '), n0(tot.p), h('small', {}, ' بروتين'))),
-      chips], `سجّل في ${SECTION_LABEL[section]}`, async () => {
-      const { list } = await loadCatalog(ctx.db);
-      const entries = action.items.map((it) => entryFromAIItem(it, section, list)).map(({ matched, ...e }) => ({ ...e, src: 'coach' }));
-      if (!(await addEntries(ctx, day, entries, `اتسجّل في ${SECTION_LABEL[section]}`))) throw fail('ماقدرناش نسجّل. جرّب تاني.');
-      return `اتسجّل في ${SECTION_LABEL[section]} · ${fmt(tot.kcal)} سعرة`;
-    });
-    return card;
+    const meal = action.section || (named ? named.key : null);
+    return foodLogCard(ctx, { type: 'food.log', day: 'today', meal, items: action.items.map((it) => ({ ...it, meal })) }, { said });
   }
   if (action.type === 'adddb') {
     const f = action.food;
@@ -91,6 +81,82 @@ export function actionCard(ctx, action, { said = '' } = {}) {
     });
   }
   return h('p', { class: 'co-hint' }, 'اقتراح مش مفهوم.');
+}
+
+// ───────── food.log: editable list (food from the DB or «تقدير», amount, meal), totals, «سجّل» → foodLog, undo ─────────
+const dayLabelOf = (d, today) => (d === today ? 'النهارده' : d === addDaysLocal(today, -1) ? 'امبارح' : d);
+function addDaysLocal(day, n) { const t = new Date(`${day}T12:00:00`); t.setDate(t.getDate() + n); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; }
+
+export function foodLogCard(ctx, action, { said = '' } = {}) {
+  const today = ctx.today();
+  const day = resolveDay(action.day, today);
+  const named = SECTIONS.find((x) => said.includes(x.label));
+  const meal0 = action.meal || (named ? named.key : null);
+  let rows = [];
+  const listBox = h('div', { class: 'co-flist' }, h('p', { class: 'co-hint' }, 'بندوّر في أكلاتك…'));
+  const totalBox = h('div', { class: 'co-row co-total', 'aria-live': 'polite' });
+  const ok = h('button', { type: 'button', class: 'btn sm co-ok', disabled: true }, 'سجّل');
+  const no = h('button', { type: 'button', class: 'btn sm ghost' }, 'مش دلوقتي');
+  const card = h('div', { class: 'co-card co-fl', role: 'group', 'aria-label': 'تسجيل أكل', dataset: { type: 'food.log' } },
+    h('h4', {}, `تسجّل الأكل ده${day === today ? '' : ` (${dayLabelOf(day, today)})`}؟`, h('small', {}, 'عدّل الكميات أو الوجبة قبل التسجيل')), listBox, totalBox, h('div', { class: 'co-acts' }, ok, no));
+  const uid = Math.random().toString(36).slice(2, 7);
+  const drawTotal = () => {
+    const t = totals(rows); const est = rows.some((r) => r.est && !r.invalid);
+    fill(totalBox, h('span', {}, 'المجموع', est ? h('i', { class: 'co-est' }, 'تقدير') : null), h('span', {}, n0(t.kcal), h('small', {}, ' سعرة · '), n0(t.p), h('small', {}, ' بروتين · '), n0(t.c), h('small', {}, ' كارب · '), n0(t.f), h('small', {}, ' دهون')));
+    const live = rows.filter((r) => !r.invalid && r.amount > 0);
+    ok.disabled = !live.length;
+    ok.textContent = live.length ? `سجّل ${live.length > 1 ? `${live.length} أكلات` : ''}`.trim() : 'سجّل';
+  };
+  const draw = () => {
+    listBox.textContent = '';
+    if (!rows.length) { listBox.append(h('p', { class: 'co-hint' }, 'مفيش أكلات في القائمة.')); drawTotal(); return; }
+    rows.forEach((r, i) => {
+      const mac = h('p', { class: 'co-fmac' });
+      const setMac = () => fill(mac, r.invalid ? h('span', { class: 'co-err' }, 'الكمية من 1 لـ 5000') : [n0(r.kcal), ' سعرة · ', n0(r.p), ' ب · ', n0(r.c), ' ك · ', n0(r.f), ' د', r.est ? h('i', { class: 'co-est' }, 'تقدير') : null]);
+      setMac();
+      const amt = h('input', { type: 'number', inputmode: 'decimal', min: '1', max: '5000', step: 'any', value: String(r.amount), id: `co-fa-${uid}-${i}`, 'aria-label': `كمية ${r.name} (${r.unit})` });
+      amt.addEventListener('input', () => { rows[i] = withAmount(rows[i], amt.value); r = rows[i]; setMac(); drawTotal(); });
+      const meal = h('select', { 'aria-label': `وجبة ${r.name}` }, ...SECTIONS.map((x) => h('option', { value: x.key, selected: x.key === r.meal }, x.label)));
+      meal.addEventListener('change', () => { rows[i] = { ...rows[i], meal: meal.value }; });
+      const opts = [...(r.alts || []).map((f, k) => h('option', { value: String(k), selected: r.food === f }, f.name)), ...(r.hasEst || !(r.alts || []).length ? [h('option', { value: 'est', selected: !r.food }, `${r.name} (تقدير المدرب)`)] : [])];
+      const pick = opts.length > 1 ? h('select', { class: 'co-fpick', 'aria-label': `نوع ${r.name}` }, ...opts) : null;
+      if (pick) pick.addEventListener('change', () => { rows[i] = withFood(rows[i], pick.value === 'est' ? null : rows[i].alts[+pick.value]); draw(); });
+      const rm = h('button', { type: 'button', class: 'co-x', 'aria-label': `شيل ${r.name}` }, '×');
+      rm.addEventListener('click', () => { rows.splice(i, 1); draw(); });
+      listBox.append(h('div', { class: 'co-frow' },
+        h('div', { class: 'co-fname' }, h('b', {}, r.food ? r.food.name : r.name), pick || h('small', {}, r.food ? 'من أكلاتك' : 'مش في أكلاتك'), ),
+        h('label', { class: 'co-famt' }, amt, h('small', {}, ` ${r.unit}`)), meal, rm, mac));
+    });
+    drawTotal();
+  };
+  (async () => {
+    try {
+      const [{ list }, usage] = await Promise.all([loadCatalog(ctx.db), loadUsage(ctx.db, today).catch(() => null)]);
+      rows = resolveItems(action.items, list, { usage, meal: meal0 });
+    } catch { rows = resolveItems(action.items, [], { meal: meal0 }); }
+    draw();
+  })();
+  const finish = (nodes, good) => { fill(card, h('div', { class: `co-done${good ? ' ok' : ''}` }, h('i', { 'aria-hidden': 'true' }), ...nodes)); pop(card); };
+  ok.addEventListener('click', async () => {
+    ok.disabled = true; no.disabled = true;
+    const entries = entriesFor(rows).map((e) => ({ ...e, src: 'coach' }));
+    if (!entries.length) { ok.disabled = false; no.disabled = false; return; }
+    let cur = [];
+    try { cur = await getEntries(ctx.db, day); await putEntries(ctx.db, day, [...cur, ...entries]); } catch { ok.disabled = false; no.disabled = false; ctx.toast('ماقدرناش نسجّل. جرّب تاني.'); return; }
+    ctx.emit('food:changed', { day });
+    const t = sumEntries(entries); const ids = new Set(entries.map((e) => e.id));
+    let undone = false;
+    const undo = async () => {
+      if (undone) return; undone = true;
+      try { const now = await getEntries(ctx.db, day); await putEntries(ctx.db, day, now.filter((e) => !ids.has(e.id))); ctx.emit('food:changed', { day }); finish([h('span', {}, 'اتشال التسجيل')], false); }
+      catch { undone = false; ctx.toast('ماقدرناش نرجّع. جرّب تاني.'); }
+    };
+    const msg = `اتسجّل ${entries.length > 1 ? `${entries.length} أكلات` : `«${entries[0].name}»`}${day === today ? '' : ` (${dayLabelOf(day, today)})`} · ${fmt(t.kcal)} سعرة · ${fmt(t.p)} بروتين`;
+    finish([h('span', { class: 'grow' }, msg), h('button', { type: 'button', class: 'btn sm ghost co-undo', onclick: undo }, 'تراجع')], true);
+    ctx.toast(msg, { action: { label: 'تراجع', run: undo } });
+  });
+  no.addEventListener('click', () => finish([h('span', {}, 'ماتغيّرش حاجة')], false));
+  return card;
 }
 
 // ───────── plan / targets proposals: before → after diff, «طبّق» / «لا», Undo with the exact snapshot ─────────

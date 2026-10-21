@@ -12,6 +12,7 @@ import {
 } from '../logic.js';
 import { kvGet, kvPatch, loadCatalog, loadUsage, saveFood, addEntries, rememberQty, aiClient, aiErrorText, dayLabel, relDay, fileToJpeg, hasAIKey, isOnline, foodFromAI } from '../data.js';
 import { parseFoodUtterance, fastPathLog, voiceSupported, startVoice } from '../voice.js';
+import { speechEnv, speechMessage, fileContextHint } from '../../../core/speech.js';
 import { I, n0, topBar, foodRow, qtySheet } from '../ui.js';
 
 const secOf = (s) => (SECTION_LABEL[s] ? s : sectionForHour(new Date().getHours()));
@@ -137,11 +138,14 @@ export async function addScreen(el, ctx, params) {
   });
 
   // voice
-  const mic = voiceSupported() ? h('button', { type: 'button', class: 'nu-mic', 'aria-label': 'قول الأكلة بالصوت', 'aria-pressed': 'false' }, I('mic')) : null;
-  if (mic) mic.addEventListener('click', () => {
+  // always visible: without in-page speech (e.g. iOS home-screen app) it focuses the field for the keyboard mic
+  const mic = h('button', { type: 'button', class: 'nu-mic', 'aria-label': 'قول الأكلة بالصوت', 'aria-pressed': 'false' }, I('mic'));
+  mic.addEventListener('click', () => {
     if (stopVoice) { stopVoice(); stopVoice = null; mic.setAttribute('aria-pressed', 'false'); return; }
-    mic.setAttribute('aria-pressed', 'true'); voiceNote.textContent = 'بسمعك… قول مثلاً «ميتين جرام فراخ»';
+    if (!voiceSupported()) { voiceNote.textContent = speechMessage(speechEnv().reason || 'unsupported'); q.focus(); return; }
+    mic.setAttribute('aria-pressed', 'true'); voiceNote.textContent = fileContextHint() || 'بسمعك… قول مثلاً «ميتين جرام فراخ»';
     stopVoice = startVoice({
+      onInterim: (t) => { voiceNote.textContent = `سامعك: «${t.slice(0, 60)}»`; },
       onResult: (text, alts) => {
         const best = alts.map((a) => ({ a, fp: fastPathLog(a, cat) })).find((x) => x.fp) || { a: text, fp: null };
         voiceNote.textContent = `سمعت: «${best.a.slice(0, 80)}»`;
@@ -149,8 +153,8 @@ export async function addScreen(el, ctx, params) {
         if (best.fp) { results.querySelector('.nu-fast')?.remove(); const c = fastCard(best.fp, best.a); if (c) results.prepend(c); }
         else if (!parseFoodUtterance(best.a).qty) voiceNote.textContent += ' · ماسمعناش الكمية، اختار الأكلة وحدد الكمية.';
       },
-      onError: (m) => { voiceNote.textContent = m; },
-      onEnd: () => { stopVoice = null; mic.setAttribute('aria-pressed', 'false'); if (voiceNote.textContent.startsWith('بسمعك')) voiceNote.textContent = ''; },
+      onError: (m, code) => { voiceNote.textContent = m; if (code !== 'no-speech') q.focus(); },
+      onEnd: () => { stopVoice = null; mic.setAttribute('aria-pressed', 'false'); if (/^(بسمعك|سامعك)/.test(voiceNote.textContent)) voiceNote.textContent = ''; },
     });
   });
 

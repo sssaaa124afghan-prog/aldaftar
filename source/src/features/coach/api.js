@@ -7,11 +7,14 @@
 import { createAIClient, MODELS, AIError, AI_MESSAGES, systemBlocks } from '../../core/ai.js';
 import { getSecret } from '../../core/db.js';
 import { buildContext, loadCoachData } from './context.js';
-import { parseActions } from './actions.js';
-import { INTENTS, intentOf, detectIntent, SYSTEM, ACTION_PROTOCOL, ALL_BLOCKS } from './prompts.js';
+import { parseActions, streamVisible } from './actions.js';
+import { INTENTS, intentOf, detectIntent, blocksFor, protocolFor, SYSTEM, ALL_BLOCKS } from './prompts.js';
 
 export { AIError };
 export const errorText = (e) => (e instanceof AIError ? e.message : AI_MESSAGES.server);
+/** History sent with each message: the last turns only (the data summary carries the rest). */
+export const HISTORY_TURNS = 10;
+export const EMPTY_REPLY = 'مقدرتش أطلع رد واضح المرة دي. اسألني تاني بطريقة تانية.';
 
 /** True when an Anthropic key is saved (buttons stay visible; a press without a key shows the settings link). */
 export const hasKey = (ctx) => !!String(ctx.settings.get('anthropicKey') || '').trim();
@@ -50,24 +53,34 @@ async function putCache(ctx, key, val) {
 }
 
 /**
- * askCoach(ctx, {intent, prompt, extra}) → {text, actions, cached?}
+ * askCoach(ctx, {intent, prompt, extra, onText, onRetry}) → {text, actions, errors, model, stopReason, cached?}
  * extra: attached data (e.g. {liveSession}, {session}, {exercise}); reserved keys:
  *   history: [{role, content}] (chat turns, newest last), cacheKey: string (per-day cache), refresh: bool.
+ * onText(visibleSoFar): streaming updates (action JSON is never shown). The returned text is never empty.
  */
-export async function askCoach(ctx, { intent = 'chat', prompt = '', extra = {} } = {}) {
+export async function askCoach(ctx, { intent = 'chat', prompt = '', extra = {}, onText = null, onRetry = null } = {}) {
   const { history, cacheKey, refresh, ...attach } = extra || {};
   if (cacheKey && !refresh) { const hit = await cached(ctx, cacheKey); if (hit) return { text: hit.text, actions: hit.actions || [], errors: [], cached: true }; }
   const effective = intent === 'chat' ? detectIntent(prompt) : intent;
   const spec = intentOf(effective);
-  const ctxText = (await coachContext(ctx, { blocks: spec.blocks, extra: Object.keys(attach).length ? attach : null })).text;
+  const ctxText = (await coachContext(ctx, { blocks: blocksFor(effective, prompt), extra: Object.keys(attach).length ? attach : null })).text;
   const writes = intentOf(intent).writes || spec.writes;
-  const system = `${SYSTEM}${writes ? `\n\n${ACTION_PROTOCOL}` : ''}\n\nData summary:\n${ctxText || '(no data yet)'}`;
-  const turns = Array.isArray(history) && history.length ? history : [{ role: 'user', content: String(prompt) }];
-  const r = await client(ctx, { model: MODELS[spec.model] || MODELS.coach, system, maxTokens: spec.maxTokens }).chat(turns, {});
+  const now = new Date();
+  const clock = `Now: ${ctx.today()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} local`;
+  // stable instructions first (cache breakpoint 1), then the data block (breakpoint 2)
+  const system = `${SYSTEM}${writes ? `\n\n${protocolFor(spec)}` : ''}\n\nData summary:\n${clock}\n${ctxText || '(no data yet)'}`;
+  let turns = Array.isArray(history) && history.length ? history.slice(-HISTORY_TURNS) : [{ role: 'user', content: String(prompt) }];
+  // the question being answered is always the last user turn
+  if (prompt && !(turns.length && turns[turns.length - 1].role === 'user' && String(turns[turns.length - 1].content).trim() === String(prompt).trim())) turns = [...turns, { role: 'user', content: String(prompt) }];
+  const model = MODELS[spec.model] || MODELS.coach;
+  const r = await client(ctx, { model, system, maxTokens: spec.maxTokens }).complete({ model, max_tokens: spec.maxTokens, messages: turns, stream: true },
+    { onText: onText ? (full) => { const v = streamVisible(full); if (v) onText(v); } : null, onRetry });
   const out = parseActions(r.text);
   if (!writes) { out.actions = []; out.errors = []; }
+  if (!out.text) out.text = out.actions.length ? 'راجع المقترح ده قبل ما يتسجّل:' : EMPTY_REPLY;
+  if (r.stopReason === 'max_tokens') out.text += '\n\n(الرد اتقطع. قولّي «كمّل» لو عايز الباقي.)';
   if (cacheKey) await putCache(ctx, cacheKey, out);
-  return { ...out, model: r.model };
+  return { ...out, model: r.model, stopReason: r.stopReason, intent: effective };
 }
 
 /** Opens the coach chat in a bottom sheet over the current screen. attach is sent as context with every message. */

@@ -34,7 +34,27 @@
 .co-send{background:var(--cta,linear-gradient(135deg,#FCD34D,#FB923C));color:var(--on-accent,#1A1033);box-shadow:var(--cta-glow,none)}
 .co-send svg{transform:scaleX(-1)}
 .co-mic{background:transparent;color:var(--mu,#C3BEE3)}
-.co-mic[aria-pressed="true"]{color:var(--danger,#FB7185)}
+.co-mic[aria-pressed="true"]{color:var(--danger,#FB7185);background:rgba(251,113,133,.12);animation:co-listen 1.4s ease-in-out infinite}
+.co-mic.heard{box-shadow:0 0 0 6px rgba(251,113,133,.22);animation-duration:.7s}
+@keyframes co-listen{50%{box-shadow:0 0 0 8px rgba(251,113,133,.06)}}
+.co-vstate{margin:4px 2px 0;font-size:13px;color:var(--mu,#C3BEE3);display:flex;gap:6px;align-items:center}
+.co-vstate[hidden]{display:none}
+.co-vstate i{width:8px;height:8px;border-radius:50%;background:var(--danger,#FB7185);flex:none}
+.co-vstate.heard i{background:var(--ok,#34D399)}
+.co-typing{display:inline-flex;gap:4px;padding:2px 0}
+.co-typing i{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.4;animation:co-dot 1s infinite}
+.co-typing i:nth-child(2){animation-delay:.15s}.co-typing i:nth-child(3){animation-delay:.3s}
+@keyframes co-dot{50%{opacity:1}}
+.co-retry{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+.co-msg.failed{opacity:.75;border:1px dashed var(--danger,#FB7185)}
+.co-fl .co-frow{display:grid;grid-template-columns:minmax(0,1fr) 76px 84px 28px;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--edge,rgba(255,255,255,.08))}
+.co-fl .co-frow input,.co-fl .co-frow select{width:100%;min-height:36px;font:inherit;font-size:14px;border-radius:10px;border:1px solid var(--edge,rgba(255,255,255,.16));background:transparent;color:inherit;padding:4px 6px}
+.co-fl .co-fname b{display:block;font-size:14px;overflow-wrap:anywhere}
+.co-fl .co-fname small{display:block;font-size:12px;color:var(--mu,#C3BEE3)}
+.co-fl .co-est{display:inline-block;font-size:12px;padding:0 6px;border-radius:8px;background:rgba(252,211,77,.16);color:var(--amber,#FCD34D);margin-inline-start:4px}
+.co-fl .co-x{width:28px;height:36px;border:0;background:transparent;color:inherit;font-size:18px;cursor:pointer}
+.co-fl .co-fmac{grid-column:1/-1;font-size:12px;color:var(--mu,#C3BEE3)}
+@media (prefers-reduced-motion:reduce){.co-mic[aria-pressed="true"],.co-typing i{animation:none}}
 .co-skel{display:flex;flex-direction:column;gap:8px;align-self:flex-end;width:78%;padding:12px 14px;border-radius:18px;background:var(--glass,rgba(255,255,255,.065))}
 .co-skel i{display:block;height:10px;border-radius:6px;background:linear-gradient(90deg,rgba(255,255,255,.06),rgba(255,255,255,.16),rgba(255,255,255,.06));background-size:200% 100%;animation:co-sh 1.3s linear infinite}
 @keyframes co-sh{to{background-position:-200% 0}}

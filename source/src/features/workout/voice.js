@@ -1,8 +1,9 @@
 // Voice set logging for the live session (ar-EG first, Gulf / MSA tolerant).
 // Pure parser on top of the nutrition number parser (parseFoodUtterance → word numbers, «ونص», «مية وعشرين»),
 // plus a thin SpeechRecognition wrapper with a language fallback and a typed field «اكتبها» when speech is missing.
-import { parseFoodUtterance, normalizeArabicNums, voiceSupported, VOICE_ERRORS } from '../nutrition/voice.js';
+import { parseFoodUtterance, normalizeArabicNums, voiceSupported } from '../nutrition/voice.js';
 import { normalizeAr } from '../nutrition/logic.js';
+import { listen as listenSpeech, speechEnv, speechMessage, fileContextHint } from '../../core/speech.js';
 
 export { voiceSupported };
 
@@ -219,34 +220,11 @@ export function applyPrefill(live, pf) {
   return n;
 }
 
-// ───────── browser speech (ar-EG → ar-SA → ar) ─────────
-const LANGS = ['ar-EG', 'ar-SA', 'ar'];
+// ───────── browser speech (ar-EG → ar-SA), shared core/speech.js ─────────
 
-/** listen({onResult(alts), onError(msg), onEnd}) → stop(). Retries the next language when one is not supported. */
-export function listen({ onResult, onError, onEnd } = {}) {
-  const SR = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
-  if (!SR) { onError?.('المتصفح ده مش بيدعم الإدخال بالصوت — اكتبها.'); onEnd?.(); return () => {}; }
-  let rec = null, stopped = false, li = 0;
-  const run = () => {
-    rec = new SR();
-    rec.lang = LANGS[li]; rec.interimResults = false; rec.maxAlternatives = 5; rec.continuous = false;
-    let retry = false;
-    rec.onresult = (e) => {
-      const res = e.results && e.results[0];
-      if (!res) return;
-      const alts = [...res].map((a) => a && a.transcript).filter(Boolean);
-      if (alts.length) onResult?.(alts);
-    };
-    rec.onerror = (e) => {
-      if ((e.error === 'language-not-supported' || e.error === 'bad-grammar') && li < LANGS.length - 1 && !stopped) { retry = true; return; }
-      if (e.error === 'aborted') return;
-      onError?.(VOICE_ERRORS[e.error] || 'ماقدرناش نسمع دلوقتي — جرّب تاني أو اكتبها.');
-    };
-    rec.onend = () => { if (retry && !stopped) { li++; run(); return; } onEnd?.(); };
-    try { rec.start(); } catch { onError?.('ماقدرناش نشغّل الميكروفون. جرّب تاني.'); onEnd?.(); }
-  };
-  run();
-  return () => { stopped = true; try { rec && rec.abort(); } catch { /* ignore */ } };
+/** listen({onResult(alts), onInterim(text), onError(msg, code), onState, onEnd}) → stop(). Called synchronously in the tap. */
+export function listen({ onResult, onInterim, onError, onState, onEnd } = {}) {
+  return listenSpeech({ onResult, onInterim, onState, onEnd, onError: (code, msg) => onError?.(msg, code) });
 }
 
 /**
@@ -288,16 +266,24 @@ export function createVoiceUI({ h, ico, onInput }) {
   mic.addEventListener('click', () => {
     if (!speech) {
       form.hidden = !form.hidden; sync();
-      if (!form.hidden) { field.focus(); say('المتصفح ده مش بيسمع — اكتبها أو استخدم مايك الكيبورد.', 5000); }
+      if (!form.hidden) { field.focus(); say(speechMessage(speechEnv().reason || 'unsupported'), 7000); }
       return;
     }
     if (stop) { const s = stop; stop = null; s(); setListening(false); return; }
-    say('بسمعك… قول مثلاً «80 في 8»', 8000);
+    const hint = fileContextHint();
+    say(hint || 'بسمعك… قول مثلاً «80 في 8»', 15000);
     setListening(true);
+    // listen() starts the recognizer synchronously inside this tap (iOS rejects a start after an await)
     stop = listen({
+      onState: (st) => { mic.classList.toggle('heard', st === 'speech'); },
+      onInterim: (t) => say(`سامعك: «${t.slice(0, 60)}»`, 15000),
       onResult: (alts) => { status.hidden = true; sync(); onInput?.(alts, { typed: false }); },
-      onError: (m) => { say(m); if (!speech) { form.hidden = false; sync(); } },
-      onEnd: () => { stop = null; setListening(false); if (status.textContent.startsWith('بسمعك')) { status.hidden = true; sync(); } },
+      onError: (m, code) => {
+        say(m, 7000);
+        // anything but «didn't hear you» means speech can't work here right now → open the typed field (keyboard dictation)
+        if (code !== 'no-speech') { form.hidden = false; sync(); }
+      },
+      onEnd: () => { stop = null; setListening(false); mic.classList.remove('heard'); if (/^(بسمعك|سامعك)/.test(status.textContent)) { status.hidden = true; sync(); } },
     });
   });
   function clearChip() { chipState = null; chipEl.textContent = ''; chipEl.hidden = true; sync(); }

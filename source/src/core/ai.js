@@ -19,6 +19,7 @@ export const AI_MESSAGES = Object.freeze({
   bad_request: 'الطلب ماتقبلش. لو فيه صورة جرّب صورة أصغر.',
   offline: 'مفيش إنترنت. اتأكد من الاتصال وجرّب تاني.',
   timeout: 'الرد اتأخر أوي. جرّب تاني.',
+  network: 'الاتصال اتقطع. جرّب تاني.',
   bad_response: 'الرد جه بشكل مش مفهوم. جرّب تاني.',
   bad_image: 'الصورة دي مش مدعومة. استخدم JPG أو PNG أو WebP أصغر من 5 ميجا.',
   empty_message: 'اكتب رسالتك الأول.',
@@ -35,6 +36,7 @@ export function errorFromStatus(status, body) {
   if (status === 429) return new AIError('rate_limit', status);
   if (status === 529 || type === 'overloaded_error') return new AIError('overloaded', status);
   if (status === 400 || status === 413 || status === 422) return new AIError('bad_request', status);
+  if (type === 'rate_limit_error') return new AIError('rate_limit', status);
   return new AIError('server', status);
 }
 
@@ -157,50 +159,149 @@ export function parsePhotoItems(text) {
   });
 }
 
-// ───────────────────────── client ─────────────────────────
+// ───────────────────────── streaming (SSE) ─────────────────────────
+
+/** Retryable failures: rate limit, overload, server errors, timeouts and dropped connections (not offline / bad key). */
+export const RETRYABLE = Object.freeze(['rate_limit', 'overloaded', 'server', 'timeout', 'network']);
+export const isRetryable = (e) => !!e && RETRYABLE.includes(e.code);
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * createAIClient({getKey, fetch, timeoutMs, isOnline})
- * getKey: () => string | Promise<string>   (reads settings; never cached here)
+ * Reads an Anthropic SSE body. onText(fullText, delta) is called per text delta. Returns {text, model, stopReason, usage}.
+ * resetIdle() is called on every chunk (idle timeout). A mid-stream `error` event throws AIError (with .partial text).
  */
-export function createAIClient({ getKey, fetch: fetchImpl = globalThis.fetch, timeoutMs = 45000, isOnline = () => (typeof navigator === 'undefined' ? true : navigator.onLine !== false) } = {}) {
-  async function send(body) {
+export async function readSSE(body, { onText, resetIdle } = {}) {
+  const reader = body.getReader();
+  const dec = new TextDecoder();
+  let buf = '', text = '', model = null, stopReason = null, usage = null, done = false;
+  const handle = (raw) => {
+    const data = raw.split('\n').filter((l) => l.startsWith('data:')).map((l) => l.slice(5).trimStart()).join('\n');
+    if (!data || data === '[DONE]') return;
+    let ev; try { ev = JSON.parse(data); } catch { return; }
+    switch (ev && ev.type) {
+      case 'message_start': model = (ev.message && ev.message.model) || model; usage = (ev.message && ev.message.usage) || usage; break;
+      case 'content_block_delta':
+        if (ev.delta && ev.delta.type === 'text_delta' && typeof ev.delta.text === 'string') { text += ev.delta.text; onText && onText(text, ev.delta.text); }
+        break;
+      case 'message_delta': stopReason = (ev.delta && ev.delta.stop_reason) || stopReason; usage = { ...(usage || {}), ...(ev.usage || {}) }; break;
+      case 'message_stop': done = true; break;
+      case 'error': {
+        const err = errorFromStatus((ev.error && ev.error.type) === 'overloaded_error' ? 529 : (ev.error && ev.error.type) === 'rate_limit_error' ? 429 : 500, ev);
+        err.partial = text; throw err;
+      }
+      default: break;
+    }
+  };
+  for (;;) {
+    let chunk;
+    try { chunk = await reader.read(); } catch (e) { const err = new AIError(e && e.name === 'AbortError' ? 'timeout' : 'network'); err.partial = text; throw err; }
+    if (chunk.done) break;
+    resetIdle && resetIdle();
+    buf += dec.decode(chunk.value, { stream: true }).replace(/\r\n/g, '\n');
+    let i;
+    while ((i = buf.indexOf('\n\n')) >= 0) { const evRaw = buf.slice(0, i); buf = buf.slice(i + 2); handle(evRaw); }
+    if (done) { try { reader.cancel(); } catch { /* ignore */ } break; }
+  }
+  if (buf.trim()) handle(buf);
+  if (!done && !stopReason && !text) { const err = new AIError('network'); err.partial = ''; throw err; }
+  return { text, model, stopReason: stopReason || (done ? 'end_turn' : 'cut'), usage };
+}
+
+// ───────────────────────── client ─────────────────────────
+
+/** Test hook (QA only, no secrets): window.__AI_TEST__ = {firstByteMs, idleMs, backoffMs}. */
+const testCfg = () => { try { return (typeof window !== 'undefined' && window.__AI_TEST__) || {}; } catch { return {}; } };
+
+/**
+ * createAIClient({getKey, fetch, timeoutMs, idleMs, retries, isOnline})
+ * getKey: () => string | Promise<string>   (reads settings; never cached here)
+ * timeoutMs: wait for the response headers; idleMs: max gap between streamed chunks.
+ */
+export function createAIClient({ getKey, fetch: fetchImpl = globalThis.fetch, timeoutMs, idleMs, retries = 2, backoffMs, isOnline = () => (typeof navigator === 'undefined' ? true : navigator.onLine !== false) } = {}) {
+  const T = testCfg();
+  const firstByte = T.firstByteMs || timeoutMs || 25000;
+  const idle = T.idleMs || idleMs || 25000;
+  const backoff = T.backoffMs ?? backoffMs ?? 900;
+
+  async function once(body, key, { onText } = {}) {
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    let timer = ctrl ? setTimeout(() => ctrl.abort(), firstByte) : null;
+    const resetIdle = () => { if (!ctrl) return; clearTimeout(timer); timer = setTimeout(() => ctrl.abort(), idle); };
+    let res;
+    try {
+      try {
+        res = await fetchImpl(API_URL, {
+          method: 'POST',
+          headers: {
+            'x-api-key': key,
+            'anthropic-version': API_VERSION,
+            'anthropic-dangerous-direct-browser-access': 'true',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify(body),
+          signal: ctrl ? ctrl.signal : undefined,
+        });
+      } catch (e) {
+        throw new AIError(e && e.name === 'AbortError' ? 'timeout' : (isOnline() ? 'network' : 'offline'));
+      }
+      const ctype = String((res.headers && res.headers.get && res.headers.get('content-type')) || '');
+      if (!res.ok) {
+        let json = null; try { json = await res.json(); } catch { json = null; }
+        const err = errorFromStatus(res.status, json);
+        const ra = Number(res.headers && res.headers.get && res.headers.get('retry-after'));
+        if (Number.isFinite(ra) && ra > 0) err.retryAfterMs = Math.min(10000, ra * 1000);
+        throw err;
+      }
+      if (body.stream && res.body && typeof res.body.getReader === 'function' && !/application\/json/.test(ctype)) {
+        resetIdle();
+        const r = await readSSE(res.body, { onText, resetIdle });
+        return { ...r, model: r.model || body.model };
+      }
+      let json = null;
+      try { json = await res.json(); } catch (e) { throw new AIError(e && e.name === 'AbortError' ? 'timeout' : 'bad_response'); }
+      if (!json || !Array.isArray(json.content)) throw new AIError('bad_response');
+      const text = json.content.filter((b) => b && b.type === 'text').map((b) => b.text).join('');
+      if (text && onText) onText(text, text);
+      return { text, model: json.model || body.model, stopReason: json.stop_reason || null, usage: json.usage || null };
+    } finally { if (timer) clearTimeout(timer); }
+  }
+
+  /**
+   * send(body, {onText, onRetry(attempt, error, waitMs)}) with retry + exponential backoff on 429 / 529 / 5xx / network /
+   * timeout, only while nothing was shown yet (a half-streamed reply is never silently duplicated).
+   */
+  async function send(body, { onText, onRetry } = {}) {
     const key = (await (getKey ? getKey() : ''))?.trim?.() || '';
     if (!key) throw new AIError('no_key');
     if (!isOnline()) throw new AIError('offline');
-    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
-    let res;
-    try {
-      res = await fetchImpl(API_URL, {
-        method: 'POST',
-        headers: {
-          'x-api-key': key,
-          'anthropic-version': API_VERSION,
-          'anthropic-dangerous-direct-browser-access': 'true',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(body),
-        signal: ctrl ? ctrl.signal : undefined,
-      });
-    } catch (e) {
-      throw new AIError(e && e.name === 'AbortError' ? 'timeout' : 'offline');
-    } finally { if (timer) clearTimeout(timer); }
-    let json = null;
-    try { json = await res.json(); } catch { json = null; }
-    if (!res.ok) throw errorFromStatus(res.status, json);
-    if (!json || !Array.isArray(json.content)) throw new AIError('bad_response');
-    const text = json.content.filter((b) => b && b.type === 'text').map((b) => b.text).join('');
-    return { text, model: json.model || body.model, stopReason: json.stop_reason || null, usage: json.usage || null };
+    let shown = false;
+    const tap = onText ? (t, d) => { if (t) shown = true; onText(t, d); } : null;
+    for (let attempt = 0; ; attempt++) {
+      try { return await once(body, key, { onText: tap }); } catch (e) {
+        const err = e instanceof AIError ? e : new AIError('server');
+        const max = err.code === 'timeout' ? Math.min(1, retries) : retries; // a hung request is retried once, not twice
+        if (shown || !isRetryable(err) || attempt >= max || !isOnline()) throw err;
+        const wait = err.retryAfterMs || Math.round(backoff * 2 ** attempt + Math.random() * 250);
+        try { onRetry && onRetry(attempt + 1, err, wait); } catch { /* ui only */ }
+        await sleepMs(wait);
+      }
+    }
   }
 
   return {
     /** Coach chat: last 10 messages + compact context. Returns {text, model, stopReason, usage}. */
-    async chat(messages, context = {}) {
+    async chat(messages, context = {}, opts = {}) {
       const msgs = prepareMessages(messages);
       if (!msgs.length) throw new AIError('empty_message');
       const summary = buildContextSummary(context);
-      return send({ model: MODELS.coach, max_tokens: 1024, system: systemBlocks(summary ? `${COACH_SYSTEM}${CONTEXT_MARK}${summary}` : COACH_SYSTEM), messages: msgs });
+      return send({ model: MODELS.coach, max_tokens: 1024, system: systemBlocks(summary ? `${COACH_SYSTEM}${CONTEXT_MARK}${summary}` : COACH_SYSTEM), messages: msgs, ...(opts.stream ? { stream: true } : {}) }, opts);
+    },
+
+    /** Raw Messages call: body {model, system, max_tokens, messages, stream?}; opts {onText, onRetry}. */
+    complete(body, opts = {}) {
+      const msgs = prepareMessages(body.messages || []);
+      if (!msgs.length) return Promise.reject(new AIError('empty_message'));
+      return send({ ...body, messages: msgs }, opts);
     },
 
     /** Meal photo → {items:[{name, grams, kcal, p, c, f}], model}. */

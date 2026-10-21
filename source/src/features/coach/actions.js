@@ -59,9 +59,29 @@ const WORKOUT = {
   },
 };
 
+// ── food.log: [{name, grams | qty+unit, meal, kcal, p, c, f}] + day + meal (validated; resolution against the DB is foodlog.js) ──
+const UNIT_RE = /^[\u0600-\u06FFa-zA-Z ]{1,12}$/;
+function foodItem(it, meal) {
+  if (!it || typeof it !== 'object') return null;
+  const name = clean(it.name); if (!name) return null;
+  const grams = numIn(it.grams ?? it.g, 0.1, 5000);
+  const unit = clean(it.unit, 12);
+  const gramsUnit = /^(جم|جرام|غرام|مل|g|gm|gr|grams?|ml)$/i.test(unit);
+  const qty = numIn(it.qty ?? it.count, 0.1, gramsUnit ? 5000 : 100);
+  const out = { name, meal: SECTIONS.includes(it.meal) ? it.meal : (SECTIONS.includes(it.section) ? it.section : meal) };
+  if (grams) out.grams = grams;
+  else if (qty && gramsUnit) out.grams = qty;
+  else if (qty) { out.qty = qty; out.unit = unit && UNIT_RE.test(unit) ? unit : 'حبة'; }
+  else return null;
+  for (const k of ['kcal', 'p', 'c', 'f']) { const v = numIn(it[k], 0, k === 'kcal' ? 10000 : 1000); if (v !== null) out[k] = v; }
+  return out;
+}
+/** 'today' | 'yesterday' | 'YYYY-MM-DD' → kept as given (resolved against ctx.today() in foodlog.resolveDay). */
+const dayRef = (d) => (d === undefined || d === null || d === '' || d === 'today' || d === 'النهارده' ? 'today' : d === 'yesterday' || d === 'امبارح' ? 'yesterday' : typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null);
+
 /** Arabic name of each proposal type (used in the "ignored" error line). */
 export const ACTION_LABEL = Object.freeze({
-  log: 'تسجيل أكل', adddb: 'إضافة أكلة', goal: 'تغيير الأهداف', 'targets.set': 'تغيير الأهداف', delete: 'مسح تسجيل', water: 'تسجيل مية',
+  log: 'تسجيل أكل', 'food.log': 'تسجيل أكل', adddb: 'إضافة أكلة', goal: 'تغيير الأهداف', 'targets.set': 'تغيير الأهداف', delete: 'مسح تسجيل', water: 'تسجيل مية',
   'workout.prefill': 'أوزان الحصة الجاية', 'workout.swap': 'تبديل تمرين', 'workout.sets': 'تعديل المجموعات',
   'workout.addExercise': 'إضافة تمرين', 'workout.removeExercise': 'شيل تمرين', 'workout.deload': 'أسبوع ديلود',
 });
@@ -75,6 +95,12 @@ export function validateAction(a) {
     case 'log': {
       const items = (Array.isArray(a.items) ? a.items : []).slice(0, 12).map(item).filter(Boolean);
       return items.length ? { type: 'log', section: SECTIONS.includes(a.section) ? a.section : null, items } : null;
+    }
+    case 'food.log': {
+      const meal = SECTIONS.includes(a.meal) ? a.meal : (SECTIONS.includes(a.section) ? a.section : null);
+      const day = dayRef(a.day); if (!day) return null;
+      const items = (Array.isArray(a.items) ? a.items : []).slice(0, 15).map((x) => foodItem(x, meal)).filter(Boolean);
+      return items.length ? { type: 'food.log', day, meal, items } : null;
     }
     case 'adddb': {
       const f = a.food && typeof a.food === 'object' ? a.food : a;
@@ -165,9 +191,27 @@ export function parseActions(raw) {
     const r = NU.splitCoachReply(text);
     if (r.items) { const a = validateAction({ type: 'log', items: r.items }); if (a) actions.push(a); text = r.text; }
   }
-  text = text.replace(/```(?:json)?\s*```/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  text = stripLeftovers(text);
   if (!text && actions.length) text = 'راجع المقترح ده قبل ما يتسجّل:';
   return { text, actions, errors };
+}
+
+/** Removes what must never be shown: an unclosed ``` block, a cut [[ACTION / {"type" / {"items" tail, empty fences. */
+export function stripLeftovers(t) {
+  let text = String(t ?? '');
+  const cut = (re) => { const m = re.exec(text); if (m) text = text.slice(0, m.index); };
+  if ((text.match(/```/g) || []).length % 2) cut(/```(?![\s\S]*```)/);
+  cut(/\[\[\s*ACTION[\s\S]*$/);
+  // a JSON object that starts like an action but never closes (cut by max_tokens / still streaming)
+  for (const m of text.matchAll(/\{\s*"(?:type|items)"\s*:/g)) { if (jsonEnd(text, m.index) < 0) { text = text.slice(0, m.index); break; } }
+  cut(/\[\[?\s*$/);
+  return text.replace(/```(?:json|JSON)?\s*```/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+/** Live view of a streaming reply: complete action blocks removed, anything that starts an action / JSON hidden. */
+export function streamVisible(raw) {
+  let t = String(raw ?? '').replace(/\[\[ACTION:[\s\S]*?\]\](?=\s|$)/g, '');
+  t = t.replace(/```(?:json|JSON)?[\s\S]*?```/g, (m) => (/\{\s*"/.test(m) ? '' : m));
+  return stripLeftovers(t);
 }
 
 const WORDS = [['ميتين وخمسين', 250], ['مية وخمسين', 150], ['تلتمية', 300], ['ربعمية', 400], ['خمسمية', 500], ['ستمية', 600], ['ميتين', 200], ['مية', 100], ['ميه', 100], ['نص كيلو', 500], ['ربع كيلو', 250], ['كيلو', 1000]];

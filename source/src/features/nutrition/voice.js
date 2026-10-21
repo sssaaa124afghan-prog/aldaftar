@@ -149,32 +149,15 @@ export function fastPathLog(text, catalog, { requireVerb = false, minScore = 60 
   return { food, qty, section: p.section && SECTION_LABEL[p.section] ? p.section : null, score };
 }
 
-// ───────── browser speech recognition (ar-EG) ─────────
+// ───────── browser speech recognition (ar-EG → ar-SA), shared core/speech.js ─────────
+import { speechEnv, speechMessage, listen as listenSpeech } from '../../core/speech.js';
 
-export const voiceSupported = () => typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+/** True only when in-page recognition can work (false in an iOS home-screen app, where keyboard dictation is the path). */
+export const voiceSupported = () => speechEnv().supported;
 
-export const VOICE_ERRORS = Object.freeze({
-  'not-allowed': 'الميكروفون مقفول. اسمح بيه من إعدادات المتصفح.',
-  'service-not-allowed': 'الميكروفون مقفول. اسمح بيه من إعدادات المتصفح.',
-  'no-speech': 'ماسمعناش حاجة. جرّب تاني وقرّب الموبايل.',
-  network: 'التعرّف على الصوت محتاج نت. جرّب تاني.',
-  'audio-capture': 'مفيش ميكروفون متاح.',
-});
+export const VOICE_ERRORS = Object.freeze(Object.fromEntries(['not-allowed', 'service-not-allowed', 'no-speech', 'network', 'audio-capture'].map((k) => [k, speechMessage(k, { ios: false })])));
 
-/** startVoice({onResult(text, alternatives), onError(message), onEnd}) → stop(). */
-export function startVoice({ onResult, onError, onEnd } = {}) {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { onError?.('المتصفح ده مش بيدعم الإدخال بالصوت.'); return () => {}; }
-  const rec = new SR();
-  rec.lang = 'ar-EG'; rec.interimResults = false; rec.maxAlternatives = 5; rec.continuous = false;
-  rec.onresult = (e) => {
-    const res = e.results && e.results[0];
-    if (!res) return;
-    const alts = [...res].map((a) => a.transcript).filter(Boolean);
-    onResult?.(alts[0] || '', alts);
-  };
-  rec.onerror = (e) => { const m = VOICE_ERRORS[e.error]; if (m) onError?.(m); };
-  rec.onend = () => onEnd?.();
-  try { rec.start(); } catch { onError?.('ماقدرناش نشغّل الميكروفون. جرّب تاني.'); }
-  return () => { try { rec.abort(); } catch { /* ignore */ } };
+/** startVoice({onResult(text, alternatives), onInterim(text), onError(message, code), onState, onEnd}) → stop(). */
+export function startVoice({ onResult, onInterim, onError, onState, onEnd } = {}) {
+  return listenSpeech({ onInterim, onState, onEnd, onResult: (alts) => onResult?.(alts[0] || '', alts), onError: (code, msg) => onError?.(msg, code) });
 }

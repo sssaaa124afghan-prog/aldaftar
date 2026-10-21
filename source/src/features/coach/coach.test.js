@@ -41,8 +41,14 @@ test('local fast path parses Egyptian log commands without an API call', () => {
 });
 
 test('intent detection + all 10 old quick prompts present', () => {
-  assert.equal(detectIntent('فاضل كام بروتين؟'), 'nutrition');
-  assert.equal(detectIntent('البنش واقف عندي'), 'training');
+  // short simple questions → quick (Haiku, small context); analysis / plans → Sonnet; logging → food_log (Haiku)
+  assert.equal(detectIntent('فاضل كام بروتين؟'), 'quick');
+  assert.equal(detectIntent('البنش واقف عندي'), 'quick');
+  assert.equal(detectIntent('اكلت 150 جم كبدة و290 جم مكرونة'), 'food_log');
+  assert.equal(detectIntent('فطرت 3 بيض ورغيف عيش'), 'food_log');
+  assert.equal(detectIntent('حلّل أدائي في البنش الأسبوع ده وقولي أعدّل البرنامج إزاي'), 'training');
+  assert.equal(detectIntent('راجع أكلي الأسبوع ده وقولّي أحسّن البروتين إزاي'), 'nutrition');
+  assert.ok(modelFor('quick').includes('haiku') && modelFor('food_log').includes('haiku') && modelFor('plan_edit').includes('sonnet'));
   assert.equal(QUICK.training.length + QUICK.nutrition.length, 14);
   for (const l of ['جهّزلي أوزان الحصة الجاية', 'عدّل خطتي حسب أدائي', 'عضلة متأخرة؟ زوّدها', 'أعمل ديلود؟']) assert.ok(QUICK.training.some((q) => q.label === l && INTENTS[q.intent].writes), l);
   assert.ok(modelFor('advice').includes('haiku'));
