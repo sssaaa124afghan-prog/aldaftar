@@ -5,6 +5,7 @@ import { countWord } from '../../ui/num.js';
 import * as L from './logic.js';
 import { loadAll, loadProgram, saveProgram, loadTraining, patchTraining, putSession, loadGateInputs } from './store.js';
 import { weekday, addDays, diffDays } from '../../core/date.js';
+import { videoLink, videoSource } from './exercise-videos.js';
 import { prepareStart, budgetPicker, newPlanCard, heartDayCard, weekOf, planForDay } from './today-plan.js';
 
 // «معاك كام دقيقة؟»: the pick lives for the day (default 60)
@@ -197,7 +198,8 @@ export async function renderOverview(el, ctx, params = {}) {
     const lastEx = L.exposures(all, it, { seeds: true })[0];
     const top = lastEx ? L.doneSets(lastEx.ex).reduce((b, t) => (t.w > b.w || (t.w === b.w && t.r > b.r) ? t : b), { w: 0, r: 0 }) : null;
     plan.appendChild(h('div', { class: 'wk-row' },
-      h('span', {}, h('b', {}, it.ar), h('small', {}, it.muscle)),
+      h('span', { class: 'wk-ovname' }, h('span', { class: 'grow' }, h('b', {}, it.ar), h('small', {}, it.muscle), h('small', { class: 'wk-vidsrc', dir: 'ltr' }, videoSource(it))),
+        videoLink(it, { name: it.ar, variant: 'icon' })),
       setsReps(it.sets, it.reps),
       top ? N(`${L.fmtW(top.w)} × ${top.r}`) : h('span', { class: 'num wk-muted' }, '—')));
   }

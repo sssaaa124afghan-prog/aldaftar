@@ -8,6 +8,7 @@ import { tone, prefSwitch } from './kit.js';
 import { reduced } from '../../ui/anim.js';
 import { dayKey, diffDays, weekStart } from '../../core/date.js';
 import { wallSitArt, bikeArt } from './kegel-art.js';
+import { videoLink } from './exercise-videos.js';
 import { latestBP, bpGate } from './bp.js';
 import * as WL from './logic.js';
 
@@ -571,7 +572,7 @@ export async function renderHeart(el, ctx, params = {}) {
       root.appendChild(p.el);
       cleanups.push(drive(p.tick));
     }
-    root.appendChild(h('section', { class: 'glass wk-card hk-art-card', 'aria-label': 'وضع الجلوس على الحيطة' }, wallSitArt()));
+    root.appendChild(h('section', { class: 'glass wk-card hk-art-card', 'aria-label': 'وضع الجلوس على الحيطة' }, wallSitArt(), h('div', { class: 'wk-vidrow' }, videoLink('wallsit', { name: 'الجلوس على الحيطة' }))));
     root.appendChild(tipsCard('hk-wt-h', 'اعمله صح: الجلوس على الحيطة', WALL_TIPS));
     root.appendChild(h('p', { class: 'wk-muted hk-pad' }, 'البديل لو مش جنب حيطة: اقبض على كورة تنس أو فوطة ملفوفة بقوة متوسطة 4 × 2 دقيقة، وبدّل الإيد.'));
     root.appendChild(cueSwitches(ctx));
@@ -623,7 +624,7 @@ export async function renderHeart(el, ctx, params = {}) {
   root.appendChild(weekPick);
   infoCards();
   if (gate === 'ok') {
-    root.appendChild(h('section', { class: 'glass wk-card hk-art-card', 'aria-label': 'وضع الجلوس على الحيطة' }, wallSitArt()));
+    root.appendChild(h('section', { class: 'glass wk-card hk-art-card', 'aria-label': 'وضع الجلوس على الحيطة' }, wallSitArt(), h('div', { class: 'wk-vidrow' }, videoLink('wallsit', { name: 'الجلوس على الحيطة' }))));
     root.appendChild(tipsCard('hk-wt-h', 'اعمله صح: الجلوس على الحيطة', WALL_TIPS));
   }
   root.appendChild(h('a', { class: 'wk-recov glass', href: '#/workout/kegel' }, h('span', { class: 'ic' }, ico('spark')),

@@ -49,6 +49,36 @@
   --sheet-top:#0D3577; --fab-a:#1D4ED8; --fab-b:#0891B2;
 }
 
+/* 4 — Royal Sand: espresso/black-brown ground, champagne-gold CTA, warm ivory text, patina-teal secondary (premium / calm power) */
+:root[data-palette="sand"]{
+  --g1:#0D0906; --g2:#1A120C; --g3:#2A1D13;
+  --field-a:rgba(214,178,110,.17); --field-b:rgba(176,98,62,.13);
+  --amber:#F1DCAE; --orange:#C99D5E; --on-accent:#1F1407;
+  --cta-glow:0 10px 26px -8px rgba(201,157,94,.55);
+  --violet:#7DD3C0; --pink:#E8A598; --violet-tx:#B4E9DC; --pink-tx:#F3C4BA;
+  --violet-grad:linear-gradient(135deg,rgba(201,157,94,.30),rgba(125,211,192,.16));
+  --tx:#FBF5EA; --mu:#D8CDBA; --mu-2:#D5CAB7; --mu-3:#8F8270;
+  --nav-bg:rgba(20,14,10,.80); --sheet-bg:#1F170F; --paper:rgba(16,11,8,.92);
+  --warn:#FDBA74;
+  --a-rgb:241,220,174; --b-rgb:201,157,94; --v-rgb:125,211,192; --p-rgb:232,165,152; --g1-rgb:13,9,6;
+  --sheet-top:#34261A; --fab-a:#8A6A35; --fab-b:#4F3A22;
+}
+
+/* 5 — Aurora Steel: neutral graphite/steel ground, lime + violet aurora fields, electric-lime CTA (focus / precision) */
+:root[data-palette="aurora"]{
+  --g1:#090B0E; --g2:#11151A; --g3:#1A2027;
+  --field-a:rgba(163,230,53,.15); --field-b:rgba(168,85,247,.15);
+  --amber:#D9F99D; --orange:#A3E635; --on-accent:#0E1803;
+  --cta-glow:0 10px 26px -8px rgba(163,230,53,.5);
+  --violet:#C084FC; --pink:#F0ABFC; --violet-tx:#DCC3FD; --pink-tx:#F5C8FD;
+  --violet-grad:linear-gradient(135deg,rgba(163,230,53,.22),rgba(168,85,247,.26));
+  --tx:#F4F7F5; --mu:#C3CCC7; --mu-2:#C0C9C4; --mu-3:#7F8A85;
+  --nav-bg:rgba(12,15,18,.80); --sheet-bg:#151A20; --paper:rgba(10,12,15,.92);
+  --warn:#FDBA74;
+  --a-rgb:217,249,157; --b-rgb:163,230,53; --v-rgb:192,132,252; --p-rgb:240,171,252; --g1-rgb:9,11,14;
+  --sheet-top:#232B34; --fab-a:#4D7C0F; --fab-b:#6D28D9;
+}
+
 /* ── shared re-tints (only under a palette) ── */
 :root[data-palette] .tabs::before{background:rgba(var(--a-rgb),.10);box-shadow:inset 0 0 0 1px rgba(var(--a-rgb),.2)}
 :root[data-palette] .tabs a[aria-current] svg.i{filter:drop-shadow(0 0 8px rgba(var(--a-rgb),.6))}

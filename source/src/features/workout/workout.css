@@ -500,3 +500,26 @@
 @media (prefers-reduced-motion:reduce){.wk-rb,.wk-calc{transition:none}}
 .wk-cal-foot{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .wk-cal-foot .wk-cal-skip{align-self:auto}
+
+/* «فيديو الأداء» links (exercise-videos.js): open YouTube in a new tab, ≥ 44 px tap target, no embeds */
+.wk-vidrow{display:flex;margin-top:var(--s2,8px)}
+.wk-vid{display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;max-width:100%;padding:0 14px;border-radius:var(--r-pill,999px);border:1px solid var(--edge,rgba(255,255,255,.14));background:var(--glass,rgba(255,255,255,.06));color:var(--tx,#fff);font:600 var(--t-14,14px)/1.2 var(--f,inherit);text-decoration:none;flex:none;transition:background-color var(--d-fast,.15s),transform var(--d-press,.1s)}
+.wk-vid:hover{background:var(--glass-2,rgba(255,255,255,.10))}
+.wk-vid:active{transform:scale(.97)}
+.wk-vid:focus-visible{outline:2px solid var(--violet,#A78BFA);outline-offset:2px}
+.wk-vid svg.i{width:16px;height:16px;flex:none;color:var(--violet,#A78BFA);fill:currentColor}
+.wk-vid span{white-space:nowrap}
+.wk-vid small{font:500 var(--t-12,12px)/1.2 var(--f,inherit);color:var(--mu,#C3BEE3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.wk-vid.is-icon{width:44px;height:44px;padding:0;justify-content:center;border-radius:12px}
+.wk-vid.is-icon svg.i{width:18px;height:18px}
+.wk-vid.is-search svg.i{color:var(--mu-2,#9C96C4)}
+.wk-vidsrc{color:var(--mu-2,#9C96C4);font-size:var(--t-12,12px)}
+.wk-row .wk-ovname{display:flex;align-items:center;gap:var(--s2,8px);min-width:0;align-self:center}
+.wk-ovname .grow{flex:1;min-width:0}
+.wk-ovname .wk-vidsrc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
+.wk-item-wrap{display:flex;align-items:center;gap:var(--s2,8px);border-bottom:1px solid var(--edge-soft,rgba(255,255,255,.08))}
+.wk-item-wrap>.list-row{flex:1;min-width:0;border-bottom:0}
+.wk-item-wrap:last-of-type{border-bottom:0}
+.wk-item .wk-vidsrc{display:block}
+.hk-art-card{flex-wrap:wrap}
+.hk-art-card>.wk-vidrow{flex-basis:100%;justify-content:center}

@@ -14,6 +14,7 @@ import { nextTrainLabel } from './overview.js';
 import { spark, tone, speak, loadCoach, pref, prefSwitch, askNotifyPermission, coachingFor } from './kit.js';
 import { STRETCH_PROTOCOLS } from './content.js';
 import { libById } from './exercises.js';
+import { videoLink } from './exercise-videos.js';
 import * as V from './voice.js';
 
 const TYPES = [['normal', 'عادية'], ['drop', 'Drop'], ['rp', 'Rest-pause'], ['myo', 'Myo']];
@@ -741,6 +742,7 @@ export async function renderSession(el, ctx) {
       h('p', { class: 'wk-meta' }, e.muscle ? [e.muscle, ' · '] : null, 'راحة ', N(L.fmtClock(e.ss ? L.groupRest(live, idx) : L.restFor(e))),
         bestSet.w ? [' · أفضل ', N(`${L.fmtW(bestSet.w)} × ${bestSet.r}`, undefined, 'wk-best')] : null,
         pr0.e1rm ? [' · e1RM ', N(L.fmtW(Math.round(pr0.e1rm)))] : null),
+      h('div', { class: 'wk-vidrow' }, videoLink(e, { name: e.name })),
       tops.length >= 2 ? h('div', { class: 'wk-spark-row' }, spark(tops, { label: `أعلى وزن في آخر ${tops.length} جلسات` }), h('small', {}, 'آخر ', N(String(tops.length)), ' جلسات')) : null,
       e.ss ? h('p', { class: 'wk-ss' }, ico('bolt'), 'سوبر سِت ', e.ss, ' مع ', ssPeers.join(' و'), ' · من غير راحة بينهم') : null);
     root.appendChild(head);

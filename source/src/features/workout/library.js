@@ -5,9 +5,10 @@ import { h, N, ico, band, safeWrite } from './view.js';
 import * as L from './logic.js';
 import { LIBRARY, MUSCLES, registerCustom } from './exercises.js';
 import { loadAll, loadProgram, saveProgram, loadTraining, patchTraining } from './store.js';
-import { spark, coachingFor, howToUrl, loadCoach } from './kit.js';
+import { spark, coachingFor, loadCoach } from './kit.js';
 import { libGroupMatch, GROUPS, norm } from './picker.js';
 import { exerciseThumb, exerciseFigure, creditLine } from './exercise-images.js';
+import { videoLink } from './exercise-videos.js';
 
 export async function renderLibrary(el, ctx, params = {}) {
   const [{ done }, training, coach] = await Promise.all([loadAll(ctx.db), loadTraining(ctx.db), loadCoach(ctx)]);
@@ -56,6 +57,7 @@ export function detail(ctx, e, { done, training, coach }) {
   const journal = L.journalFor(training.poJournal, item);
   const body = h('div', { class: 'wk-detail' },
     h('p', { class: 'wk-meta' }, e.en, ' · ', e.muscle, ' · ', e.eq, ' · ', e.kind === 'compound' ? 'مركّب · راحة 2:30' : 'عزل · راحة 1:30'),
+    h('div', { class: 'wk-vidrow' }, videoLink(e, { name: e.ar })),
     exerciseFigure(e.id, e.ar),
     series.length ? h('section', { class: 'glass wk-card wk-prog' },
       h('div', { class: 'wk-prog-top' },
@@ -71,8 +73,7 @@ export function detail(ctx, e, { done, training, coach }) {
       h('ol', { class: 'wk-phases' }, ...(c.form.exec || []).map((p) => h('li', {}, h('b', {}, p.phase), h('span', {}, p.cue)))),
       (c.form.cues || []).length ? h('p', { class: 'wk-cues' }, c.form.cues.join(' · ')) : null) : null,
     c.breathing ? h('section', {}, h('h4', {}, 'التنفّس'), h('p', {}, c.breathing.slice(0, 3).join(' ← '))) : null,
-    journal.length ? h('section', {}, h('h4', {}, 'قراراتك اللي فاتت'), h('ol', { class: 'wk-an-journal' }, ...journal.map((j) => h('li', {}, N(String(j.date || '').slice(5).replace('-', '/')), ' · ', j.msg || '')))) : null,
-    h('a', { class: 'btn ghost sm wk-mt', href: howToUrl(item), target: '_blank', rel: 'noopener noreferrer' }, ico('play'), 'شوف الطريقة (يوتيوب)'));
+    journal.length ? h('section', {}, h('h4', {}, 'قراراتك اللي فاتت'), h('ol', { class: 'wk-an-journal' }, ...journal.map((j) => h('li', {}, N(String(j.date || '').slice(5).replace('-', '/')), ' · ', j.msg || '')))) : null);
   const actions = [{ label: 'ضيفه ليوم في الخطة', run: () => addToDay(ctx, e) }];
   if (coach) actions.push({ label: 'عندك مشكلة في الأداء؟ اسأل المدرب', ghost: true, run: () => { try { coach.openCoachSheet(ctx, { intent: 'exercise-help', attach: { exercise: { ar: e.ar, en: e.en, muscle: e.muscle }, series: series.slice(-8) } }); } catch { ctx.toast('المدرب مش متاح دلوقتي.'); } } });
   // one detail sheet at a time (a deep link re-render must not stack a second one)

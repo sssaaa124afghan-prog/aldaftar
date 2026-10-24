@@ -15,7 +15,7 @@ import { renderWelcome } from './onboarding.js';
 const DAYS = [[6, 'السبت'], [0, 'الأحد'], [1, 'الاتنين'], [2, 'التلات'], [3, 'الأربع'], [4, 'الخميس'], [5, 'الجمعة']];
 const AGE_DEFAULT = 27;
 // colour palettes (src/styles/palettes.css); '' = the default Electric Glass Pro look. Applied by main.js on settings:changed.
-const PALETTES = [['', 'الحالي', '#FCD34D,#FB923C'], ['emerald', 'Midnight Emerald', '#6EE7B7,#10B981'], ['ember', 'Carbon Ember', '#FF9A5C,#F2452E'], ['ocean', 'Ocean Neon', '#22D3EE,#3B82F6']];
+const PALETTES = [['', 'الحالي', '#FCD34D,#FB923C'], ['emerald', 'Midnight Emerald', '#6EE7B7,#10B981'], ['ember', 'Carbon Ember', '#FF9A5C,#F2452E'], ['ocean', 'Ocean Neon', '#22D3EE,#3B82F6'], ['sand', 'رمال ملكية', '#F1DCAE,#C99D5E'], ['aurora', 'شفق فولاذي', '#D9F99D,#A3E635 55%,#C084FC']];
 
 function paletteChips(ctx) {
   const cur = ctx.settings.get('palette') || '';

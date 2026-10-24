@@ -5,6 +5,7 @@ import { tone } from './kit.js';
 import { reduced } from '../../ui/anim.js';
 import { kegelStage, kegelWeek, kegelSteps, kegelWeekCount, runner, loadHealth, patchHealth, buzz, cueSwitches, KEGEL_STAGES, POS, totalSecs } from './heart.js';
 import { pelvisArt, positionsArt } from './kegel-art.js';
+import { videoLink } from './exercise-videos.js';
 
 export const KEGEL_TITLE = 'تمرين قاع الحوض';
 /** Progression levels (the last KEGEL_STAGES entry is maintenance, shown as «محافظة», not a 6th level). */
@@ -159,7 +160,7 @@ export async function renderKegel(el, ctx) {
     h('p', { class: 'wk-muted' }, 'لو فوّت يوم عادي، كمّل من بكرة. اربطها بعادة: الصبح بعد ما تغسل سنانك، والتانية في المواصلات أو على المكتب.')));
 
   // ── tips ──
-  root.appendChild(h('section', { class: 'glass wk-card hk-tips', 'aria-labelledby': 'hk-kt-h' }, h('h3', { id: 'hk-kt-h' }, 'اعمله صح'), h('ul', {}, ...KEGEL_TIPS.map((t) => h('li', {}, t)))));
+  root.appendChild(h('section', { class: 'glass wk-card hk-tips', 'aria-labelledby': 'hk-kt-h' }, h('h3', { id: 'hk-kt-h' }, 'اعمله صح'), h('ul', {}, ...KEGEL_TIPS.map((t) => h('li', {}, t))), h('div', { class: 'wk-vidrow' }, videoLink('kegel', { name: KEGEL_TITLE }))));
   root.appendChild(cueSwitches(ctx));
 
   // ── (d) privacy ──

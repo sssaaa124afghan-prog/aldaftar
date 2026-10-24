@@ -6,6 +6,7 @@ import { loadProgram, saveProgram, loadAll } from './store.js';
 import { pickExercise } from './picker.js';
 import { programLabel } from './overview.js';
 import { loadCoach } from './kit.js';
+import { videoLink, videoSource } from './exercise-videos.js';
 import { findLib, NEW_PROGRAM, PROGRAMS as TPL } from './exercises.js';
 
 const DMY = (d) => { try { const [y, m, dd] = d.split('-'); return `${+dd}/${+m}`; } catch { return d; } };
@@ -149,12 +150,14 @@ export async function renderPlan(el, ctx, params = {}) {
         ...program.order.map((id) => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(id === dayId), onclick: () => { dayId = id; draw(); } }, program.days[id].name))));
     if (!day.items.length) card.appendChild(h('p', { class: 'wk-muted wk-pad' }, 'اليوم ده فاضي. ضيف أول تمرين.'));
     day.items.forEach((it, i) => {
-      card.appendChild(h('button', { type: 'button', class: 'list-row wk-item', dataset: { fk: `it${i}` }, onclick: () => editItem(i) },
+      card.appendChild(h('div', { class: 'wk-item-wrap' }, h('button', { type: 'button', class: 'list-row wk-item', dataset: { fk: `it${i}` }, onclick: () => editItem(i) },
         h('span', { class: 'grow' }, h('b', {}, it.ar, it.ss ? h('small', { class: 'wk-tag' }, `سوبر ${it.ss}`) : null),
           h('small', {}, it.muscle, ' · ', it.kind === 'compound' ? 'مركّب' : 'عزل', ' · راحة ', N(L.fmtClock(it.ss ? L.restFor(it, { superset: true }) : L.restFor(it))),
             firstBlock && it.r1 ? [' · أول 6 أسابيع ', N(it.r1)] : null),
-          it.note ? h('small', { class: 'wk-muted' }, it.note) : null),
-        setsReps(it.sets, firstBlock && it.r1 ? it.r1 : it.reps), ico('edit')));
+          it.note ? h('small', { class: 'wk-muted' }, it.note) : null,
+          h('small', { class: 'wk-vidsrc' }, '▶ ', h('bdi', {}, videoSource(it)))),
+        setsReps(it.sets, firstBlock && it.r1 ? it.r1 : it.reps), ico('edit')),
+        videoLink(it, { name: it.ar, variant: 'icon' })));
     });
     card.appendChild(h('button', { type: 'button', class: 'btn ghost wk-add', dataset: { fk: 'add' }, onclick: addItem }, ico('plus'), 'ضيف تمرين'));
     root.appendChild(card);
