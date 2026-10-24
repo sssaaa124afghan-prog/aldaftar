@@ -7,6 +7,7 @@ import { richTextNodes, searchFoods } from '../nutrition/logic.js';
 import { loadChat, addChat, loadCatalog, loadUsage } from '../nutrition/data.js';
 import { askCoach, errorText, hasKey, HISTORY_TURNS, EMPTY_REPLY } from './api.js';
 import { actionCard, loggedLine } from './cards.js';
+import { haptic } from '../../ui/anim.js';
 import { streamVisible, stripLogClaims, isFoodAction } from './actions.js';
 import { pickFoodLog, prepareLog, commitEntries, localAction, wantsFoodLog, successText, LOG_COPY, CONFIRM_KEY } from './autolog.js';
 import { voiceSupported, startVoice } from '../nutrition/voice.js';
@@ -93,6 +94,7 @@ export async function mountChat(el, ctx, { intent = 'chat', attach = null, promp
         scroll(); return;
       }
       ctx.emit('food:changed', { day });
+      if (!res.dup) haptic();
       const line = loggedLine(ctx, res, { key, said, onChange: onChange(key) });
       if (slot) slot.replaceWith(line); else list.appendChild(line);
       if (res.dup) logged.set(key, res); else await onLogged(key)(res); // a retry that finds its rows already saved writes no new note

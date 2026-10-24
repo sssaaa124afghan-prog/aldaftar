@@ -1,5 +1,5 @@
-// Progress ring / gauge (SVG). Animates fill on mount unless reduced motion.
-import { reduced } from './anim.js';
+// Progress ring / gauge (SVG). Fills when it first comes on screen, unless reduced motion.
+import { reduced, whenVisible } from './anim.js';
 const NS = 'http://www.w3.org/2000/svg';
 const el = (t, a = {}) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
 
@@ -19,8 +19,9 @@ export function ring({ value = 0, max = 1, color = 'var(--violet)', size = 72, s
   svg.appendChild(arc);
   if (!reduced()) {
     arc.setAttribute('stroke-dasharray', `0 ${c}`);
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      arc.style.transition = 'stroke-dasharray 1100ms cubic-bezier(.22,.9,.24,1)';
+    // fill only once the ring is on screen (below-the-fold rings wait for the scroll)
+    whenVisible(svg, () => requestAnimationFrame(() => {
+      if (!reduced()) arc.style.transition = 'stroke-dasharray var(--d-ring,1100ms) cubic-bezier(.22,.9,.24,1)';
       arc.setAttribute('stroke-dasharray', `${c * span * frac} ${c}`);
     }));
   }

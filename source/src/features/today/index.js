@@ -5,7 +5,7 @@ import { h, raw, fill } from '../../ui/dom.js';
 import { icon } from '../../ui/icons.js';
 import { fmt, countText, parseNum } from '../../ui/num.js';
 import { ring } from '../../ui/ring.js';
-import { countUp, pop, haptic, reduced } from '../../ui/anim.js';
+import { countUp, pop, haptic } from '../../ui/anim.js';
 import { parseDayKey, weekday, addDays, diffDays } from '../../core/date.js';
 import { sumEntries, dayType, heartDowOf, heartDaysOf } from '../../core/targets.js';
 import { DAY_TYPE_LABEL, sessionState, loadTargets } from '../../app/day.js';
@@ -112,13 +112,23 @@ function gauge(st) {
   return card;
 }
 
+// big ring figure: final value at first paint; counts up (from 0, or from what it showed before a repaint) once on screen
+const shownNum = new Map();
+function countNum(key, val, format) {
+  const b = h('b', { class: 'num' }, format ? format(val) : fmt(val));
+  const from = shownNum.has(key) ? shownNum.get(key) : 0;
+  shownNum.set(key, val);
+  if (from !== val) countUp(b, val, { from, ms: 800, format: format || ((v) => fmt(Math.round(v))) });
+  return b;
+}
+
 function macros(st, ctx) {
   const tot = sumEntries(st.entries); const md = mealsDone(st.entries);
   const mk = (val, max, color, name, sub, label, href) => h('a', { class: 'td-mc gl', href, style: `--k:${color}` },
-    h('div', { class: 'td-rw' }, ring({ value: val, max, color, size: 64, stroke: 6, track: 'rgba(255,255,255,.12)', label }), h('b', { class: 'num' }, typeof val === 'string' ? val : fmt(val))),
+    h('div', { class: 'td-rw' }, ring({ value: val, max, color, size: 64, stroke: 6, track: 'rgba(255,255,255,.12)', label }), countNum(name, val)),
     h('div', { class: 'td-nm' }, name), h('div', { class: 'td-sub' }, sub));
   const meals = h('a', { class: 'td-mc gl', href: md.next ? `#/nutrition?section=${md.next}` : '#/nutrition', style: '--k:var(--cal)' },
-    h('div', { class: 'td-rw' }, ring({ value: md.done, max: md.total, color: 'var(--cal)', size: 64, stroke: 6 }), h('b', { class: 'num' }, `${md.done}/${md.total}`)),
+    h('div', { class: 'td-rw' }, ring({ value: md.done, max: md.total, color: 'var(--cal)', size: 64, stroke: 6 }), countNum('meals', md.done, (v) => `${Math.round(v)}/${md.total}`)),
     h('div', { class: 'td-nm', 'aria-hidden': 'true' }, 'وجبات'), h('div', { class: 'td-sub', 'aria-hidden': 'true' }, md.next ? `${SECTION_LABEL[md.next]} فاضل` : 'كمّلت'));
   return h('div', { class: 'td-macros' },
     mk(Math.round(tot.p), st.target.p, 'var(--pro)', 'بروتين', `من ${fmt(st.target.p)} جم`, `بروتين ${fmt(tot.p)} من ${fmt(st.target.p)} جم`, '#/nutrition'),
@@ -480,7 +490,8 @@ async function quickAction(ctx, params, getSt, setForceBP) {
 }
 
 export async function renderToday(el, ctx, params = {}) {
-  let st; let alive = true; let first = true;
+  let st; let alive = true;
+  shownNum.clear(); // a fresh visit counts the ring figures up again
   let forceBP = !!params.bp;
   const paint = () => {
     if (!alive) return;
@@ -489,11 +500,10 @@ export async function renderToday(el, ctx, params = {}) {
     const more = h('button', { type: 'button', class: 'td-ib gl', 'aria-label': 'خيارات اليوم', 'aria-haspopup': 'dialog', onclick: () => moreMenu(st, ctx) }, I('more'));
     const openW = () => wellnessSheet(st, ctx, paint);
     const weighed = st.weights.some((w) => w.day === st.day);
-    fill(el, h('div', { class: `td${first && !reduced() ? ' td-in' : ''}` },
+    fill(el, h('div', { class: 'td' },
       h('header', { class: 'td-hd' }, h('div', {}, h('p', { class: 'td-dayp' }, st.name ? dayTitle(st.day) : '', h('b', { class: st.type === 'training' ? 'tr' : st.type === 'heart' ? 'hd' : 'rs' }, DAY_TYPE_LABEL[st.type])), h('h1', {}, greet)), more),
       weightDue({ hour, weighed }) ? weightRow(st, ctx) : null, mealCard(st, ctx, hour), bpCard(st, ctx, forceBP),
       gauge(st), macros(st, ctx), workoutCard(st, ctx), kegelCard(st, ctx), tiles(st, ctx, openW), intel(st, ctx, openW), goals(st, ctx, paint)));
-    first = false;
   };
   const refresh = async () => { st = await load(ctx); paint(); };
   await refresh();

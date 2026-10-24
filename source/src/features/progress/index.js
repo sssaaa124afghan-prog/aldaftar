@@ -18,6 +18,9 @@ import { INFO } from './info.js';
 
 const I = (n) => raw(icon(n));
 const N = (v, dp = 0, o = {}) => h('span', { class: 'num' }, fmt(v, { dp, ...o }));
+// counted figure: final value at first paint, counts up from 0 when it comes on screen (ui/anim.js countUp)
+const NC = (v, dp = 0) => { const el = N(v, dp); if (Number.isFinite(+v) && +v > 0) countUp(el, +v, { dp, ms: 800, format: (x) => fmt(x, { dp }) }); return el; };
+const NF = (a, b) => { const el = h('span', { class: 'num' }, `${a}/${b}`); if (+a > 0) countUp(el, +a, { ms: 700, format: (x) => `${Math.round(x)}/${b}` }); return el; };
 const PERIOD_KEYS = ['m', 'q', 'y'];
 
 async function loadAll(ctx) {
@@ -101,13 +104,13 @@ async function progress(el, ctx, params) {
     const card1 = card('pg-thisweek',
       h('div', { class: 'pg-ch' }, h('h3', {}, 'حساب الأسبوع لحد النهارده'), h('small', {}, `${dm(ws)} – ${dm(addDays(ws, 6))} · الفرق عن نفس الوقت الأسبوع اللي فات`)),
       h('div', { class: 'pg-grid4' },
-        fig('جلسات', h('span', { class: 'num' }, `${adh.sessionsDone}/${adh.sessionsPlanned}`), d(wc.cur.sessions, wc.prev.sessions)),
-        fig('أيام البروتين', h('span', { class: 'num' }, `${adh.proteinDaysHit}/${adh.daysLogged}`), d(adh.proteinDaysHit, prevAdh.proteinDaysHit)),
-        fig('متوسط السعرات', adh.avgKcal ? N(adh.avgKcal) : '—', d(adh.avgKcal, prevAdh.avgKcal)),
+        fig('جلسات', NF(adh.sessionsDone, adh.sessionsPlanned), d(wc.cur.sessions, wc.prev.sessions)),
+        fig('أيام البروتين', NF(adh.proteinDaysHit, adh.daysLogged), d(adh.proteinDaysHit, prevAdh.proteinDaysHit)),
+        fig('متوسط السعرات', adh.avgKcal ? NC(adh.avgKcal) : '—', d(adh.avgKcal, prevAdh.avgKcal)),
         fig('الوزن', trend ? h('span', {}, N(trend.kgPerWeek, 1, { sign: true }), h('small', {}, ' كجم/أسبوع')) : '—', null, trend ? 'متوسط 7 أيام' : 'محتاج وزنات أكتر')),
       h('div', { class: 'pg-grid4 pg-grid2' },
-        fig('حجم التمرين', h('span', {}, N(wc.cur.volume), h('small', {}, ' كجم')), d(wc.cur.volume, wc.prev.volume)),
-        fig('أرقام قياسية', N(wc.cur.prs), d(wc.cur.prs, wc.prev.prs))),
+        fig('حجم التمرين', h('span', {}, NC(wc.cur.volume), h('small', {}, ' كجم')), d(wc.cur.volume, wc.prev.volume)),
+        fig('أرقام قياسية', NC(wc.cur.prs), d(wc.cur.prs, wc.prev.prs))),
       aiBlock('weekly', 'اسأل المدرب عن أسبوعي', 'تقرير الأسبوع + تركيز الأسبوع الجاي'));
     return [card1];
   }

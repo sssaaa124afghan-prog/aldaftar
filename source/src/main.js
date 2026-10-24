@@ -6,13 +6,17 @@ import { openDB, createMemoryDB } from './core/db.js';
 import { createCtx, toast } from './app/ctx.js';
 import { startRouter, renderTabs, go, parseHash } from './app/router.js';
 import { readMigrationGate } from './features/profile/migration.js';
+import { setReduceMotion, setHaptics } from './ui/anim.js';
 
 async function boot() {
   let db; let memory = false;
   try { db = await openDB(); } catch (e) { db = createMemoryDB(); memory = true; console.warn('[boot] IndexedDB unavailable, using memory', e && e.code); }
   const ctx = await createCtx(db, { go });
   applyPalette(ctx.settings.get('palette'));
-  ctx.on('settings:changed', ({ key }) => { if (key === 'palette') applyPalette(ctx.settings.get('palette')); });
+  // Profile › المظهر: «قلّل الحركة» (default off; the OS setting applies on its own) and «اهتزاز خفيف» (default on)
+  const applyFeel = () => { setReduceMotion(ctx.settings.get('ui.reduceMotion') === true); setHaptics(ctx.settings.get('ui.haptics') !== false); };
+  applyFeel();
+  ctx.on('settings:changed', ({ key }) => { if (key === 'palette') applyPalette(ctx.settings.get('palette')); if (key === 'ui.reduceMotion' || key === 'ui.haptics') applyFeel(); });
   window.__ctx = import.meta.env.DEV ? ctx : undefined;
   const view = document.getElementById('view');
   const nav = document.getElementById('tabs');

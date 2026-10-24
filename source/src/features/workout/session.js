@@ -123,8 +123,8 @@ export async function renderSession(el, ctx) {
     else live.rest = { ...L.startRest(e), fromId: e.exId, forId: live.exercises[nx.cur.ex].exId, forSet: nx.cur.set };
     if (nx.cur) live.cur = nx.cur;
     justSet = t;
+    haptic(t.pr ? 30 : 12, { double: !!t.pr }); // inside the tap (iOS switch haptic needs the gesture); PR = two ticks
     await save();
-    haptic(t.pr ? 60 : 14);
     draw('done');
     const idx = e.sets.indexOf(t) + 1;
     const ssHop = nx.rest === 'none' && nx.cur && nx.cur.ex !== exIdx;
@@ -1172,6 +1172,7 @@ export async function renderSession(el, ctx) {
         const rest = live.rest;
         live.rest = null; save(); drawHero(); drawDock();
         if (canVibrate()) try { navigator.vibrate([120, 80, 120]); } catch { /* optional */ }
+        else haptic(12, { double: true }); // iOS: switch tick (plays when Safari still counts the last tap as active)
         const e = curEx();
         const msg = e ? `الراحة خلصت · المجموعة ${live.cur.set + 1} من ${e.name}` : 'الراحة خلصت';
         tone(ctx); speak(ctx, msg); restEndNotice(msg, rest.endsAt);
@@ -1211,6 +1212,7 @@ export function showSummary(ctx, record, history, nextDay = '', { coach = null }
   if (record.z2Min) effort.push(`Zone 2 ${record.z2Min} د`);
   const persist = () => safeWrite(ctx, () => putSession(ctx.db, record));
   const volEl = N('0');
+  const durEl = N(String(s.durationMin)); const setsEl = N(String(s.sets));
   const moods = h('div', { class: 'chips', role: 'radiogroup', 'aria-labelledby': 'wk-mood-l' },
     ...[1, 2, 3, 4, 5].map((m) => h('button', { type: 'button', class: 'chip', role: 'radio', 'aria-checked': String(record.mood === m),
       onclick: (ev) => { record.mood = record.mood === m ? null : m; for (const c of moods.children) c.setAttribute('aria-checked', String(c === ev.currentTarget && record.mood === m)); persist(); } },
@@ -1224,8 +1226,8 @@ export function showSummary(ctx, record, history, nextDay = '', { coach = null }
       h('div', {}, h('b', {}, s.prs.length === 1 ? 'رقم شخصي جديد' : `${s.prs.length} أرقام شخصية`), h('span', {}, s.prs.map((p) => p.name).join('، '))),
       h('em', { class: 'num' }, `+${L.fmtW(s.prs[0].delta)}`)) : null,
     h('div', { class: 'wk-sumgrid' },
-      h('div', {}, h('small', {}, 'المدة'), h('b', {}, N(String(s.durationMin)), h('small', {}, ' دقيقة'))),
-      h('div', {}, h('small', {}, 'المجموعات'), h('b', {}, N(String(s.sets)))),
+      h('div', {}, h('small', {}, 'المدة'), h('b', {}, durEl, h('small', {}, ' دقيقة'))),
+      h('div', {}, h('small', {}, 'المجموعات'), h('b', {}, setsEl)),
       h('div', {}, h('small', {}, 'عن المرة اللي فاتت'), h('b', {}, s.prevVolume ? N(`${s.deltaPct > 0 ? '+' : s.deltaPct < 0 ? '−' : ''}${Math.abs(s.deltaPct)}%`) : '—'))),
     ...s.prs.map((p) => h('div', { class: 'wk-tot wk-prline' }, h('span', {}, p.name), h('span', { class: 'pr' }, N(`${L.fmtW(p.w)} × ${p.r}`), ' · ', N(`+${L.fmtW(p.delta)}`)))),
     h('div', { class: 'wk-tot grand rule-open rule-closed' }, h('span', {}, 'الجلسة اتقفلت · الحجم'), h('span', {}, volEl, ' كجم')),
@@ -1243,6 +1245,7 @@ export function showSummary(ctx, record, history, nextDay = '', { coach = null }
     { label: 'سجّل وجبة بعد التمرين', ghost: true, run: () => ctx.go('nutrition') },
   ], onClose: () => { if (location.hash.startsWith('#/workout/session')) ctx.go('workout'); } });
   countUp(volEl, s.volume, { ms: 900 });
+  countUp(durEl, +s.durationMin || 0, { ms: 700 }); countUp(setsEl, +s.sets || 0, { ms: 700 });
   pop(body.querySelector('.wk-prcard'));
   void STRETCH_PROTOCOLS; void coachingFor;
 }

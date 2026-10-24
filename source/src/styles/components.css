@@ -12,7 +12,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;str
 [class*="glow-"] svg.i,[class*="glow-"].ring-wrap .ring-arc{filter:drop-shadow(0 0 8px color-mix(in srgb,var(--k) 55%,transparent))}
 .lbl,.muted{font-size:var(--t-12);color:var(--mu)}
 .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:var(--r-pill);font:600 var(--t-11)/1.6 var(--f);color:var(--on-accent);background:var(--k,var(--carb))}
-.press{transition:transform var(--d-press) var(--ease)}
+.press{transition:transform var(--d-fast) var(--ease)}
 .press:active{transform:scale(.97)}
 .is-pop{animation:pop .55s var(--ease) both}
 @keyframes pop{from{transform:scale(.3);opacity:0}70%{transform:scale(1.18)}to{transform:none;opacity:1}}
@@ -40,12 +40,30 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;str
 .ring-wrap{position:relative;display:inline-grid;place-items:center}
 .ring-wrap>.ring-c{position:absolute;inset:0;display:grid;place-content:center;text-align:center;font-weight:700}
 
-/* route transition: #view gets .route-in on every render (router.js); its direct children rise in sequence */
-#view.route-in>:not(.dock):not(.ob){animation:route-in var(--d-route) var(--ease-out) backwards}
-#view.route-in>:nth-child(2){animation-delay:calc(var(--stagger)*1)}
-#view.route-in>:nth-child(3){animation-delay:calc(var(--stagger)*2)}
-#view.route-in>:nth-child(n+4){animation-delay:calc(var(--stagger)*3)}
-@keyframes route-in{from{opacity:0;transform:translateY(10px)}}
+/* ───────── screen transitions (router.js → html[data-nav=left|right] = side the new view comes from) ─────────
+   View Transitions: only #view moves (≈20px + fade, var(--d) on --ease-out); tab bar + coach button are named
+   with no animation so they stay put. Old view: quick fade (hidden when the page was scrolled). */
+html{--vt-x:20px}
+html[data-nav="left"]{--vt-in:calc(var(--vt-x) * -1);--vt-out:calc(var(--vt-x) * .5)}
+html[data-nav="right"]{--vt-in:var(--vt-x);--vt-out:calc(var(--vt-x) * -.5)}
+html[data-nav] #view{view-transition-name:view}
+html[data-nav] #tabs{view-transition-name:tabs}
+html[data-nav] .coach-fab{view-transition-name:fab}
+::view-transition-group(root),::view-transition-group(tabs),::view-transition-group(fab),::view-transition-group(view){animation:none}
+::view-transition-old(root),::view-transition-old(tabs),::view-transition-old(fab){display:none}
+::view-transition-new(root),::view-transition-new(tabs),::view-transition-new(fab){animation:none}
+::view-transition-old(view){animation:vt-out var(--d-fast) var(--ease-out) both}
+::view-transition-new(view){animation:vt-in var(--d) var(--ease-out) both}
+html[data-nav-scrolled]::view-transition-old(view){display:none}
+@keyframes vt-out{to{opacity:0;transform:translateX(var(--vt-out,0))}}
+@keyframes vt-in{from{opacity:0;transform:translateX(var(--vt-in,0))}}
+/* fallback without the API: the freshly rendered children slide in (fixed docks stay put) */
+#view.nav-in>:not(.dock):not(.ob){animation:vt-in var(--d) var(--ease-out) both}
+
+/* ───────── reveal on scroll (ui/motion.js): cards that start below the fold rise in once ───────── */
+.rv{opacity:0;transform:translateY(10px)}
+.rv.rv-in{opacity:1;transform:none;transition:opacity 240ms var(--ease-out),transform 240ms var(--ease-out);transition-delay:calc(var(--rv-i,0) * 45ms)}
+.rv:not(.rv-in) *{animation-play-state:paused}/* charts/bars inside start drawing when the card arrives */
 
 /* ───────── header band → transparent glass header ───────── */
 .band{padding:calc(env(safe-area-inset-top,0px) + var(--s5)) var(--gutter) var(--s3);display:flex;align-items:center;gap:var(--s3);color:var(--tx)}
@@ -55,7 +73,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;str
 .band.center{align-items:center}
 .ibtn{width:var(--tap);height:var(--tap);display:grid;place-items:center;border:1px solid var(--edge);background:var(--glass);color:inherit;border-radius:var(--r-inner);flex:none;transition:transform var(--d-press) var(--ease),background-color var(--d-fast)}
 .ibtn:hover{background:var(--glass-2)}
-.ibtn:active{transform:scale(.94)}
+.ibtn:active{transform:scale(.97)}
 .ibtn svg.i{width:20px;height:20px}
 .daytag{display:inline-flex;align-items:center;gap:4px;font:600 var(--t-11)/1 var(--f);color:var(--on-accent);background:var(--carb);padding:5px 10px;border-radius:var(--r-pill);white-space:nowrap;position:relative;border:0}
 .daytag.rest{background:var(--pro)}
@@ -97,7 +115,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;str
 a.entry,button.entry{color:inherit;text-decoration:none;background:transparent;border-inline:0;border-top:0;width:100%;text-align:start;font:inherit;transition:background-color var(--d-fast)}
 .chip,.repeat{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;border:1px solid var(--edge);border-radius:var(--r-pill);background:var(--glass);color:var(--tx);font:500 var(--t-12) var(--f);position:relative;transition:transform var(--d-press) var(--ease),background-color var(--d-fast),color var(--d-fast)}
 .chip:hover,.repeat:hover{background:var(--glass-2)}
-.chip:active,.repeat:active{transform:scale(.95)}
+.chip:active,.repeat:active{transform:scale(.97)}
 .chip::after,.repeat::after{content:"";position:absolute;inset:-6px 0}/* 48px hit area */
 .repeat{margin-top:6px;color:var(--pro)}
 .chip svg,.repeat svg{width:16px;height:16px}
@@ -130,7 +148,7 @@ html[dir="ltr"] .tabs::before{transform:translateX(calc(var(--ti) * 100%))}
 .tabs a{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:56px;color:var(--mu-2);text-decoration:none;font:500 var(--t-11)/1 var(--f);border-radius:18px;transition:color var(--d-fast),transform var(--d-press) var(--ease)}
 .tabs a svg.i{width:21px;height:21px;transition:color var(--d-fast),filter var(--d-fast)}
 .tabs a:hover{color:var(--tx)}
-.tabs a:active{transform:scale(.92)}
+.tabs a:active{transform:scale(.97)}
 .tabs a[aria-current]{color:var(--tx);font-weight:600}
 .tabs a[aria-current] svg.i{color:var(--amber);filter:drop-shadow(0 0 8px rgba(252,211,77,.6));animation:tab-pop .4s var(--ease)}
 @keyframes tab-pop{40%{transform:translateY(-3px) scale(1.12)}}
@@ -160,7 +178,7 @@ html[dir="ltr"] .tabs::before{transform:translateX(calc(var(--ti) * 100%))}
 .step{border:1px solid var(--edge);border-radius:var(--r-inner);display:grid;grid-template-columns:var(--tap) 1fr var(--tap);align-items:center;background:var(--well)}
 .step button{height:var(--tap);border:0;background:transparent;color:var(--tx);display:grid;place-items:center;border-radius:var(--r-inner);transition:transform var(--d-press) var(--ease),background-color var(--d-fast)}
 .step button:hover{background:var(--glass)}
-.step button:active{transform:scale(.88);background:var(--glass-2)}
+.step button:active{transform:scale(.97);background:var(--glass-2)}
 .step div{text-align:center}
 .step div .num{font:700 var(--t-20)/1 var(--f)}
 .step div small{display:block;font:500 var(--t-11) var(--f);color:var(--mu);margin-top:2px}
@@ -234,11 +252,17 @@ button.list-row:hover,a.list-row:hover{background:rgba(255,255,255,.04)}
 .placeholder{padding:var(--s6) var(--gutter);color:var(--mu);font-size:var(--t-14)}
 
 /* Reduced motion: no transforms/animation, opacity fades stay instant */
-@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:0ms!important;animation-duration:0ms!important;animation-delay:0ms!important;animation-iteration-count:1!important}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:0ms!important;animation-duration:0ms!important;animation-delay:0ms!important;animation-iteration-count:1!important}
+  .rv{opacity:1;transform:none}}
+/* Profile › المظهر › «قلّل الحركة» (html.rm): same as the OS setting, plus no press scale */
+html.rm *,html.rm *::before,html.rm *::after{transition-duration:0ms!important;animation-duration:0ms!important;animation-delay:0ms!important;animation-iteration-count:1!important}
+html.rm::view-transition-group(*),html.rm::view-transition-old(*),html.rm::view-transition-new(*){animation:none!important}
+html.rm .rv{opacity:1;transform:none}
+html.rm :is(.btn,.chip,.repeat,.ibtn,.press,.coach-fab):active{transform:none}
 
 /* Floating coach button (router.js) */
 .coach-fab{position:fixed;z-index:40;inset-inline-end:calc(var(--gutter,18px));bottom:calc(96px + env(safe-area-inset-bottom,0px));display:inline-grid;place-items:center;width:56px;height:56px;padding:0;border-radius:50%;border:1px solid var(--edge-strong,rgba(255,255,255,.22));background:linear-gradient(135deg,#6B46E5,#BE185D);color:#fff;font:600 var(--t-14,14px) var(--f);box-shadow:0 12px 28px -10px rgba(124,92,255,.75);transition:transform var(--d-press,150ms) var(--ease)}
-.coach-fab:active{transform:scale(.96)}
+.coach-fab:active{transform:scale(.97)}
 .coach-fab[hidden]{display:none}
 .coach-fab span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 #view{padding-bottom:72px}

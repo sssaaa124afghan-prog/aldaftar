@@ -14,6 +14,7 @@ body::before{content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none
   animation:ground-drift 14s ease-in-out infinite alternate;will-change:transform}
 @keyframes ground-drift{to{transform:translate3d(-6%,4%,0) scale(1.06)}}
 @media (prefers-reduced-motion:reduce){body::before{animation:none}}
+html.rm body::before{animation:none}
 
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}

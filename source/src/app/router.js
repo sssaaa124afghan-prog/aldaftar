@@ -3,6 +3,7 @@ import { h, raw } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
 import { needsOnboarding, markOnboardingSeen } from './onboarding-gate.js';
 import { runTargetsMigration } from '../core/targets.js';
+import { navDir, keyboardOpen, motionOK, revealBelowFold } from '../ui/motion.js';
 
 const loaders = import.meta.glob('../features/*/index.js');
 const mods = new Map();
@@ -80,40 +81,69 @@ export function startRouter({ view, nav, ctx }) {
       route = 'profile/welcome'; params = {}; lastRoute = route;
     }
     const feature = route.split('/')[0];
-    markTab(nav, feature);
+    const prev = view.dataset.route || null;
     let fn = null;
     try {
       const m = await loadFeature(feature);
-      if (m && m.routes) fn = m.routes[route] || (route === feature ? null : null) || m.routes[feature];
+      if (m && m.routes) fn = m.routes[route] || m.routes[feature];
     } catch (e) {
       console.warn('[router] feature failed to load', feature, e && e.message);
     }
     if (my !== seq) return;
-    if (typeof cleanup === 'function') { try { cleanup(); } catch { /* ignore */ } }
-    cleanup = null;
-    view.textContent = '';
-    // enter animation: #view keeps .route-in; CSS animations start on the freshly inserted children,
-    // so no class restart and no forced reflow (was `void view.offsetWidth`, 149 ms in Lighthouse).
-    view.classList.add('route-in');
-    view.dataset.route = route;
-    if (!fn) {
-      const tab = TABS.find((t) => t.key === feature);
-      view.appendChild(h('header', { class: 'band' }, h('div', { class: 'grow' }, h('h1', {}, tab ? tab.label : 'الصفحة دي مش موجودة'))));
-      view.appendChild(h('p', { class: 'placeholder' }, tab ? 'الجزء ده لسه بيتجهّز.' : 'ارجع لشاشة اليوم.'));
-    } else {
-      try { cleanup = await fn(view, ctx, params); }
-      catch (e) {
-        console.warn('[router] render failed', route, e);
-        view.appendChild(h('p', { class: 'placeholder' }, 'حصلت مشكلة في عرض الشاشة دي. بياناتك محفوظة.'));
+    // directional motion: new view slides in from the side it lives on (tabs) or from the inline-end (push)
+    const rtl = document.documentElement.dir !== 'ltr';
+    const dir = !first && motionOK() && !keyboardOpen() ? navDir(prev, route, TABS.map((t) => t.key), rtl) : null;
+    const swap = async () => {
+      markTab(nav, feature);
+      if (typeof cleanup === 'function') { try { cleanup(); } catch { /* ignore */ } }
+      cleanup = null;
+      view.textContent = '';
+      view.dataset.route = route;
+      if (!fn) {
+        const tab = TABS.find((t) => t.key === feature);
+        view.appendChild(h('header', { class: 'band' }, h('div', { class: 'grow' }, h('h1', {}, tab ? tab.label : 'الصفحة دي مش موجودة'))));
+        view.appendChild(h('p', { class: 'placeholder' }, tab ? 'الجزء ده لسه بيتجهّز.' : 'ارجع لشاشة اليوم.'));
+      } else {
+        try { cleanup = await fn(view, ctx, params); }
+        catch (e) {
+          console.warn('[router] render failed', route, e);
+          view.appendChild(h('p', { class: 'placeholder' }, 'حصلت مشكلة في عرض الشاشة دي. بياناتك محفوظة.'));
+        }
       }
-    }
-    syncCoachFab(route, ctx);
-    if (!first) { window.scrollTo(0, 0); view.focus({ preventScroll: true }); }
+      syncCoachFab(route, ctx);
+      if (!first) { window.scrollTo(0, 0); view.focus({ preventScroll: true }); }
+    };
+    if (dir) await transition(view, dir, swap, my);
+    else await swap();
     first = false;
+    if (my === seq) revealBelowFold(view);
   }
   window.addEventListener('hashchange', render);
   render();
   return { render };
+}
+
+// View Transitions API when present (Chromium, iOS 18+ Safari); otherwise a CSS class on #view's children.
+// The tab bar and the coach button get their own transition names with no animation, so they stay still.
+let vtSeq = 0;
+async function transition(view, dir, swap) {
+  const root = document.documentElement;
+  const n = ++vtSeq;
+  root.dataset.nav = dir;
+  root.toggleAttribute('data-nav-scrolled', window.scrollY > 8); // old snapshot would show the wrong part of a scrolled page
+  const done = () => { if (n === vtSeq) { delete root.dataset.nav; root.removeAttribute('data-nav-scrolled'); } };
+  if (typeof document.startViewTransition === 'function') {
+    let vt;
+    try { vt = document.startViewTransition(swap); } catch { await swap(); done(); return; }
+    vt.ready.catch(() => {});
+    vt.finished.catch(() => {}).finally(done);
+    await vt.updateCallbackDone.catch(() => {});
+    return;
+  }
+  await swap();
+  view.classList.remove('nav-in'); void view.offsetWidth; // restart (one reflow, only on navigation)
+  view.classList.add('nav-in');
+  setTimeout(() => { if (n === vtSeq) view.classList.remove('nav-in'); done(); }, 420);
 }
 
 // Floating «اسأل المدرب» button on every main screen (hidden where it would clash: live session, coach, migration).

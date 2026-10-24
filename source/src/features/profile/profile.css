@@ -70,3 +70,4 @@ summary:focus-visible{outline:2px solid var(--amber,#FCD34D);outline-offset:2px;
 .pswitch input:checked+i::after{transform:translateX(-18px)}
 .pswitch input:focus-visible+i{outline:2px solid var(--amber,#FCD34D);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){.pswitch i,.pswitch i::after{transition:none}}
+.pfeel .pswitch:first-child{margin-top:0;padding-top:0;border-top:0}

@@ -1,9 +1,7 @@
 /* Today — Electric Glass Pro (comps/b.html frame 1). Tokens with fallbacks; scoped .td-*. */
 .td{display:flex;flex-direction:column;gap:12px;padding:calc(env(safe-area-inset-top,0px) + var(--s3,12px)) var(--gutter,18px) 0}
 .td .gl{background:var(--glass,rgba(255,255,255,.065));border:1px solid var(--edge,rgba(255,255,255,.13));border-radius:var(--r-card,24px);-webkit-backdrop-filter:var(--blur,blur(20px) saturate(140%));backdrop-filter:var(--blur,blur(20px) saturate(140%));box-shadow:var(--glass-hi,inset 0 1px 0 rgba(255,255,255,.08))}
-.td-in>*{animation:td-rise .7s var(--ease,cubic-bezier(.22,.9,.24,1)) both}
-.td-in>*:nth-child(2){animation-delay:.07s}.td-in>*:nth-child(3){animation-delay:.14s}.td-in>*:nth-child(4){animation-delay:.21s}.td-in>*:nth-child(5){animation-delay:.28s}.td-in>*:nth-child(n+6){animation-delay:.35s}
-@keyframes td-rise{from{opacity:0;transform:translateY(16px)}}
+/* entry motion: none on first paint; cards below the fold rise in once (ui/motion.js .rv) */
 
 .td-hd{display:flex;justify-content:space-between;align-items:center;gap:var(--s3,12px);margin-top:4px}
 .td-hd>div{min-width:0}
@@ -13,7 +11,7 @@
 .td-dayp b.rs{background:var(--pro,#BAE6FD)}
 .td-dayp b.hd{background:var(--fat,#FBCFE8)}
 .td-ib{width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:14px!important;color:var(--tx,#F7F5FF);transition:transform var(--d-press,150ms) var(--ease,ease)}
-.td-ib:active,.td-go:active,.td-tl:active,.td-mc:active{transform:scale(.96)}
+.td-ib:active,.td-go:active,.td-tl:active,.td-mc:active{transform:scale(.97)}
 
 /* calorie gauge */
 .td-gauge{position:relative;padding:14px 16px;text-align:center}
@@ -85,7 +83,7 @@
 .td-rate b{color:var(--tx,#F7F5FF);font-weight:600}
 .td-rate.up b{color:var(--carb,#86EFAC)}
 .td-aibtn{display:flex;align-items:center;gap:10px;min-height:52px;padding:0 14px;border-radius:16px;border:1px solid rgba(167,139,250,.45);background:var(--violet-grad,linear-gradient(135deg,rgba(167,139,250,.35),rgba(244,114,182,.25)));color:var(--tx,#F7F5FF);font:600 var(--t-14,14px) var(--f,system-ui);transition:transform var(--d-press,150ms) var(--ease,ease)}
-.td-aibtn:active{transform:scale(.98)}
+.td-aibtn:active{transform:scale(.97)}
 .td-ai:empty{display:none}
 .td-ai-text{font-size:var(--t-14,14px);line-height:1.75;color:var(--tx,#F7F5FF);overflow-wrap:anywhere}
 .td-ai-text b{color:var(--cal,#FDE68A);font-weight:600}
@@ -136,7 +134,7 @@
 .td-addrow .btn{width:auto}
 
 @media (prefers-reduced-motion:reduce){
-  .td-in>*,.td-arc-v,.td-bar i,.td-go::after,.td-ck.is-pop{animation:none!important}
+  .td-arc-v,.td-bar i,.td-go::after,.td-ck.is-pop{animation:none!important}
 }
 .td-row .td-lnk{display:inline-flex;align-items:center;min-height:44px;min-width:44px}
 
@@ -158,7 +156,7 @@
 .td-kgin input[aria-invalid="true"],.td-bpin input[aria-invalid="true"]{border-color:var(--danger,#FB7185)}
 .td-stp{width:48px;height:48px;flex:none;border-radius:14px;border:1px solid var(--edge,rgba(255,255,255,.13));background:var(--glass-2,rgba(255,255,255,.1));color:var(--tx,#F7F5FF);font:600 22px/1 var(--f,system-ui);transition:transform var(--d-press,150ms) var(--ease,ease)}
 .td-save{flex:none;min-height:48px;min-width:72px;padding:0 16px;border:0;border-radius:14px;background:var(--cta,linear-gradient(135deg,#FCD34D,#FB923C));color:#2A1300;font:700 var(--t-16,15px) var(--f,system-ui);box-shadow:var(--cta-glow,0 8px 24px -6px rgba(251,146,60,.6));transition:transform var(--d-press,150ms) var(--ease,ease)}
-.td-stp:active,.td-save:active{transform:scale(.96)}
+.td-stp:active,.td-save:active{transform:scale(.97)}
 .td-save:disabled{opacity:.6}
 .td-err{font-size:var(--t-12,12px);color:var(--danger-tx,#FDA4AF);min-height:0}
 .td-err:empty{display:none}

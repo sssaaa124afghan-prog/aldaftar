@@ -23,7 +23,7 @@
 .pg-sec-body[hidden]{display:none}
 
 /* glass card */
-.pg-card{position:relative;padding:14px 16px;border-radius:var(--r-card,24px);background:var(--glass,rgba(255,255,255,.065));border:1px solid var(--edge,rgba(255,255,255,.13));box-shadow:var(--glass-hi,inset 0 1px 0 rgba(255,255,255,.08));-webkit-backdrop-filter:var(--blur,blur(20px) saturate(140%));backdrop-filter:var(--blur,blur(20px) saturate(140%));display:flex;flex-direction:column;gap:10px;animation:pg-rise .6s var(--ease,ease) both}
+.pg-card{position:relative;padding:14px 16px;border-radius:var(--r-card,24px);background:var(--glass,rgba(255,255,255,.065));border:1px solid var(--edge,rgba(255,255,255,.13));box-shadow:var(--glass-hi,inset 0 1px 0 rgba(255,255,255,.08));-webkit-backdrop-filter:var(--blur,blur(20px) saturate(140%));backdrop-filter:var(--blur,blur(20px) saturate(140%));display:flex;flex-direction:column;gap:10px}
 @keyframes pg-rise{from{opacity:0;transform:translateY(12px)}}
 .pg-ch{display:flex;align-items:baseline;gap:var(--s2,8px);flex-wrap:wrap}
 .pg-ch h3{font:600 var(--t-16,16px)/1.3 var(--f,system-ui);color:var(--tx,#F7F5FF)}
@@ -207,7 +207,7 @@
 .pg-report li::before{content:"";position:absolute;inset-inline-start:0;top:.62em;width:5px;height:5px;border-radius:50%;background:var(--violet,#A78BFA)}
 .pg-aiw{display:flex;flex-direction:column;gap:8px}
 .pg-aibtn{display:flex;align-items:center;gap:10px;min-height:52px;padding:0 14px;border-radius:16px;border:1px solid rgba(167,139,250,.45);background:var(--violet-grad,linear-gradient(135deg,rgba(167,139,250,.35),rgba(244,114,182,.25)));color:var(--tx,#F7F5FF);font:600 var(--t-14,14px) var(--f,system-ui);text-align:start;transition:transform var(--d-press,150ms) var(--ease,ease)}
-.pg-aibtn:active{transform:scale(.98)}
+.pg-aibtn:active{transform:scale(.97)}
 .pg-aibtn small{margin-inline-start:auto;font-weight:400;font-size:var(--t-12,12px);color:var(--mu,#C3BEE3)}
 .pg-aibtn svg{width:18px;height:18px}
 .pg-ai-text{font-size:var(--t-14,14px);line-height:1.75;overflow-wrap:anywhere}

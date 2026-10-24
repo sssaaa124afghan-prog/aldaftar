@@ -1,7 +1,7 @@
 // Confirm cards for coach proposals. Nothing is written until the user presses the confirm button.
 import { h, fill } from '../../ui/dom.js';
 import { fmt } from '../../ui/num.js';
-import { pop } from '../../ui/anim.js';
+import { pop, haptic } from '../../ui/anim.js';
 import { sumEntries, setTargets, validateTargets, withDayTypes, kcalFromMacros } from '../../core/targets.js';
 import { SECTIONS, SECTION_LABEL, sectionForHour, entryFromAIItem, newId } from '../nutrition/logic.js';
 import { addEntries, getEntries, putEntries, loadCatalog, saveFood } from '../nutrition/data.js';
@@ -142,7 +142,7 @@ export function foodLogCard(ctx, action, { said = '', key = null, replace = null
     } catch { rows = resolveItems(action.items, [], { meal: meal0 }); }
     draw();
   })();
-  const finish = (nodes, good) => { fill(card, h('div', { class: `co-done${good ? ' ok' : ''}` }, h('i', { 'aria-hidden': 'true' }), ...nodes)); pop(card); };
+  const finish = (nodes, good) => { fill(card, h('div', { class: `co-done${good ? ' ok' : ''}` }, h('i', { 'aria-hidden': 'true' }), ...nodes)); pop(card); if (good) haptic(); }; // «اتسجل»
   const errBox = h('p', { class: 'co-err co-wfail', role: 'alert', hidden: true });
   card.insertBefore(errBox, card.querySelector('.co-acts'));
   ok.addEventListener('click', async () => {

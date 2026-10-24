@@ -4,7 +4,7 @@
 .co-head h1{font:700 var(--t-24,24px)/1.15 var(--f,system-ui);color:var(--tx,#F7F5FF)}
 .co-head p{font-size:var(--t-12,12px);color:var(--mu,#C3BEE3);margin-top:2px}
 .co-ib{width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:14px;border:1px solid var(--edge,rgba(255,255,255,.13));background:var(--glass,rgba(255,255,255,.065));color:var(--tx,#F7F5FF);transition:transform var(--d-press,150ms) var(--ease,ease)}
-.co-ib:active{transform:scale(.95)}
+.co-ib:active{transform:scale(.97)}
 .co-head .co-ib:first-child svg{transform:none}
 .co-page{padding:0 var(--gutter,18px);display:flex;flex-direction:column;flex:1}
 .co-wrap{display:flex;flex-direction:column;gap:var(--s3,12px)}

@@ -48,7 +48,7 @@
   /* motion */
   --ease:cubic-bezier(.22,.9,.24,1);
   --ease-out:cubic-bezier(.16,1,.3,1);
-  --d-press:150ms; --d-fast:120ms; --d:200ms; --d-route:180ms; --d-slow:320ms; --d-ring:1100ms;
+  --d-press:120ms; --d-fast:120ms; --d:200ms; --d-route:180ms; --d-slow:320ms; --d-ring:1100ms;
   --stagger:50ms;
 
   /* ───── legacy aliases (ledger names) → B values. Do not use in new CSS. ───── */
@@ -63,4 +63,5 @@
   --lift:var(--glass-hi);
   color-scheme:dark;
 }
+html.rm{--d-press:0ms;--d-fast:0ms;--d:0ms;--d-route:0ms;--d-slow:0ms;--d-ring:0ms;--stagger:0ms}
 @media (prefers-reduced-motion:reduce){:root{--d-press:0ms;--d-fast:0ms;--d:0ms;--d-route:0ms;--d-slow:0ms;--d-ring:0ms;--stagger:0ms}}

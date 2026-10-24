@@ -11,6 +11,7 @@ import { openWeightSheet, latestWeight } from './weight.js';
 import { exportNow, pickAndImport } from './backup-ui.js';
 import { renderMigrate } from './migration.js';
 import { renderWelcome } from './onboarding.js';
+import { haptic } from '../../ui/anim.js';
 
 const DAYS = [[6, 'السبت'], [0, 'الأحد'], [1, 'الاتنين'], [2, 'التلات'], [3, 'الأربع'], [4, 'الخميس'], [5, 'الجمعة']];
 const AGE_DEFAULT = 27;
@@ -186,6 +187,14 @@ async function renderProfile(el, ctx) {
   const cfHint = h('span', { class: 'hint', id: 'p-confirm-food-h' }, 'لو مقفول: الأكل اللي تقول للمدرب إنك أكلته بيتسجّل على طول ومعاه «تراجع»');
   cfSw.addEventListener('change', async () => { await ctx.settings.set('coach.confirmFood', cfSw.checked); ctx.toast(cfSw.checked ? 'هيسألك قبل ما يسجّل الأكل' : 'الأكل هيتسجّل على طول'); });
 
+  // المظهر: «قلّل الحركة» + «اهتزاز خفيف» (main.js applies both on settings:changed)
+  const rmSw = h('input', { type: 'checkbox', id: 'p-rm', role: 'switch', checked: ctx.settings.get('ui.reduceMotion') === true ? true : null, 'aria-describedby': 'p-rm-h' });
+  const rmHint = h('span', { class: 'hint', id: 'p-rm-h' }, 'الشاشات بتتغيّر على طول من غير انزلاق أو أرقام بتعدّ');
+  rmSw.addEventListener('change', async () => { await ctx.settings.set('ui.reduceMotion', rmSw.checked); ctx.toast(rmSw.checked ? 'الحركة اتقلّلت' : 'الحركة رجعت'); });
+  const hpSw = h('input', { type: 'checkbox', id: 'p-haptic', role: 'switch', checked: ctx.settings.get('ui.haptics') !== false ? true : null, 'aria-describedby': 'p-haptic-h' });
+  const hpHint = h('span', { class: 'hint', id: 'p-haptic-h' }, 'نبضة صغيرة لما تخلّص مجموعة، الراحة تخلص، رقم شخصي، أو أكل يتسجّل');
+  hpSw.addEventListener('change', async () => { await ctx.settings.set('ui.haptics', hpSw.checked); if (hpSw.checked) haptic(); });
+
   // backup
   const exp = h('button', { type: 'button', class: 'list-row' }, raw(icon('download')), h('span', { class: 'grow' }, h('b', {}, 'اعمل نسخة احتياطية'), h('small', {}, meta && meta.lastBackupAt ? `آخر نسخة ${meta.lastBackupAt.slice(0, 10)}` : 'لسه مفيش نسخة — ملف JSON على جهازك')));
   exp.addEventListener('click', () => exportNow(ctx));
@@ -204,7 +213,7 @@ async function renderProfile(el, ctx) {
   const kgText = w ? `${fmt(w.kg, { dp: 1 })} كجم` : '—';
   fill(el, 
     h('header', { class: 'band' }, h('div', { class: 'grow' }, h('h1', {}, 'الملف'), h('p', {}, 'بياناتك وإعداداتك · على الجهاز ده بس'))),
-    h('div', { class: 'pwrap stagger' },
+    h('div', { class: 'pwrap' },
       h('div', { class: 'phero glass' },
         h('div', { class: 'pav', 'aria-hidden': 'true' }, initials),
         h('div', { class: 'grow' }, h('b', {}, name || 'ملفك الشخصي'),
@@ -219,7 +228,10 @@ async function renderProfile(el, ctx) {
         h('label', { class: 'pswitch', for: 'p-confirm-food' }, h('span', {}, 'أكّد قبل تسجيل الأكل', cfHint), cfSw, h('i', { 'aria-hidden': 'true' })))),
       section('s-data', 'البيانات', 'download', h('div', { class: 'sheet-card plist' }, ...backupRows)),
       section('s-pal', 'المظهر', 'spark', h('details', { class: 'sheet-card pform pfold' }, h('summary', {}, h('span', { class: 'grow' }, 'ألوان البرنامج'), h('span', { class: 'tedit' }, 'غيّر')),
-        paletteChips(ctx), h('p', { class: 'hint' }, 'نفس التصميم بألوان مختلفة · بيتغيّر على طول'))),
+        paletteChips(ctx), h('p', { class: 'hint' }, 'نفس التصميم بألوان مختلفة · بيتغيّر على طول')),
+        h('div', { class: 'sheet-card pform pfeel' },
+          h('label', { class: 'pswitch', for: 'p-rm' }, h('span', {}, 'قلّل الحركة', rmHint), rmSw, h('i', { 'aria-hidden': 'true' })),
+          h('label', { class: 'pswitch', for: 'p-haptic' }, h('span', {}, 'اهتزاز خفيف', hpHint), hpSw, h('i', { 'aria-hidden': 'true' })))),
     ));
 }
 
