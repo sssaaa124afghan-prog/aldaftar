@@ -6,9 +6,9 @@ import { portion } from '../../core/targets.js';
 import { richTextNodes, searchFoods } from '../nutrition/logic.js';
 import { loadChat, addChat, loadCatalog, loadUsage } from '../nutrition/data.js';
 import { askCoach, errorText, hasKey, HISTORY_TURNS, EMPTY_REPLY } from './api.js';
-import { actionCard } from './cards.js';
-import { parseLogCommand, streamVisible } from './actions.js';
-import { localFoodLog } from './foodlog.js';
+import { actionCard, loggedLine } from './cards.js';
+import { streamVisible, stripLogClaims, isFoodAction } from './actions.js';
+import { pickFoodLog, prepareLog, commitEntries, localAction, wantsFoodLog, successText, LOG_COPY, CONFIRM_KEY } from './autolog.js';
 import { voiceSupported, startVoice } from '../nutrition/voice.js';
 import { speechEnv, speechMessage, fileContextHint } from '../../core/speech.js';
 import { QUICK } from './prompts.js';
@@ -26,20 +26,18 @@ export function errorLine(e, onNav) {
 }
 
 /**
- * Local fast path (AI19), no API call: «اكلت 150 جم كبدة و290 جم مكرونة» / «ضيف 150 جرام صدر فراخ» → a food.log proposal
+ * Local fast path (AI19), no API call: «اكلت 150 جم كبدة و290 جم مكرونة» / «ضيف 150 جرام صدر فراخ» → a food.log action
  * when every item has an amount and a confident match in the user's foods; otherwise null (the coach model handles it).
  */
 export async function localProposal(ctx, text) {
   const [{ list }, usage] = await Promise.all([loadCatalog(ctx.db), loadUsage(ctx.db, ctx.today()).catch(() => null)]);
-  const multi = localFoodLog(text, list, { usage });
-  if (multi) return { action: multi, say: multi.items.length > 1 ? `لقيت الـ ${multi.items.length} أكلات في أكلاتك. راجع وعدّل قبل التسجيل:` : 'لقيتها في أكلاتك. راجع قبل التسجيل:' };
-  const cmd = parseLogCommand(text);
-  if (!cmd) return null;
-  const food = searchFoods(list, cmd.query, { usage, limit: 1 })[0];
-  if (!food) return null;
-  let m; try { m = portion(food, cmd.grams); } catch { return null; }
-  return { food, say: `لقيت «${food.name}» في أكلاتك. راجع قبل التسجيل:`, action: { type: 'log', section: cmd.section, items: [{ name: food.name, grams: cmd.grams, ...m }] } };
+  const action = localAction(text, list, usage);
+  return action ? { action } : null;
 }
+
+/** Chat turns for the model: app lines (kind 'app') are left out, old «سجلت» claims rewritten so the model never copies them. */
+export const modelTurns = (history, n = HISTORY_TURNS) => history.filter((m) => m.kind !== 'app').slice(-n)
+  .map((m) => ({ role: m.role, content: m.role === 'assistant' ? (stripLogClaims(m.content) || '…') : m.content }));
 
 export async function mountChat(el, ctx, { intent = 'chat', attach = null, prompt = '', inSheet = false, close = null } = {}) {
   const history = await loadChat(ctx.db);
@@ -50,8 +48,58 @@ export async function mountChat(el, ctx, { intent = 'chat', attach = null, promp
   const note = h('p', { class: 'co-err', 'aria-live': 'assertive' });
   const nav = () => close && close();
 
-  const bubble = (m) => h('div', { class: `co-msg ${m.role === 'user' ? 'me' : 'coach'}`, dataset: { mid: m.id } },
-    h('span', { class: 'vh' }, m.role === 'user' ? 'إنت: ' : 'المدرب: '), richTextNodes(document, m.content));
+  const bubble = (m) => (m.kind === 'app'
+    ? h('div', { class: `co-msg app${m.ok ? ' ok' : ''}`, dataset: { mid: m.id } }, h('span', { class: 'vh' }, 'التطبيق: '), m.content)
+    : h('div', { class: `co-msg ${m.role === 'user' ? 'me' : 'coach'}`, dataset: { mid: m.id } },
+      h('span', { class: 'vh' }, m.role === 'user' ? 'إنت: ' : 'المدرب: '), richTextNodes(document, m.content)));
+
+  // ───── food logging: the app writes, reads back, and only then says «اتسجل» ─────
+  const logged = new Map(); // idempotency key (user message id) → verified result, for this view
+  let catalogP = null;
+  const catalog = () => (catalogP = catalogP || Promise.all([loadCatalog(ctx.db), loadUsage(ctx.db, ctx.today()).catch(() => null)])
+    .then(([c, usage]) => ({ list: c.list, usage })).catch(() => { catalogP = null; return { list: [], usage: null }; }));
+  const appNote = async (text, extra = {}) => { const m = await addChat(ctx.db, 'assistant', text, { kind: 'app', ...extra }); history.push(m); return m; };
+  const notes = new Map(); // key → saved app note (kept in step with undo / edit so a reload never shows a stale «اتسجل»)
+  const onLogged = (key) => async (res) => {
+    logged.set(key, res);
+    notes.set(key, await appNote(successText(res, ctx.today()), { ok: true, log: { day: res.day, ids: res.entries.map((e) => e.id) } }));
+  };
+  const onChange = (key) => async (kind, res) => {
+    const m = notes.get(key);
+    if (kind === 'undo') logged.delete(key); else logged.set(key, res);
+    if (!m) return;
+    const next = kind === 'undo' ? { ...m, content: `${LOG_COPY.undone}.`, ok: false, log: null } : { ...m, content: successText(res, ctx.today()), log: { day: res.day, ids: res.entries.map((e) => e.id) } };
+    Object.assign(m, next);
+    try { await ctx.db.put('chat', next); } catch { /* the on-screen line is right; the note is best-effort */ }
+  };
+  /** Apply one food.log decision (from pickFoodLog) for the user message `key`. Never claims success without a verified write. */
+  async function runFoodLog(plan, key, said) {
+    if (!plan) return;
+    if (!plan.action) { const m = await appNote(LOG_COPY.fail); list.appendChild(bubble(m)); return; }
+    if (logged.has(key)) { list.appendChild(loggedLine(ctx, logged.get(key), { key, said, onChange: onChange(key) })); return; } // replayed reply: no second write
+    const confirmFirst = !!ctx.settings.get(CONFIRM_KEY) || !plan.asked;
+    if (confirmFirst) { list.appendChild(actionCard(ctx, plan.action, { said, key, onLogged: onLogged(key), onChange: onChange(key) })); return; }
+    const { list: foods, usage } = await catalog();
+    const { day, entries } = prepareLog(plan.action, { catalog: foods, usage, now: new Date(), today: ctx.today() });
+    if (!entries.length) { const m = await appNote(LOG_COPY.fail); list.appendChild(bubble(m)); return; }
+    const attempt = async (slot) => {
+      let res;
+      try { res = await commitEntries(ctx.db, day, entries, key); }
+      catch {
+        const retry = h('button', { type: 'button', class: 'btn sm co-retry-btn' }, 'حاول تاني');
+        const box = h('div', { class: 'co-retry co-wfail', role: 'alert' }, h('p', { class: 'co-err' }, LOG_COPY.writeFail), retry);
+        retry.addEventListener('click', () => { retry.disabled = true; attempt(box); });
+        if (slot) slot.replaceWith(box); else list.appendChild(box);
+        scroll(); return;
+      }
+      ctx.emit('food:changed', { day });
+      const line = loggedLine(ctx, res, { key, said, onChange: onChange(key) });
+      if (slot) slot.replaceWith(line); else list.appendChild(line);
+      if (res.dup) logged.set(key, res); else await onLogged(key)(res); // a retry that finds its rows already saved writes no new note
+      scroll();
+    };
+    await attempt(null);
+  }
 
   let group = /nutrition|food/.test(intent) ? 'nutrition' : 'training';
   const chipsBox = h('div', { class: 'co-quick' });
@@ -63,7 +111,7 @@ export async function mountChat(el, ctx, { intent = 'chat', attach = null, promp
   };
   const drawAll = () => {
     list.textContent = '';
-    if (!history.length) list.append(h('p', { class: 'co-hint' }, 'المدرب شايف تمرينك وأكلك ووزنك آخر 4 أسابيع. أي تسجيل أو تعديل بيحتاج موافقتك الأول.'));
+    if (!history.length) list.append(h('p', { class: 'co-hint' }, 'المدرب شايف تمرينك وأكلك ووزنك آخر 4 أسابيع. الأكل اللي تقول إنك أكلته بيتسجّل على طول ومعاه «تراجع»، وأي تعديل تاني بيحتاج موافقتك.'));
     history.slice(-40).forEach((m) => list.appendChild(bubble(m)));
   };
 
@@ -80,14 +128,19 @@ export async function mountChat(el, ctx, { intent = 'chat', attach = null, promp
     };
     const onRetry = (n, e) => { note.textContent = e && e.code === 'rate_limit' ? 'طلبات كتير ورا بعض، بحاول تاني…' : e && e.code === 'timeout' ? 'الرد اتأخر، بحاول تاني…' : 'الخدمة عليها ضغط، بحاول تاني…'; };
     try {
-      const turns = history.slice(-HISTORY_TURNS).map((m) => ({ role: m.role, content: m.content }));
+      const turns = modelTurns(history);
       const r = await askCoach(ctx, { intent: chipIntent || intent, prompt: text, extra: { ...(attach || {}), history: turns }, onText, onRetry });
       note.textContent = '';
-      const am = await addChat(ctx.db, 'assistant', r.text || EMPTY_REPLY);
-      history.push(am);
-      live.replaceWith(bubble(am));
-      for (const a of r.actions) list.appendChild(actionCard(ctx, a, { said: text }));
-      for (const m of r.errors || []) list.appendChild(h('p', { class: 'co-err co-ignored', role: 'alert' }, m));
+      const foodish = r.actions.some(isFoodAction) || (r.dropped || []).some((d) => d.type === 'food.log' || d.type === 'log') || wantsFoodLog(text);
+      const { list: foods, usage } = foodish ? await catalog() : { list: [], usage: null };
+      const plan = foodish ? pickFoodLog({ userText: text, actions: r.actions, dropped: r.dropped || [], catalog: foods, usage }) : null;
+      const shown = stripLogClaims(r.text);
+      if (shown) { const am = await addChat(ctx.db, 'assistant', shown); history.push(am); live.replaceWith(bubble(am)); } else live.remove();
+      for (const a of r.actions) if (!isFoodAction(a)) list.appendChild(actionCard(ctx, a, { said: text }));
+      // food errors are handled by the fallback / honest message below, not as a generic «ignored» line
+      const errs = (r.errors || []).filter((m) => !(plan && /تسجيل أكل/.test(m)));
+      for (const m of errs) list.appendChild(h('p', { class: 'co-err co-ignored', role: 'alert' }, m));
+      await runFoodLog(plan, um.id, text);
       scroll();
     } catch (e) {
       live.remove();
@@ -122,9 +175,8 @@ export async function mountChat(el, ctx, { intent = 'chat', attach = null, promp
       list.appendChild(bubble(um));
       ta.value = ''; ta.style.height = 'auto';
       const local = chipIntent ? null : await localProposal(ctx, text).catch(() => null);
-      if (local) {
-        const am = await addChat(ctx.db, 'assistant', local.say);
-        history.push(am); list.append(bubble(am), actionCard(ctx, local.action, { said: text }));
+      if (local) { // same verified pipeline as the model path (no API call)
+        await runFoodLog({ action: local.action, source: 'local', asked: true }, um.id, text);
         scroll();
         return;
       }

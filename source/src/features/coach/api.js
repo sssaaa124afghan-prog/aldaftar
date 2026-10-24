@@ -7,7 +7,7 @@
 import { createAIClient, MODELS, AIError, AI_MESSAGES, systemBlocks } from '../../core/ai.js';
 import { getSecret } from '../../core/db.js';
 import { buildContext, loadCoachData } from './context.js';
-import { parseActions, streamVisible } from './actions.js';
+import { parseActions, streamVisible, stripLogClaims } from './actions.js';
 import { INTENTS, intentOf, detectIntent, blocksFor, protocolFor, SYSTEM, ALL_BLOCKS } from './prompts.js';
 
 export { AIError };
@@ -61,10 +61,13 @@ async function putCache(ctx, key, val) {
 export async function askCoach(ctx, { intent = 'chat', prompt = '', extra = {}, onText = null, onRetry = null } = {}) {
   const { history, cacheKey, refresh, ...attach } = extra || {};
   if (cacheKey && !refresh) { const hit = await cached(ctx, cacheKey); if (hit) return { text: hit.text, actions: hit.actions || [], errors: [], cached: true }; }
-  const effective = intent === 'chat' ? detectIntent(prompt) : intent;
+  // a clear «I ate / log this» message always gets the food-logging protocol, even in a sheet opened with a read-only intent
+  const detected = detectIntent(prompt);
+  const fromChat = Array.isArray(history); // typed by the user in the chat UI (not an app-built prompt)
+  const effective = intent === 'chat' || (fromChat && detected === 'food_log') ? detected : intent;
   const spec = intentOf(effective);
   const ctxText = (await coachContext(ctx, { blocks: blocksFor(effective, prompt), extra: Object.keys(attach).length ? attach : null })).text;
-  const writes = intentOf(intent).writes || spec.writes;
+  const writes = intentOf(intent).writes || spec.writes || effective === 'food_log';
   const now = new Date();
   const clock = `Now: ${ctx.today()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} local`;
   // stable instructions first (cache breakpoint 1), then the data block (breakpoint 2)
@@ -76,8 +79,11 @@ export async function askCoach(ctx, { intent = 'chat', prompt = '', extra = {}, 
   const r = await client(ctx, { model, system, maxTokens: spec.maxTokens }).complete({ model, max_tokens: spec.maxTokens, messages: turns, stream: true },
     { onText: onText ? (full) => { const v = streamVisible(full); if (v) onText(v); } : null, onRetry });
   const out = parseActions(r.text);
-  if (!writes) { out.actions = []; out.errors = []; }
-  if (!out.text) out.text = out.actions.length ? 'راجع المقترح ده قبل ما يتسجّل:' : EMPTY_REPLY;
+  if (!writes) { out.actions = []; out.errors = []; out.dropped = []; }
+  // only the app may say «اتسجل» (after a verified write): model claims are rewritten / removed
+  out.text = stripLogClaims(out.text);
+  if (r.stopReason === 'max_tokens' && /"type"\s*:\s*"(?:food\.log|log)"/.test(r.text) && !out.actions.some((a) => a.type === 'food.log' || a.type === 'log') && !out.dropped.some((d) => d.type === 'food.log' || d.type === 'log')) out.dropped.push({ type: 'food.log', why: 'truncated' });
+  if (!out.text) out.text = out.actions.length ? 'فهمت:' : (out.dropped.length ? '' : EMPTY_REPLY);
   if (r.stopReason === 'max_tokens') out.text += '\n\n(الرد اتقطع. قولّي «كمّل» لو عايز الباقي.)';
   if (cacheKey) await putCache(ctx, cacheKey, out);
   return { ...out, model: r.model, stopReason: r.stopReason, intent: effective };

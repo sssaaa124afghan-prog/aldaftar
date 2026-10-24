@@ -16,7 +16,7 @@ async function coachScreen(el, ctx, params = {}) {
     try { await ctx.db.batch(all.map((m) => ({ store: 'chat', type: 'delete', key: m.id }))); } catch { /* ignore */ }
     mountChat(box, ctx, { intent: params.intent || 'chat' });
   } }, raw(icon('trash')));
-  fill(el, h('header', { class: 'co-head' }, back, h('div', { class: 'grow' }, h('h1', {}, 'المدرب'), h('p', {}, 'تمرين وأكل في مكان واحد · مفيش تعديل من غير موافقتك')), clear), box);
+  fill(el, h('header', { class: 'co-head' }, back, h('div', { class: 'grow' }, h('h1', {}, 'المدرب'), h('p', {}, 'تمرين وأكل في مكان واحد · الأكل بيتسجّل ومعاه «تراجع»')), clear), box);
   await mountChat(box, ctx, { intent: params.intent || 'chat' });
 }
 

@@ -95,3 +95,12 @@
 .co-done .grow{flex:1;min-width:0}
 .co-undo{min-height:44px}
 .co-eq{white-space:nowrap;display:inline-block}
+/* app-generated lines (verified food log, honest failures): not the coach's voice */
+.co-msg.app{align-self:stretch;max-width:100%;background:transparent;border-style:dashed;color:var(--mu,#C3BEE3);font-size:var(--t-13,13px)}
+.co-msg.app.ok{color:var(--carb,#86EFAC)}
+.co-logged{flex-wrap:wrap;align-self:stretch;padding:10px 12px;border-radius:14px;border:1px solid var(--edge-soft,rgba(255,255,255,.08))}
+.co-logged .co-logtxt{min-width:12ch;line-height:1.6}
+.co-logged .co-acts{display:flex;gap:6px}
+.co-logged .co-err{flex-basis:100%}
+.co-wfail .co-err{margin:0}
+.co-logged > i{display:none}

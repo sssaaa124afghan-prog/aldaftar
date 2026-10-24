@@ -181,6 +181,11 @@ async function renderProfile(el, ctx) {
     testKey.disabled = false;
   });
 
+  // «أكّد قبل تسجيل الأكل» (coach chat; default off = a valid food log is saved at once with «تراجع»)
+  const cfSw = h('input', { type: 'checkbox', id: 'p-confirm-food', role: 'switch', checked: ctx.settings.get('coach.confirmFood') ? true : null, 'aria-describedby': 'p-confirm-food-h' });
+  const cfHint = h('span', { class: 'hint', id: 'p-confirm-food-h' }, 'لو مقفول: الأكل اللي تقول للمدرب إنك أكلته بيتسجّل على طول ومعاه «تراجع»');
+  cfSw.addEventListener('change', async () => { await ctx.settings.set('coach.confirmFood', cfSw.checked); ctx.toast(cfSw.checked ? 'هيسألك قبل ما يسجّل الأكل' : 'الأكل هيتسجّل على طول'); });
+
   // backup
   const exp = h('button', { type: 'button', class: 'list-row' }, raw(icon('download')), h('span', { class: 'grow' }, h('b', {}, 'اعمل نسخة احتياطية'), h('small', {}, meta && meta.lastBackupAt ? `آخر نسخة ${meta.lastBackupAt.slice(0, 10)}` : 'لسه مفيش نسخة — ملف JSON على جهازك')));
   exp.addEventListener('click', () => exportNow(ctx));
@@ -210,7 +215,8 @@ async function renderProfile(el, ctx) {
         h('label', { class: 'pswitch', for: 'p-reentry' }, h('span', {}, 'راجع بعد انقطاع', reHint), reSw, h('i', { 'aria-hidden': 'true' })))),
       section('s-targets', 'أهداف الأكل', 'food', h('p', { class: 'hint' }, 'كل نوع يوم ليه هدفه. اضغط «عدّل» لو عايز تغيّر.'),
         h('div', { class: 'sheet-card' }, targetsBlock(ctx, targets, 'training'), targetsBlock(ctx, targets, 'heart'), targetsBlock(ctx, targets, 'rest'))),
-      section('s-ai', 'المدرب الذكي', 'spark', h('div', { class: 'sheet-card pform' }, key.el, h('div', { class: 'btn-row wrap' }, saveKey, testKey, showKey), keyMsg)),
+      section('s-ai', 'المدرب الذكي', 'spark', h('div', { class: 'sheet-card pform' }, key.el, h('div', { class: 'btn-row wrap' }, saveKey, testKey, showKey), keyMsg,
+        h('label', { class: 'pswitch', for: 'p-confirm-food' }, h('span', {}, 'أكّد قبل تسجيل الأكل', cfHint), cfSw, h('i', { 'aria-hidden': 'true' })))),
       section('s-data', 'البيانات', 'download', h('div', { class: 'sheet-card plist' }, ...backupRows)),
       section('s-pal', 'المظهر', 'spark', h('details', { class: 'sheet-card pform pfold' }, h('summary', {}, h('span', { class: 'grow' }, 'ألوان البرنامج'), h('span', { class: 'tedit' }, 'غيّر')),
         paletteChips(ctx), h('p', { class: 'hint' }, 'نفس التصميم بألوان مختلفة · بيتغيّر على طول'))),

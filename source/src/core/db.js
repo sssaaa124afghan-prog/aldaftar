@@ -100,6 +100,24 @@ function idbAdapter(idb) {
     async put(store, value) { return this.batch([{ store, type: 'put', value }]); },
     async delete(store, key) { return this.batch([{ store, type: 'delete', key }]); },
     async clear(store) { return this.batch([{ store, type: 'clear' }]); },
+    /**
+     * Atomic read-modify-write of one record in ONE readwrite transaction (no lost update between get and put).
+     * fn(current|undefined) → {next, out}: next = record to put, null = delete, undefined = no write. Resolves to out.
+     * Callback style (no await inside the tx) so Safari cannot auto-commit between the get and the put.
+     */
+    async update(store, key, fn) {
+      check(store);
+      return run([store], 'readwrite', (tx) => new Promise((res, rej) => {
+        const os = tx.objectStore(store);
+        const g = os.get(key);
+        g.onerror = () => rej(wrapErr(g.error));
+        g.onsuccess = () => {
+          let r; try { r = fn(g.result) || {}; } catch (e) { rej(e); return; }
+          try { if (r.next === null) os.delete(key); else if (r.next !== undefined) os.put(r.next); } catch (e) { rej(wrapErr(e)); return; }
+          res(r.out);
+        };
+      }));
+    },
     /** Atomic multi-store write: ops = [{store, type:'put'|'delete'|'clear', value?, key?}] */
     async batch(ops) {
       if (!ops.length) return;
@@ -131,6 +149,14 @@ export function createMemoryDB({ failWrites = false } = {}) {
     async put(store, value) { return this.batch([{ store, type: 'put', value }]); },
     async delete(store, key) { return this.batch([{ store, type: 'delete', key }]); },
     async clear(store) { return this.batch([{ store, type: 'clear' }]); },
+    async update(store, key, fn) {
+      check(store);
+      const cur = data[store].get(key);
+      const r = fn(cur === undefined ? undefined : structuredClone(cur)) || {};
+      if (r.next === null) await this.batch([{ store, type: 'delete', key }]);
+      else if (r.next !== undefined) await this.batch([{ store, type: 'put', value: r.next }]);
+      return r.out;
+    },
     async batch(ops) {
       if (failWrites) throw new StorageError('quota', 'storage full (simulated)');
       // stage on copies so the batch is all-or-nothing

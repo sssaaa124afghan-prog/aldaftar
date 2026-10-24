@@ -10,6 +10,7 @@ import { planChange, applyChange } from '../workout/coach-bridge.js';
 import { loadProgram, loadTraining } from '../workout/store.js';
 import { isWorkoutAction } from './actions.js';
 import { resolveItems, withAmount, withFood, totals, entriesFor, resolveDay } from './foodlog.js';
+import { commitEntries, undoEntries, replaceEntries, successText, actionFromEntries, LOG_COPY } from './autolog.js';
 import { loadUsage } from '../nutrition/data.js';
 
 const n0 = (v) => h('span', { class: 'num' }, fmt(v));
@@ -31,14 +32,14 @@ function shell(action, bodyNodes, confirmLabel, run, { danger = false } = {}) {
 const fail = (m) => Object.assign(new Error(m), { userMessage: m });
 
 /** actionCard(ctx, action, {said}) → element. */
-export function actionCard(ctx, action, { said = '' } = {}) {
+export function actionCard(ctx, action, { said = '', key = null, onLogged = null, onChange = null } = {}) {
   const day = ctx.today();
-  if (action.type === 'food.log') return foodLogCard(ctx, action, { said });
+  if (action.type === 'food.log') return foodLogCard(ctx, action, { said, key, onLogged, onChange });
   if (action.type === 'log') {
     // legacy proposal shape → the same editable card
     const named = SECTIONS.find((x) => said.includes(x.label));
     const meal = action.section || (named ? named.key : null);
-    return foodLogCard(ctx, { type: 'food.log', day: 'today', meal, items: action.items.map((it) => ({ ...it, meal })) }, { said });
+    return foodLogCard(ctx, { type: 'food.log', day: 'today', meal, items: action.items.map((it) => ({ ...it, meal })) }, { said, key, onLogged, onChange });
   }
   if (action.type === 'adddb') {
     const f = action.food;
@@ -87,7 +88,12 @@ export function actionCard(ctx, action, { said = '' } = {}) {
 const dayLabelOf = (d, today) => (d === today ? 'النهارده' : d === addDaysLocal(today, -1) ? 'امبارح' : d);
 function addDaysLocal(day, n) { const t = new Date(`${day}T12:00:00`); t.setDate(t.getDate() + n); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; }
 
-export function foodLogCard(ctx, action, { said = '' } = {}) {
+/**
+ * Editable food.log card (confirm mode «أكّد قبل تسجيل الأكل», a proposal the user did not ask to log, or «عدّل»).
+ * key: idempotency key (user message id). replace: {ids} → «عدّل» swaps those rows. onLogged(result): after a VERIFIED write.
+ * onCancel: «مش دلوقتي» handler (the «عدّل» card restores the logged line).
+ */
+export function foodLogCard(ctx, action, { said = '', key = null, replace = null, onLogged = null, onCancel = null, onChange = null } = {}) {
   const today = ctx.today();
   const day = resolveDay(action.day, today);
   const named = SECTIONS.find((x) => said.includes(x.label));
@@ -98,14 +104,14 @@ export function foodLogCard(ctx, action, { said = '' } = {}) {
   const ok = h('button', { type: 'button', class: 'btn sm co-ok', disabled: true }, 'سجّل');
   const no = h('button', { type: 'button', class: 'btn sm ghost' }, 'مش دلوقتي');
   const card = h('div', { class: 'co-card co-fl', role: 'group', 'aria-label': 'تسجيل أكل', dataset: { type: 'food.log' } },
-    h('h4', {}, `تسجّل الأكل ده${day === today ? '' : ` (${dayLabelOf(day, today)})`}؟`, h('small', {}, 'عدّل الكميات أو الوجبة قبل التسجيل')), listBox, totalBox, h('div', { class: 'co-acts' }, ok, no));
+    h('h4', {}, replace ? `عدّل التسجيل${day === today ? '' : ` (${dayLabelOf(day, today)})`}` : `تسجّل الأكل ده${day === today ? '' : ` (${dayLabelOf(day, today)})`}؟`, h('small', {}, 'عدّل الكميات أو الوجبة قبل التسجيل')), listBox, totalBox, h('div', { class: 'co-acts' }, ok, no));
   const uid = Math.random().toString(36).slice(2, 7);
   const drawTotal = () => {
     const t = totals(rows); const est = rows.some((r) => r.est && !r.invalid);
     fill(totalBox, h('span', {}, 'المجموع', est ? h('i', { class: 'co-est' }, 'تقدير') : null), h('span', {}, n0(t.kcal), h('small', {}, ' سعرة · '), n0(t.p), h('small', {}, ' بروتين · '), n0(t.c), h('small', {}, ' كارب · '), n0(t.f), h('small', {}, ' دهون')));
     const live = rows.filter((r) => !r.invalid && r.amount > 0);
     ok.disabled = !live.length;
-    ok.textContent = live.length ? `سجّل ${live.length > 1 ? `${live.length} أكلات` : ''}`.trim() : 'سجّل';
+    ok.textContent = replace ? 'احفظ التعديل' : live.length ? `سجّل ${live.length > 1 ? `${live.length} أكلات` : ''}`.trim() : 'سجّل';
   };
   const draw = () => {
     listBox.textContent = '';
@@ -137,26 +143,55 @@ export function foodLogCard(ctx, action, { said = '' } = {}) {
     draw();
   })();
   const finish = (nodes, good) => { fill(card, h('div', { class: `co-done${good ? ' ok' : ''}` }, h('i', { 'aria-hidden': 'true' }), ...nodes)); pop(card); };
+  const errBox = h('p', { class: 'co-err co-wfail', role: 'alert', hidden: true });
+  card.insertBefore(errBox, card.querySelector('.co-acts'));
   ok.addEventListener('click', async () => {
-    ok.disabled = true; no.disabled = true;
+    ok.disabled = true; no.disabled = true; errBox.hidden = true;
     const entries = entriesFor(rows).map((e) => ({ ...e, src: 'coach' }));
     if (!entries.length) { ok.disabled = false; no.disabled = false; return; }
-    let cur = [];
-    try { cur = await getEntries(ctx.db, day); await putEntries(ctx.db, day, [...cur, ...entries]); } catch { ok.disabled = false; no.disabled = false; ctx.toast('ماقدرناش نسجّل. جرّب تاني.'); return; }
+    let res;
+    try { res = replace ? await replaceEntries(ctx.db, day, replace.ids, entries, key) : await commitEntries(ctx.db, day, entries, key); }
+    catch { ok.disabled = false; no.disabled = false; errBox.textContent = LOG_COPY.writeFail; errBox.hidden = false; ok.textContent = 'حاول تاني'; return; }
     ctx.emit('food:changed', { day });
-    const t = sumEntries(entries); const ids = new Set(entries.map((e) => e.id));
-    let undone = false;
-    const undo = async () => {
-      if (undone) return; undone = true;
-      try { const now = await getEntries(ctx.db, day); await putEntries(ctx.db, day, now.filter((e) => !ids.has(e.id))); ctx.emit('food:changed', { day }); finish([h('span', {}, 'اتشال التسجيل')], false); }
-      catch { undone = false; ctx.toast('ماقدرناش نرجّع. جرّب تاني.'); }
-    };
-    const msg = `اتسجّل ${entries.length > 1 ? `${entries.length} أكلات` : `«${entries[0].name}»`}${day === today ? '' : ` (${dayLabelOf(day, today)})`} · ${fmt(t.kcal)} سعرة · ${fmt(t.p)} بروتين`;
-    finish([h('span', { class: 'grow' }, msg), h('button', { type: 'button', class: 'btn sm ghost co-undo', onclick: undo }, 'تراجع')], true);
-    ctx.toast(msg, { action: { label: 'تراجع', run: undo } });
+    const line = loggedLine(ctx, res, { key, said, onChange });
+    card.replaceWith(line);
+    if (onLogged) onLogged(res, line);
   });
-  no.addEventListener('click', () => finish([h('span', {}, 'ماتغيّرش حاجة')], false));
+  no.addEventListener('click', () => (onCancel ? onCancel(card) : finish([h('span', {}, 'ماتغيّرش حاجة')], false)));
   return card;
+}
+
+/**
+ * The app's own success line, shown ONLY for a verified write: «✅ اتسجل في الفطار: … · 721 سعر · 57 بروتين» + «تراجع» + «عدّل».
+ * Undo / edit are verified the same way; a failure is shown with a retry, never as success.
+ */
+/** onChange(kind 'undo' | 'edit', result): lets the chat keep its saved note in step with the DB. */
+export function loggedLine(ctx, res, { key = null, said = '', onChange = null } = {}) {
+  const today = ctx.today();
+  const msg = h('span', { class: 'grow co-logtxt' }, successText(res, today));
+  const err = h('span', { class: 'co-err', role: 'alert', hidden: true });
+  const undoB = h('button', { type: 'button', class: 'btn sm ghost co-undo' }, 'تراجع');
+  const editB = h('button', { type: 'button', class: 'btn sm ghost co-edit' }, 'عدّل');
+  const box = h('div', { class: 'co-logged co-done ok', role: 'status', dataset: { day: res.day, ids: res.entries.map((e) => e.id).join(' '), ik: key || '' } },
+    h('i', { 'aria-hidden': 'true' }), msg, h('span', { class: 'co-acts' }, undoB, editB), err);
+  let busy = false; let edits = 0;
+  undoB.addEventListener('click', async () => {
+    if (busy) return; busy = true; err.hidden = true;
+    try { await undoEntries(ctx.db, res.day, res.entries.map((e) => e.id)); }
+    catch { busy = false; err.textContent = LOG_COPY.undoFail; err.hidden = false; return; }
+    ctx.emit('food:changed', { day: res.day });
+    fill(box, h('i', { 'aria-hidden': 'true' }), h('span', { class: 'grow' }, LOG_COPY.undone));
+    box.classList.remove('ok'); box.classList.add('co-undone'); box.dataset.ids = '';
+    if (onChange) onChange('undo', res);
+  });
+  editB.addEventListener('click', () => {
+    if (busy) return;
+    edits += 1;
+    const card = foodLogCard(ctx, actionFromEntries(res), { said, key: key ? `${key}:e${edits}` : null, replace: { ids: res.entries.map((e) => e.id) },
+      onCancel: (c) => c.replaceWith(box), onChange, onLogged: (r2) => { if (onChange) onChange('edit', r2); } });
+    box.replaceWith(card);
+  });
+  return box;
 }
 
 // ───────── plan / targets proposals: before → after diff, «طبّق» / «لا», Undo with the exact snapshot ─────────

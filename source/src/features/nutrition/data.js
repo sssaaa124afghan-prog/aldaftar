@@ -27,6 +27,27 @@ export async function putEntries(db, day, entries) {
   else await db.delete('foodLog', day);
 }
 
+/** Like getEntries but a read failure THROWS (never treat an unreadable day as empty before writing it back). */
+export async function getEntriesStrict(db, day) {
+  const r = await db.get('foodLog', day);
+  return r && Array.isArray(r.entries) ? r.entries : [];
+}
+/**
+ * Atomic read-modify-write of one day's entries: fn(entries) → {next: entries[], out}. Uses db.update (one readwrite
+ * transaction) when the adapter has it; otherwise a strict get + put. Resolves to out; throws on any storage error.
+ */
+export async function updateEntries(db, day, fn) {
+  if (typeof db.update === 'function') {
+    return db.update('foodLog', day, (rec) => {
+      const r = fn(rec && Array.isArray(rec.entries) ? rec.entries : []);
+      return { next: r.next === undefined ? undefined : (r.next.length ? { ...(rec || {}), day, entries: r.next } : null), out: r.out };
+    });
+  }
+  const r = fn(await getEntriesStrict(db, day));
+  if (r.next !== undefined) await putEntries(db, day, r.next);
+  return r.out;
+}
+
 /** Last `n` days of food log (for usage / suggestions). */
 export async function recentDays(db, anchor, n = 60) {
   const from = addDays(anchor, -n);

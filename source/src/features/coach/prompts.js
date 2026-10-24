@@ -11,7 +11,7 @@ export const ALL_BLOCKS = ['body', 'today', 'readiness', 'training', 'strength',
 export const INTENTS = Object.freeze({
   chat: { blocks: ['body', 'today', 'readiness', 'training', 'nutrition', 'injuries', 'attached'], model: 'coach', maxTokens: 900, writes: true, protocol: 'full' },
   quick: { blocks: ['body', 'today', 'readiness', 'injuries', 'attached'], model: 'quick', maxTokens: 500, writes: true, protocol: 'food' },
-  food_log: { blocks: ['today', 'attached'], model: 'quick', maxTokens: 700, writes: true, protocol: 'food' },
+  food_log: { blocks: ['today', 'attached'], model: 'quick', maxTokens: 1400, writes: true, protocol: 'food' },
   training: { blocks: ['body', 'today', 'readiness', 'training', 'strength', 'volume', 'program', 'injuries', 'goals', 'attached'], model: 'coach', maxTokens: 1100, writes: true, protocol: 'full' },
   // plan edits from the chat chips: program + performance, proposals allowed (always behind a confirm card)
   plan_edit: { blocks: ['body', 'today', 'readiness', 'training', 'strength', 'volume', 'program', 'injuries', 'attached'], model: 'coach', maxTokens: 1600, writes: true, protocol: 'full' },
@@ -103,10 +103,11 @@ export const SYSTEM = [
 ].join(' ');
 
 const FOOD_ACTIONS = [
-  'Actions: when a change is wanted, write your normal short reply, then at the very end one line per proposal, exactly [[ACTION:{json}]] (the app shows a confirm card; never say it is already done, never show JSON any other way).',
-  'FOOD LOGGING (required): whenever the user says he ate or drank something («اكلت 150 جم كبدة و290 جم مكرونة», «فطرت 3 بيض ورغيف», «شربت بروتين شيك») or asks to log/add food, ALWAYS end with ONE food.log action listing EVERY item he said, even when he also asks something else:',
+  'Actions: when a change is wanted, write your normal short reply, then one line per proposal, exactly [[ACTION:{json}]] on ONE line: valid JSON, Latin digits, plain numbers (no units inside numbers), no code fences, never show JSON any other way.',
+  'YOU CANNOT WRITE ANYTHING. The app applies or confirms the action and shows its own «اتسجل» line only after it really saved it. So NEVER say or imply it is done: no «سجلت», «سجلتلك», «اتسجل», «ضفت», «تم التسجيل», no ✅. Say what you understood instead («فهمت: …»).',
+  'FOOD LOGGING (required): whenever the user says he ate or drank something («اكلت 150 جم كبدة و290 جم مكرونة», «فطرت 3 بيض ورغيف», «شربت بروتين شيك») or asks to log/add food, ALWAYS put ONE food.log action listing EVERY item he said as the FIRST line of your reply (before any text, so it is never cut off), even when he also asks something else:',
   '[[ACTION:{"type":"food.log","day":"today","meal":"lunch","items":[{"name":"كبدة","grams":150,"meal":"lunch","kcal":250,"p":36,"c":4,"f":9},{"name":"بيض","qty":3,"unit":"حبة","meal":"breakfast","kcal":210,"p":18,"c":1,"f":15}]}]]',
-  'food.log rules: name = short Arabic food name as he said it (cooked state if known); grams when he gave a weight, else qty + unit (حبة/رغيف/كوب/معلقة/سكوب/طبق); meal = breakfast|lunch|dinner|snack from his words, else from the current time; day = "today", "yesterday" or YYYY-MM-DD when he named a day; kcal/p/c/f = your best estimate for that exact portion. Reply text: one line confirming what you understood + the total kcal/protein (تقدير).',
+  'food.log rules: name = short Arabic food name as he said it (cooked state if known); grams when he gave a weight, else qty + unit (حبة/رغيف/كوب/معلقة/سكوب/طبق); meal = breakfast|lunch|dinner|snack from his words, else from the current time; day = "today", "yesterday" or YYYY-MM-DD when he named a day; kcal/p/c/f = your best estimate for that exact portion (numbers). If an amount is missing, estimate a normal portion as qty 1 + unit. After the action line: one short line «فهمت: <items> · ~<kcal> سعرة · <protein> بروتين (تقدير)», never a claim that it was logged.',
   '[[ACTION:{"type":"adddb","food":{"name":"<Arabic>","per":100,"unit":"جم","kcal":0,"p":0,"c":0,"f":0,"fiber":0}}]]  add a food to his foods list (only when asked)',
   '[[ACTION:{"type":"targets.set","dayType":"training|rest|heart","kcal":2500,"p":170,"c":280,"f":70,"reason":"<Arabic>"}]]  (kcal must ≈ 4P+4C+9F)',
   '[[ACTION:{"type":"delete","entryId":"<id from Today entries>"}]]',
