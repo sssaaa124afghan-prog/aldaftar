@@ -38,15 +38,25 @@ function applyPalette(id) {
 function registerSW() {
   if (!('serviceWorker' in navigator) || import.meta.env.DEV || location.protocol === 'file:') return;
   const reg = () => {
-    navigator.serviceWorker.register('./sw.js').then((reg) => {
+    // a new worker takes control (skipWaiting) → reload once into the new release
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloaded) return;
+      reloaded = true;
+      if (/\/session/.test(location.hash)) { toast('فيه نسخة أحدث — هتتحدّث لما تقفل الحصة.', { ms: 6000 }); return; }
+      location.reload();
+    });
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then((reg) => {
+      if (reg.waiting) reg.waiting.postMessage('skipWaiting');
       reg.addEventListener('updatefound', () => {
         const w = reg.installing;
         w && w.addEventListener('statechange', () => {
-          if (w.state === 'installed' && navigator.serviceWorker.controller) {
-            toast('فيه نسخة أحدث من التطبيق.', { action: { label: 'حدّث', run: () => location.reload() }, ms: 10000 });
-          }
+          if (w.state === 'installed' && navigator.serviceWorker.controller) w.postMessage('skipWaiting');
         });
       });
+      // iOS keeps the home-screen app alive: look for a release every time it comes back to the front
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
     }).catch((e) => console.warn('[sw] register failed', e && e.message));
   };
   if (document.readyState === 'complete') reg(); else window.addEventListener('load', reg, { once: true });

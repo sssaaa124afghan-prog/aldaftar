@@ -1,12 +1,14 @@
 // Versioned app-shell cache. Bump VERSION on every release.
 // Cache-first for same-origin shell files; network-only for everything else (never caches
 // api.anthropic.com, openfoodfacts or any other cross-origin call).
-const VERSION = 'v3-b-2026-10-19';
+const VERSION = 'v4-2026-10-24';
 const CACHE = `shell-${VERSION}`;
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => null));
+  // take over right away so a new release never waits behind an old tab (iOS keeps PWAs alive for days)
+  self.skipWaiting();
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).catch(() => null));
 });
 
 self.addEventListener('activate', (e) => {
@@ -58,7 +60,16 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return; // API / OFF / anything cross-origin: straight to network
   if (req.mode === 'navigate') {
-    e.respondWith(caches.match('./index.html').then((hit) => hit || fetch(req)).catch(() => fetch(req)));
+    // network-first for the page itself (fresh release when online), cached copy offline or after 4 s
+    e.respondWith((async () => {
+      const cached = () => caches.match('./index.html').then((hit) => hit || caches.match(req));
+      try {
+        const net = fetch(req, { cache: 'no-store' });
+        const res = await Promise.race([net, new Promise((_, rej) => setTimeout(() => rej(new Error('slow')), 4000))]);
+        if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put('./index.html', copy)); return res; }
+        return (await cached()) || res;
+      } catch { return (await cached()) || fetch(req); }
+    })());
     return;
   }
   e.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => {
