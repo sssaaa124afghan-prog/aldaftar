@@ -1,5 +1,5 @@
 /* Alternative colour palettes for Electric Glass Pro — same layout, same glass, only colours.
-   Opt-in: nothing applies unless <html data-palette="emerald|ember|ocean"> is set (Profile → «ألوان البرنامج»).
+   Opt-in: nothing applies unless <html data-palette="emerald|ember|ocean|sand|aurora|steel|navy|racing|tactical"> is set (Profile → «ألوان البرنامج»).
    Each block overrides the tokens in tokens.css; the shared block at the bottom re-tints the few rules
    that use raw rgba() of the default amber/violet instead of tokens. Macro colours (cal/pro/carb/fat) stay his.
    Contrast: /home/claude/palettes/contrast.py (all text tokens ≥4.5:1 on the worst glass, CTA text ≥4.5:1). */
@@ -77,6 +77,69 @@
   --warn:#FDBA74;
   --a-rgb:217,249,157; --b-rgb:163,230,53; --v-rgb:192,132,252; --p-rgb:240,171,252; --g1-rgb:9,11,14;
   --sheet-top:#232B34; --fab-a:#4D7C0F; --fab-b:#6D28D9;
+}
+
+/* 6 — Steel Blue «أزرق فولاذي»: graphite/cool-grey ground, cobalt→electric-blue CTA, brushed-silver secondary, blaze-coral pop (the owner's blue + grey) */
+:root[data-palette="steel"]{
+  --g1:#0E1116; --g2:#151A21; --g3:#1B222C;
+  --field-a:rgba(59,130,246,.17); --field-b:rgba(148,163,184,.11);
+  --amber:#84BAFC; --orange:#3B82F6; --on-accent:#020817;
+  --cta:linear-gradient(135deg,#60A5FA,var(--orange));
+  --cta-glow:0 10px 26px -8px rgba(59,130,246,.6);
+  --violet:#A3ABB8; --pink:#FF8A65; --violet-tx:#D3DCE8; --pink-tx:#FFC4B0;
+  --violet-grad:linear-gradient(135deg,rgba(59,130,246,.30),rgba(148,163,184,.18));
+  --tx:#F3F6FA; --mu:#C2CBD7; --mu-2:#BFC8D4; --mu-3:#7D8898;
+  --nav-bg:rgba(14,17,22,.80); --sheet-bg:#161C24; --paper:rgba(11,14,18,.92);
+  --warn:#FDBA74;
+  --a-rgb:132,186,252; --b-rgb:59,130,246; --v-rgb:163,171,184; --p-rgb:255,138,101; --g1-rgb:14,17,22;
+  --sheet-top:#232C38; --fab-a:#1D4ED8; --fab-b:#334155;
+}
+
+/* 7 — Navy & Copper «كحلي ونحاس»: deep navy ground, burnished copper CTA, ice-blue secondary, rose pop (classic / masculine) */
+:root[data-palette="navy"]{
+  --g1:#060C1A; --g2:#0C1630; --g3:#132042;
+  --field-a:rgba(205,127,50,.15); --field-b:rgba(70,110,200,.17);
+  --amber:#F6BE8E; --orange:#D97B3F; --on-accent:#1E0C02;
+  --cta:linear-gradient(135deg,#EFA06A,var(--orange));
+  --cta-glow:0 10px 26px -8px rgba(217,123,63,.55);
+  --violet:#8DB2FF; --pink:#FF8FA3; --violet-tx:#C3D6FF; --pink-tx:#FFC7D1;
+  --violet-grad:linear-gradient(135deg,rgba(217,123,63,.28),rgba(141,178,255,.20));
+  --tx:#F4F6FB; --mu:#C4CCDD; --mu-2:#C1C9DA; --mu-3:#7C88A6;
+  --nav-bg:rgba(7,13,28,.80); --sheet-bg:#0F1A35; --paper:rgba(5,10,22,.92);
+  --warn:#FDBA74;
+  --a-rgb:246,190,142; --b-rgb:217,123,63; --v-rgb:141,178,255; --p-rgb:255,143,163; --g1-rgb:6,12,26;
+  --sheet-top:#1B2B55; --fab-a:#9A4A1F; --fab-b:#1E3A8A;
+}
+
+/* 8 — Racing Red «أحمر سباق»: cool charcoal ground, racing-red→orange CTA, cool-grey secondary (energy / drive — not neon) */
+:root[data-palette="racing"]{
+  --g1:#0B0C0F; --g2:#141519; --g3:#1E2027;
+  --field-a:rgba(232,38,46,.20); --field-b:rgba(148,155,170,.10);
+  --amber:#FF9580; --orange:#EA2A33; --on-accent:#160304;
+  --cta:linear-gradient(135deg,var(--orange),#FF7A2F);
+  --cta-glow:0 10px 26px -8px rgba(234,42,51,.55);
+  --violet:#A7AEBB; --pink:#C4B5FD; --violet-tx:#D2D6DE; --pink-tx:#DDD3FE;
+  --violet-grad:linear-gradient(135deg,rgba(234,42,51,.28),rgba(148,155,170,.18));
+  --tx:#F6F6F8; --mu:#C6C8CF; --mu-2:#C3C5CC; --mu-3:#80848F;
+  --nav-bg:rgba(13,14,17,.80); --sheet-bg:#17181D; --paper:rgba(10,11,13,.92);
+  --warn:#FDBA74;
+  --a-rgb:255,149,128; --b-rgb:234,42,51; --v-rgb:167,174,187; --p-rgb:196,181,253; --g1-rgb:11,12,15;
+  --sheet-top:#262830; --fab-a:#B91C1C; --fab-b:#3A3D46;
+}
+
+/* 9 — Tactical Olive «زيتي تكتيكي»: dark olive/khaki-grey ground, signal-amber→lime CTA, blaze-orange secondary, khaki pop (rugged sport) */
+:root[data-palette="tactical"]{
+  --g1:#0C0E09; --g2:#161911; --g3:#22261A;
+  --field-a:rgba(190,200,60,.13); --field-b:rgba(150,140,95,.14);
+  --amber:#FFC94A; --orange:#B5CF3A; --on-accent:#151703;
+  --cta-glow:0 10px 26px -8px rgba(181,207,58,.5);
+  --violet:#FF8552; --pink:#D8C38E; --violet-tx:#FFC2A3; --pink-tx:#EBDDB6;
+  --violet-grad:linear-gradient(135deg,rgba(181,207,58,.24),rgba(255,133,82,.18));
+  --tx:#F5F6F0; --mu:#C8CBBB; --mu-2:#C5C8B8; --mu-3:#858A74;
+  --nav-bg:rgba(13,15,10,.82); --sheet-bg:#181B12; --paper:rgba(10,12,8,.92);
+  --warn:#FDBA74;
+  --a-rgb:255,201,74; --b-rgb:181,207,58; --v-rgb:255,133,82; --p-rgb:216,195,142; --g1-rgb:12,14,9;
+  --sheet-top:#2A2F20; --fab-a:#556B12; --fab-b:#7C3A12;
 }
 
 /* ── shared re-tints (only under a palette) ── */

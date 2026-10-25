@@ -16,7 +16,8 @@ import { haptic } from '../../ui/anim.js';
 const DAYS = [[6, 'السبت'], [0, 'الأحد'], [1, 'الاتنين'], [2, 'التلات'], [3, 'الأربع'], [4, 'الخميس'], [5, 'الجمعة']];
 const AGE_DEFAULT = 27;
 // colour palettes (src/styles/palettes.css); '' = the default Electric Glass Pro look. Applied by main.js on settings:changed.
-const PALETTES = [['', 'الحالي', '#FCD34D,#FB923C'], ['emerald', 'Midnight Emerald', '#6EE7B7,#10B981'], ['ember', 'Carbon Ember', '#FF9A5C,#F2452E'], ['ocean', 'Ocean Neon', '#22D3EE,#3B82F6'], ['sand', 'رمال ملكية', '#F1DCAE,#C99D5E'], ['aurora', 'شفق فولاذي', '#D9F99D,#A3E635 55%,#C084FC']];
+// Picker order: current → the 4 newest (owner's blue + grey first) → older ones. Swatch = CTA stops (+ secondary).
+const PALETTES = [['', 'الحالي', '#FCD34D,#FB923C'], ['steel', 'أزرق فولاذي', '#60A5FA,#3B82F6 60%,#A3ABB8'], ['navy', 'كحلي ونحاس', '#EFA06A,#D97B3F 55%,#132042'], ['racing', 'أحمر سباق', '#EA2A33,#FF7A2F 60%,#A7AEBB'], ['tactical', 'زيتي تكتيكي', '#FFC94A,#B5CF3A 60%,#22261A'], ['emerald', 'Midnight Emerald', '#6EE7B7,#10B981'], ['ember', 'Carbon Ember', '#FF9A5C,#F2452E'], ['ocean', 'Ocean Neon', '#22D3EE,#3B82F6'], ['sand', 'رمال ملكية', '#F1DCAE,#C99D5E'], ['aurora', 'شفق فولاذي', '#D9F99D,#A3E635 55%,#C084FC']];
 
 function paletteChips(ctx) {
   const cur = ctx.settings.get('palette') || '';

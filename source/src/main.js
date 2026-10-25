@@ -31,7 +31,7 @@ async function boot() {
 }
 
 // Optional colour palette (Profile → «ألوان البرنامج»). Unset/unknown = the default Electric Glass Pro look.
-const PALETTE_BG = { emerald: '#03121A', ember: '#09090B', ocean: '#020A1C', sand: '#0D0906', aurora: '#090B0E' };
+const PALETTE_BG = { emerald: '#03121A', ember: '#09090B', ocean: '#020A1C', sand: '#0D0906', aurora: '#090B0E', steel: '#0E1116', navy: '#060C1A', racing: '#0B0C0F', tactical: '#0C0E09' };
 function applyPalette(id) {
   const root = document.documentElement;
   if (PALETTE_BG[id]) root.dataset.palette = id; else delete root.dataset.palette;
