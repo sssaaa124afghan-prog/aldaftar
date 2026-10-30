@@ -346,14 +346,15 @@ test('plan update: users already on ul4c get a diff card; apply swaps in place, 
   const v1 = V1();
   const u = L.planUpdate(v1);
   assert.equal(u.from, 1); assert.equal(u.to, 3);
-  assert.equal(u.applicable, 8); // the v1 user moved his own schedule here (V1 keeps the template's v3 days) → only the 8 swaps apply
+  assert.equal(u.applicable, 9); // 8 swaps + the schedule move (offered even when his days were edited; the tap is his yes)
   assert.ok(u.changes.some((c) => /سمانة جالس ← سمانة واقف/.test(c.text)), u.changes.map((c) => c.text).join('\n'));
   // the user removed the Bayesian curl himself → that change is skipped, the rest apply
   v1.days.upperB.items = v1.days.upperB.items.filter((x) => x.id !== 'ubBAY');
   v1.days.lowerB.items.find((x) => x.id === 'la4').sets = 4; // his own edit on a swapped slot is replaced by the template row
   const r = L.applyPlanUpdate(v1);
-  assert.equal(r.skipped.length, 2); assert.equal(r.applied.length, 7); // Bayesian removed by him + his own (non-old) schedule kept
-  assert.deepEqual(r.skipped.map((c) => c.kind).sort(), ['schedule', 'swap']);
+  assert.equal(r.skipped.length, 1); assert.equal(r.applied.length, 8); // only the Bayesian he removed is skipped; the schedule move applies on his tap
+  assert.deepEqual(r.skipped.map((c) => c.kind), ['swap']);
+  assert.equal(r.program.schedule['4'], undefined); assert.equal(r.program.schedule['6'], 'upperA'); // Thursday is free for boxing
   assert.equal(r.program.tv, 3);
   assert.equal(L.planUpdate(r.program), null);
   const row = (d) => r.program.days[d].items.map((x) => x.id);

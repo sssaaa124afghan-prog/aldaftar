@@ -1281,9 +1281,11 @@ export function planUpdate(program) {
     title = u.title || title;
     if (u.boxing) changes.push({ v, kind: 'info', ok: true, text: 'الخميس يوم الملاكمة: بيحل محل يوم القلب', why: u.boxing.why || '' });
     if (u.schedule) {
-      const ok = sameSchedule(program.schedule, u.schedule.from);
-      changes.push({ v, kind: 'schedule', ok, schedule: u.schedule.to, trainingDays: u.schedule.trainingDays?.to || null, fromTd: u.schedule.trainingDays?.from || null,
-        text: `الجدول: ${scheduleText(u.schedule.to, program)}`, why: ok ? (u.schedule.why || '') : 'غيّرت أيامك بنفسك، فهنسيبها والملاكمة يوم السبت' });
+      // the move is always offered: «طبّق التحديث» is his explicit yes. A missing schedule means the old default.
+      const hasOwn = program.schedule && Object.keys(program.schedule).length > 0;
+      const custom = hasOwn && !sameSchedule(program.schedule, u.schedule.from);
+      changes.push({ v, kind: 'schedule', ok: true, custom, schedule: u.schedule.to, trainingDays: u.schedule.trainingDays?.to || null, fromTd: u.schedule.trainingDays?.from || null,
+        text: `الجدول: ${scheduleText(u.schedule.to, program)}`, why: custom ? 'أيامك الحالية متعدّلة بإيدك، والتحديث هيبدّلها بالجدول ده' : (u.schedule.why || '') });
     }
     for (const c of u.changes) {
       const day = program.days[c.day];
