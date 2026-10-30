@@ -7,7 +7,7 @@ import { fmt, countText, parseNum } from '../../ui/num.js';
 import { ring } from '../../ui/ring.js';
 import { countUp, pop, haptic } from '../../ui/anim.js';
 import { parseDayKey, weekday, addDays, diffDays } from '../../core/date.js';
-import { sumEntries, dayType, heartDowOf, heartDaysOf } from '../../core/targets.js';
+import { sumEntries, dayType, heartDowOf, heartDaysOf, cardioOf } from '../../core/targets.js';
 import { DAY_TYPE_LABEL, sessionState, loadTargets } from '../../app/day.js';
 import { SECTION_LABEL, listMeals } from '../nutrition/logic.js';
 import { openWeightSheet, saveWeight, validKg } from '../profile/weight.js';
@@ -36,6 +36,7 @@ async function load(ctx) {
   const overrides = nutrition.dayTypeOverrides || {};
   const doneDays = new Set(sessions.filter((s) => s && s.day && sessionState(s) === 'done' && !M.isRecovery(s)).map((s) => s.day));
   const heartDow = heartDowOf(programRec);
+  const cardio = cardioOf(programRec)?.kind || null; // 'boxing' (Thursday, plan v3) | 'heart' (Saturday, v1–v2)
   const heartDays = heartDaysOf(sessions);
   const type = dayType(day, { trainingDays, overrides, sessionDays: doneDays, heartDays, heartDow });
   const planned = dayType(day, { trainingDays, overrides, heartDow });
@@ -51,7 +52,7 @@ async function load(ctx) {
   let savedMeals = []; try { savedMeals = listMeals(nutrition.savedMeals); } catch { /* legacy shapes */ }
   return { day, type, planned, target: { kcal: t.kcal, p: t.p, c: t.c, f: t.f }, entries: (log && Array.isArray(log.entries)) ? log.entries : [],
     nutrition, progress, training, sessions, lifting: ws, programRec, weights, daily: daily || { day }, name: String((prof && prof.name) || '').trim(),
-    sex: prof && prof.sex, trainingDays, heartDow, bp: Array.isArray(health.bp) ? health.bp : [], health, startDow: Number(ctx.settings.get('weekStart')) || 1,
+    sex: prof && prof.sex, trainingDays, heartDow, cardio, bp: Array.isArray(health.bp) ? health.bp : [], health, startDow: Number(ctx.settings.get('weekStart')) || 1,
     recentDays, yesterday: recentDays.find((r) => r.day === back[0]) || null, savedMeals, plan };
 }
 
@@ -166,6 +167,23 @@ function workoutCard(st, ctx) {
       title = d ? d.name : 'يوم تمرين'; sub = d ? `${countText(d.items.length, 'exercise')} · ${est ? est.lift : WK.estimateMinutes(d.items)} دقيقة${est && est.z2 ? ` + Zone 2 ‏${est.z2} د` : ''}` : 'الخطة جاهزة';
     }
     btn = 'ابدأ'; run = () => ctx.go('workout', { start: '1' });
+  } else if ((st.type === 'heart' || st.planned === 'heart') && st.cardio === 'boxing' && program) {
+    // Boxing Day (program cardio day, Thursday on plan v3): this week's combo; cardio minutes, not a lifting session.
+    icn = 'bolt';
+    const bxDone = todays.find((s) => s.kind === 'boxing' && sessionState(s) === 'done');
+    let box = null; try { box = TP.boxingDayInfo(ctx, { program, training: st.training, health: st.health, day: st.day }); } catch { /* fall back */ }
+    title = `يوم الملاكمة · ${box && box.minutes ? box.minutes : 35} د`;
+    if (bxDone) {
+      small = 'يوم الملاكمة اتسجل';
+      const rounds = (bxDone.rounds || []).filter((x) => x.kind === 'bag' && x.doneS >= x.dur * 0.5).length;
+      sub = `${rounds} جولة شوال · ${bxDone.durationMin || 0} دقيقة · مش بتتحسب جلسة رفع`; btn = 'التفاصيل';
+    } else {
+      small = box && box.week ? `يوم الملاكمة · الأسبوع ${box.week} من 12` : 'يوم الملاكمة';
+      sub = !box ? 'شوال + تكنيك' : box.gate.stop ? 'ضغطك عالي جداً: مفيش تمرين النهارده، افتح التعليمات'
+        : `كومبو الأسبوع: ${box.cw.combo.code}${box.tech ? ' · تكنيك بس' : ''}`;
+      btn = box && box.gate.stop ? 'افتح' : 'ابدأ';
+    }
+    run = () => ctx.go('workout/boxing');
   } else if (st.type === 'heart' || st.planned === 'heart') {
     // Heart Day (program heartDow, e.g. Saturday on the 4-day plan): 30 min, not a lifting session.
     icn = 'heart'; title = 'يوم القلب · 30 د';
@@ -501,7 +519,7 @@ export async function renderToday(el, ctx, params = {}) {
     const openW = () => wellnessSheet(st, ctx, paint);
     const weighed = st.weights.some((w) => w.day === st.day);
     fill(el, h('div', { class: 'td' },
-      h('header', { class: 'td-hd' }, h('div', {}, h('p', { class: 'td-dayp' }, st.name ? dayTitle(st.day) : '', h('b', { class: st.type === 'training' ? 'tr' : st.type === 'heart' ? 'hd' : 'rs' }, DAY_TYPE_LABEL[st.type])), h('h1', {}, greet)), more),
+      h('header', { class: 'td-hd' }, h('div', {}, h('p', { class: 'td-dayp' }, st.name ? dayTitle(st.day) : '', h('b', { class: st.type === 'training' ? 'tr' : st.type === 'heart' ? 'hd' : 'rs' }, st.type === 'heart' && st.cardio === 'boxing' ? 'يوم الملاكمة' : DAY_TYPE_LABEL[st.type])), h('h1', {}, greet)), more),
       weightDue({ hour, weighed }) ? weightRow(st, ctx) : null, mealCard(st, ctx, hour), bpCard(st, ctx, forceBP),
       gauge(st), macros(st, ctx), workoutCard(st, ctx), kegelCard(st, ctx), tiles(st, ctx, openW), intel(st, ctx, openW), goals(st, ctx, paint)));
   };

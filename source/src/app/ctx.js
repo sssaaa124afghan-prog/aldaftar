@@ -4,7 +4,7 @@ import { icon } from '../ui/icons.js';
 import { raw, isSafe } from '../core/esc.js';
 import { today as todayKey } from '../core/date.js';
 import { getSecret, setSecret } from '../core/db.js';
-import { DEFAULT_TRAINING_DAYS } from '../core/schema.js';
+import { UL4C_TRAINING_DAYS } from '../core/schema.js';
 import { dayInfo } from './day.js';
 
 // ───────── events ─────────
@@ -22,7 +22,8 @@ export function emit(evt, data) {
 
 // ───────── settings (sync cache over IndexedDB; API key in the 'secrets' record, never exported) ─────────
 const FIELD = { weekStart: 'weekStartDow' }; // ctx key → stored field in settings 'app'
-const DEFAULTS = { theme: 'system', trainingDays: [...DEFAULT_TRAINING_DAYS], weekStart: 1, units: 'metric', anthropicKey: '' };
+// trainingDays default = the 4-day plan v3 (Sat/Sun/Tue/Wed lifting, Thursday boxing); older installs are pinned at boot (router.js)
+const DEFAULTS = { theme: 'system', trainingDays: [...UL4C_TRAINING_DAYS], weekStart: 1, units: 'metric', anthropicKey: '' };
 
 function makeSettings(db, app, key) {
   const cache = { ...app };
@@ -50,6 +51,8 @@ function makeSettings(db, app, key) {
       return p;
     },
     all() { return { ...DEFAULTS, ...cache, weekStart: cache.weekStartDow ?? 1 }; },
+    /** Whether the user (or a migration) stored this key; get() falls back to DEFAULTS otherwise. */
+    has(k) { return k === 'anthropicKey' ? !!secret : cache[FIELD[k] || k] !== undefined; },
   };
 }
 

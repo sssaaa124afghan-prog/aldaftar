@@ -11,6 +11,7 @@ import { wallSitArt, bikeArt } from './kegel-art.js';
 import { videoLink } from './exercise-videos.js';
 import { latestBP, bpGate } from './bp.js';
 import * as WL from './logic.js';
+import { boxingCardioSecs } from './boxing-plan.js';
 
 export { latestBP, bpGate };
 
@@ -115,7 +116,7 @@ export function validateBP({ sys, dia, pulse } = {}) {
 // latestBP / bpGate live in bp.js (tiny, pure) so Today can read the gate without loading this screen.
 export const AEROBIC_TARGET = 160;
 const AEROBIC_KINDS = new Set(['warm', 'z2', 'hard', 'easy']);
-/** Clock minutes of aerobic work this week: Heart Day aerobic blocks + recovery cardio + logged brisk walks. */
+/** Clock minutes of aerobic work this week: Heart Day aerobic blocks + Boxing Day rounds + recovery cardio + logged brisk walks. */
 export function weeklyAerobic(sessions, walks, today, startDow = 1) {
   let ws; try { ws = weekStart(today, startDow); } catch { return 0; }
   const inWk = (d) => d && d >= ws && d <= today;
@@ -123,6 +124,7 @@ export function weeklyAerobic(sessions, walks, today, startDow = 1) {
   for (const s of sessions || []) {
     if (!s || s.discarded || !inWk(s.day)) continue;
     if (s.kind === 'heart' && Array.isArray(s.blocks)) sec += s.blocks.filter((b) => AEROBIC_KINDS.has(b.kind)).reduce((a, b) => a + (+b.doneS || 0), 0);
+    else if (s.kind === 'boxing') sec += boxingCardioSecs(s);
     else if (s.kind === 'recovery' && s.mode === 'cardio') sec += (+s.durationMin || 0) * 60;
   }
   for (const w of walks || []) if (w && inWk(w.day)) sec += (+w.min || 0) * 60;
@@ -404,7 +406,7 @@ function minutesCard(ctx, mins, rerender) {
     h('h3', { id: 'hk-m-h' }, 'دقايق الكارديو الأسبوع ده'),
     h('p', { class: 'hk-big' }, N(String(mins), undefined, 'count'), h('small', {}, ' / ', N(String(AEROBIC_TARGET)), ' دقيقة')),
     h('div', { class: 'bar glow-carb' }, h('i', { style: `--p:${pct}%` })),
-    h('p', { class: 'wk-muted' }, '10 د Zone 2 بعد كل حديد × 4 · يوم القلب · مشي سريع 45 د الأربع و 45 د الحد · ومشي سريع 15 د السبت بالليل (بعد الحديد بـ 3 ساعات على الأقل).'),
+    h('p', { class: 'wk-muted' }, '10 د Zone 2 بعد كل حديد × 4 · يوم الملاكمة (أو يوم القلب) · مشي سريع 45 د في يومين الراحة · و 15 د مشي بالليل في يوم حديد (بعده بـ 3 ساعات على الأقل).'),
     h('div', { class: 'btn-row' }, h('button', { type: 'button', class: 'btn ghost sm', onclick: () => add(15) }, 'سجّلت مشي 15 د'), h('button', { type: 'button', class: 'btn ghost sm', onclick: () => add(45) }, 'سجّلت مشي 45 د')));
 }
 
@@ -539,7 +541,10 @@ export async function renderHeart(el, ctx, params = {}) {
   const [health, age, prog, sessions] = await Promise.all([loadHealth(ctx.db), loadAge(ctx.db),
     loadProgram(ctx.db).catch(() => ({ program: {} })), ctx.db.getAll('sessions').catch(() => [])]);
   const dow = new Date(`${today}T12:00:00`).getDay();
-  const tab = ['heart', 'iso', 'bp'].includes(params.tab) ? params.tab : (dow === 3 || dow === 0) ? 'iso' : 'heart';
+  // rest days (not lifting, not the cardio day) open on the home isometric block (plan v3: Mon / Fri; before: Wed / Sun)
+  const td = ctx.settings.get('trainingDays') || [];
+  const cardioDow = WL.programFlags(prog.program || {}).heartDow;
+  const tab = ['heart', 'iso', 'bp'].includes(params.tab) ? params.tab : (!td.includes(dow) && dow !== cardioDow) ? 'iso' : 'heart';
   const z = zones(age);
   const autoWeek = planWeek(prog.program && prog.program.startDay, today);
   const week = clampN(+params.week || autoWeek, 1, 12);
@@ -549,7 +554,7 @@ export async function renderHeart(el, ctx, params = {}) {
   const cleanups = [];
   const startDow = ctx.settings.get('weekStart') ?? 1;
 
-  el.appendChild(band({ title: 'القلب والضغط', sub: tab === 'iso' ? ['الأربع والحد في البيت · ', N('14'), ' دقيقة'] : tab === 'bp' ? 'قراءاتك على جهازك بس' : ['السبت · ', N('30'), ' دقيقة · مش بتتحسب جلسة رفع'], back: () => ctx.go('workout') }));
+  el.appendChild(band({ title: 'القلب والضغط', sub: tab === 'iso' ? ['أيام الراحة في البيت · ', N('14'), ' دقيقة'] : tab === 'bp' ? 'قراءاتك على جهازك بس' : [N('30'), ' دقيقة · مش بتتحسب جلسة رفع'], back: () => ctx.go('workout') }));
   const root = h('div', { class: 'hk-root' });
   el.appendChild(root);
   root.appendChild(tabs(ctx, tab));

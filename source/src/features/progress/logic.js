@@ -57,9 +57,9 @@ export function chartGeometry(series, { width = 340, height = 140, pad = 12 } = 
 }
 
 /** A finished session (B's contract: status 'live' while running; discarded ones never count). */
-/** A finished LIFTING session (recovery, Heart Day and home isometric records never count as one). */
+/** A finished LIFTING session (recovery, Heart Day, Boxing Day and home isometric records never count as one). */
 export const countsAsSession = (s) => !!s && !!s.day && s.status !== 'live' && s.status !== 'active' && !s.discarded
-  && s.kind !== 'recovery' && s.type !== 'recovery' && s.kind !== 'heart' && s.mode !== 'iso';
+  && s.kind !== 'recovery' && s.type !== 'recovery' && s.kind !== 'heart' && s.kind !== 'boxing' && s.mode !== 'iso';
 
 /** Days in a week where a session was logged (finished or with at least one done/filled set). */
 export function sessionDaysIn(sessions = [], days) {

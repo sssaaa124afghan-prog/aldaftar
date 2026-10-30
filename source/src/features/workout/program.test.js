@@ -12,8 +12,10 @@ test('new default program: compact Upper/Lower from review.md §3 with supersets
   assert.equal(DEFAULT_PROGRAM, 'ul4c');
   const p = P();
   assert.deepEqual(p.order, ['upperA', 'lowerA', 'upperB', 'lowerB']);
-  assert.deepEqual(p.schedule, { 1: 'upperA', 2: 'lowerA', 4: 'upperB', 5: 'lowerB' });
-  assert.equal(PROGRAMS.ul4c.heartDow, 6);
+  // plan v3: Sat UA · Sun LA · Tue UB · Wed LB · Thu Boxing Day (replaces the Saturday Heart Day)
+  assert.deepEqual(p.schedule, { 6: 'upperA', 0: 'lowerA', 2: 'upperB', 3: 'lowerB' });
+  assert.equal(PROGRAMS.ul4c.heartDow, 4);
+  assert.deepEqual(L.programFlags(p), { z2: true, meso: true, heartDow: 4, cardio: 'boxing', boxing: true });
   const row = (d) => p.days[d].items.map((x) => `${x.lib}:${x.sets}x${x.reps}${x.ss ? ':' + x.ss : ''}${x.restS ? '@' + x.restS : ''}${x.fill ? 'f' : ''}`);
   assert.deepEqual(row('upperA'), ['ex1:4x5-8:A@110', 'ex14:4x6-10:A@110', 'ex2:3x8-12:B@90', 'exCSTB:3x8-12:B@90', 'ex27:3x12-20:C@45', 'exOCT:3x10-15:C@45',
     'ex31:3x10-15:D@60', 'exRPD:3x12-20:D@60', 'ex64:3x8-15:D@60']);
@@ -28,7 +30,7 @@ test('new default program: compact Upper/Lower from review.md §3 with supersets
   assert.equal(p.days.upperA.items[0].ar, 'بنش بريس بالبار');
   assert.equal(p.days.upperB.items[7].en, 'Preacher Curl');
   // plan v2 swaps (exercise-selection.md §3): new item ids so history does not mix; notes + meso-1 reps survive a round trip
-  assert.equal(p.tv, 2);
+  assert.equal(p.tv, 3);
   assert.deepEqual(['upperA', 'lowerA', 'upperB', 'lowerB'].map((d) => p.days[d].items.filter((x) => ['uaLPD', 'lbSC', 'lbSLC', 'ubPRC', 'ubOCT', 'ubLID'].includes(x.id)).map((x) => x.id)),
     [['uaLPD'], [], ['ubLID', 'ubPRC', 'ubOCT'], ['lbSLC', 'lbSC']]);
   assert.match(p.days.upperA.items[1].note, /3×8 عقلة بوزن جسمك عند RIR 2 ارجع للعقلة/);
@@ -46,7 +48,7 @@ test('new default program: compact Upper/Lower from review.md §3 with supersets
   assert.equal(back.days.upperA.items[0].rir, '1-2');
   assert.deepEqual(back.days.upperA.warm, [[0, 8], [60, 5], [80, 2]]);
   assert.deepEqual(back.schedule, p.schedule);
-  assert.equal(back.tv, 2); assert.equal(back.days.upperA.items[0].r1, '6-10'); assert.equal(back.days.upperA.items[1].note, p.days.upperA.items[1].note);
+  assert.equal(back.tv, 3); assert.equal(back.days.upperA.items[0].r1, '6-10'); assert.equal(back.days.upperA.items[1].note, p.days.upperA.items[1].note);
 });
 
 test('new library entries carry muscles and synergists', () => {
@@ -237,8 +239,8 @@ test('weekly balance: under-MEV muscle gets +1–2 sets on its next session, nev
   // projection reads finished sessions + remaining scheduled days
   const wp = L.weekProjection({ program: p, sessions: [], today: '2026-10-19', items: p.days.upperA.items, todayId: 'upperA' });
   assert.equal(wp.projection['كتف جانبي'], 14.5);
-  assert.deepEqual(L.remainingDays(p, [], '2026-10-21'), ['upperB', 'lowerB']); // Wed → Thu, Fri
-  assert.deepEqual(L.remainingDays(p, [ses('x', '2026-10-20', [], { dayKey: 'lowerB' })], '2026-10-22'), []); // Lower B already done this week
+  assert.deepEqual(L.remainingDays(p, [], '2026-10-20'), ['lowerB', 'upperA', 'lowerA']); // Tue → Wed, Sat, Sun (week from Monday)
+  assert.deepEqual(L.remainingDays(p, [ses('x', '2026-10-20', [], { dayKey: 'upperA' }), ses('y', '2026-10-21', [], { dayKey: 'lowerA' })], '2026-10-22'), []); // Sat/Sun already done this week
 });
 
 test('autopilot: 60 fits as planned; 45 trims rest first; 30 cuts sets then isolations; MEV protected by carry-over', () => {
@@ -343,15 +345,16 @@ test('plan update: users already on ul4c get a diff card; apply swaps in place, 
   assert.equal(L.planUpdate(P()), null, 'fresh template is current');
   const v1 = V1();
   const u = L.planUpdate(v1);
-  assert.equal(u.from, 1); assert.equal(u.to, 2);
-  assert.equal(u.applicable, 8);
+  assert.equal(u.from, 1); assert.equal(u.to, 3);
+  assert.equal(u.applicable, 8); // the v1 user moved his own schedule here (V1 keeps the template's v3 days) → only the 8 swaps apply
   assert.ok(u.changes.some((c) => /سمانة جالس ← سمانة واقف/.test(c.text)), u.changes.map((c) => c.text).join('\n'));
   // the user removed the Bayesian curl himself → that change is skipped, the rest apply
   v1.days.upperB.items = v1.days.upperB.items.filter((x) => x.id !== 'ubBAY');
   v1.days.lowerB.items.find((x) => x.id === 'la4').sets = 4; // his own edit on a swapped slot is replaced by the template row
   const r = L.applyPlanUpdate(v1);
-  assert.equal(r.skipped.length, 1); assert.equal(r.applied.length, 7);
-  assert.equal(r.program.tv, 2);
+  assert.equal(r.skipped.length, 2); assert.equal(r.applied.length, 7); // Bayesian removed by him + his own (non-old) schedule kept
+  assert.deepEqual(r.skipped.map((c) => c.kind).sort(), ['schedule', 'swap']);
+  assert.equal(r.program.tv, 3);
   assert.equal(L.planUpdate(r.program), null);
   const row = (d) => r.program.days[d].items.map((x) => x.id);
   assert.deepEqual(row('lowerB'), ['la2', 'lbLR', 'lbHACK', 'lbSLC', 'lb2', 'lb7a', 'lbSC', 'lbADD', 'lbSH']);

@@ -1,13 +1,13 @@
 // First run (#/profile/welcome): 3 short steps, one question each, every value prefilled, skippable.
 // 1 weight (+ height)  2 training days  3 «راجع بعد انقطاع 3 شهور أو أكتر؟» → settings 'wk.reentry' = {startDay, weeks:2}.
-// Defaults = the owner: 72 kg, 175 cm, Mon/Tue/Thu/Fri lifting + Saturday Heart Day. With the defaults it is 3 taps.
+// Defaults = the owner: 72 kg, 175 cm, Sat/Sun/Tue/Wed lifting + Thursday Boxing Day (plan v3). With the defaults it is 3 taps.
 // Shown once: the gate (app/onboarding-gate.js) marks 'ob.seen' when it opens, so it never comes back; all of it is editable in Profile.
 import { h, raw, fill } from '../../ui/dom.js';
 import { icon } from '../../ui/icons.js';
 import { parseNum } from '../../ui/num.js';
 import { validKg, latestWeight } from './weight.js';
 
-export const OB_DEFAULTS = Object.freeze({ kg: 72, heightCm: 175, age: 27, trainingDays: Object.freeze([1, 2, 4, 5]), heartDow: 6 });
+export const OB_DEFAULTS = Object.freeze({ kg: 72, heightCm: 175, age: 27, trainingDays: Object.freeze([0, 2, 3, 6]), heartDow: 4 });
 const DAYS = [[6, 'السبت'], [0, 'الأحد'], [1, 'الاتنين'], [2, 'التلات'], [3, 'الأربع'], [4, 'الخميس'], [5, 'الجمعة']];
 const I = (n, o) => raw(icon(n, o));
 
@@ -84,7 +84,7 @@ export async function renderWelcome(el, ctx, params = {}) {
       const next = h('button', { type: 'button', class: 'btn', onclick: () => { st.step = 3; draw(); } }, 'التالي');
       frame(2, 'بتتمرن حديد أنهي أيام؟', 'الأيام دي بتحدد هدف الأكل لكل يوم.',
         [h('p', { class: 'vh', id: 'ob-days-l' }, 'أيام الحديد'), chips,
-          h('p', { class: 'ob-note' }, I('heart', { size: 16 }), 'السبت يوم القلب: 30 دقيقة كارديو، مش جلسة حديد.')], next);
+          h('p', { class: 'ob-note' }, I('heart', { size: 16 }), 'الخميس يوم الملاكمة: 35 دقيقة شوال وتكنيك، مش جلسة حديد.')], next);
     } else {
       const yes = h('button', { type: 'button', class: 'btn', dataset: { ob: 'yes' }, onclick: () => finish(true) }, 'أيوه، راجع بعد انقطاع');
       const no = h('button', { type: 'button', class: 'btn ghost', dataset: { ob: 'no' }, onclick: () => finish(false) }, 'لا، أنا مكمّل');

@@ -28,8 +28,47 @@ export const LEGACY_DEFAULT_TARGETS = Object.freeze({
 export const DEFAULT_HEIGHT_CM = 175;
 export const DEFAULT_BODY_KG = 72;
 export const DAY_TYPES = Object.freeze(['training', 'rest', 'heart']);
-/** Weekday (Date#getDay) of the Heart Day per program template; templates without one are absent. */
-export const HEART_DOW = Object.freeze({ ul4c: 6 });
+/**
+ * Weekly cardio day per program template (Date#getDay) and what it is. ul4c from template v3: Thursday Boxing Day
+ * (Sat UA · Sun LA · Tue UB · Wed LB · Thu boxing); a ul4c record still on v1–v2 keeps the Saturday Heart Day until he
+ * answers the «تحديث الخطة» card. Nutrition uses the 'heart' day type (2550) for both. Templates without one are absent.
+ */
+export const CARDIO_DAY = Object.freeze({ ul4c: Object.freeze({ dow: 4, kind: 'boxing', since: 3, legacy: Object.freeze({ dow: 6, kind: 'heart' }) }) });
+/** Weekday of the cardio day on the current template version (kept for older imports). */
+export const HEART_DOW = Object.freeze({ ul4c: CARDIO_DAY.ul4c.dow });
+/** The 4-day plan's lifting days from template v3 (Sat, Sun, Tue, Wed) and before it (Mon, Tue, Thu, Fri). */
+export const UL4C_TRAINING_DAYS = Object.freeze([0, 2, 3, 6]);
+export const UL4C_LEGACY_TRAINING_DAYS = Object.freeze([1, 2, 4, 5]);
+
+/**
+ * Boot migration for the default training days (ctx DEFAULTS moved to the v3 layout Sat/Sun/Tue/Wed on 30/10/2026):
+ * a user who never saved trainingDays but already has a stored plan on any other layout ran on the old default
+ * (Mon/Tue/Thu/Fri) → pin that explicitly so nothing moves under him. → days to write, or null (nothing stored / already v3).
+ */
+export function pinTrainingDays(rec) {
+  if (!rec || typeof rec !== 'object' || !rec.days) return null;
+  const v3 = { 6: 'upperA', 0: 'lowerA', 2: 'upperB', 3: 'lowerB' };
+  const s = rec.schedule && typeof rec.schedule === 'object' ? rec.schedule : {};
+  const same = Object.keys(s).length === 4 && Object.entries(v3).every(([k, v]) => s[k] === v);
+  if (rec.v === 2 && rec.activeProgram === 'ul4c' && Number.isInteger(rec.tv) && rec.tv >= 3 && same) return null;
+  return [...UL4C_LEGACY_TRAINING_DAYS];
+}
+
+/**
+ * cardioDayOf({activeProgram, tv, schedule}) → {dow, kind:'boxing'|'heart'} | null for a program record (raw or normalised).
+ * Missing tv = 1. When his schedule lifts on the template's cardio weekday (he kept his old days), the cardio day moves to
+ * the legacy weekday (Saturday) if that one is free.
+ */
+export function cardioDayOf(rec) {
+  const c = rec && CARDIO_DAY[rec.activeProgram];
+  if (!c) return null;
+  const tv = Number.isInteger(rec.tv) && rec.tv > 0 ? rec.tv : 1;
+  if (c.since && tv < c.since) return { dow: c.legacy.dow, kind: c.legacy.kind };
+  const used = new Set(Object.keys((rec.schedule && typeof rec.schedule === 'object' && !Array.isArray(rec.schedule)) ? rec.schedule : {}).map(Number));
+  if (!used.has(c.dow)) return { dow: c.dow, kind: c.kind };
+  if (c.legacy && !used.has(c.legacy.dow)) return { dow: c.legacy.dow, kind: c.kind };
+  return null;
+}
 export const DEFAULT_PROGRAM_ID = 'ul4c';
 
 export function emptyData(now = new Date()) {

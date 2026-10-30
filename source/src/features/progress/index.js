@@ -7,7 +7,8 @@ import { fmt, parseNum } from '../../ui/num.js';
 import { ring } from '../../ui/ring.js';
 import { countUp } from '../../ui/anim.js';
 import { isDayKey, addDays, weekDays, weekStart, diffDays } from '../../core/date.js';
-import { sumEntries, targetsForDay, heartDaysOf, heartDowOf, withDayTypes } from '../../core/targets.js';
+import { sumEntries, targetsForDay, heartDaysOf, heartDowOf, cardioOf, withDayTypes } from '../../core/targets.js';
+import { boxingWeekStats } from '../workout/boxing-plan.js';
 import * as WK from '../workout/logic.js';
 import { targetRange, richTextNodes } from '../nutrition/logic.js';
 import { openWeightSheet } from '../profile/weight.js';
@@ -34,7 +35,7 @@ async function loadAll(ctx) {
   const daily = {}; for (const r of dailyRows) if (r && isDayKey(r.day)) daily[r.day] = r;
   const targets = withDayTypes(targetsKv);
   return { sessions, weights: cleanWeights(weights), foodLog, daily, measurements: measurements.filter((m) => m && isDayKey(m.day)).sort((a, b) => a.day.localeCompare(b.day)),
-    targets, overrides: nutrition.dayTypeOverrides || {}, heartDow: heartDowOf(programRec), progress, profile: prof || {} };
+    targets, overrides: nutrition.dayTypeOverrides || {}, heartDow: heartDowOf(programRec), cardio: cardioOf(programRec)?.kind || null, progress, profile: prof || {} };
 }
 
 async function patchProgress(ctx, fn) {
@@ -111,8 +112,20 @@ async function progress(el, ctx, params) {
       h('div', { class: 'pg-grid4 pg-grid2' },
         fig('حجم التمرين', h('span', {}, NC(wc.cur.volume), h('small', {}, ' كجم')), d(wc.cur.volume, wc.prev.volume)),
         fig('أرقام قياسية', NC(wc.cur.prs), d(wc.cur.prs, wc.prev.prs))),
+      boxingFigs(fig, d, ws),
       aiBlock('weekly', 'اسأل المدرب عن أسبوعي', 'تقرير الأسبوع + تركيز الأسبوع الجاي'));
     return [card1];
+  }
+
+  // Boxing Day (plan v3): weekly bag rounds + minutes; cardio only, never part of the lifting volume above
+  function boxingFigs(fig, d, ws) {
+    const has = st.cardio === 'boxing' || st.sessions.some((s) => s && s.kind === 'boxing');
+    if (!has) return null;
+    const cur = boxingWeekStats(st.sessions, today, startDow);
+    const prev = boxingWeekStats(st.sessions, addDays(ws, -1), startDow);
+    return h('div', { class: 'pg-grid4 pg-grid2 pg-box', dataset: { fk: 'pg-box' } },
+      fig('جولات ملاكمة', NC(cur.rounds), d(cur.rounds, prev.rounds), cur.sessions ? null : 'لسه مفيش الأسبوع ده'),
+      fig('دقايق ملاكمة', h('span', {}, NC(cur.minutes), h('small', {}, ' د')), d(cur.minutes, prev.minutes), cur.avgRpe ? `متوسط المجهود ${cur.avgRpe}` : null));
   }
 
   // ───────── summary ─────────

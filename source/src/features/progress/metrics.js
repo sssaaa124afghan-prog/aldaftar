@@ -29,7 +29,8 @@ export const contractStatus = () => Object.fromEntries(
 
 // ───────────────────────── sessions ─────────────────────────
 
-export const isRecovery = (s) => !!s && (s.kind === 'recovery' || s.type === 'recovery' || s.kind === 'heart' || s.mode === 'iso');
+/** Not a lifting session: recovery, Heart Day, Boxing Day (cardio minutes only) and the home isometric block. */
+export const isRecovery = (s) => !!s && (s.kind === 'recovery' || s.type === 'recovery' || s.kind === 'heart' || s.kind === 'boxing' || s.mode === 'iso');
 /** Finished lifting sessions, oldest → newest (no live / discarded / recovery). */
 export function lifting(sessions) {
   return WK.finished(sessions).filter((s) => s.day && isDayKey(s.day) && !isRecovery(s));

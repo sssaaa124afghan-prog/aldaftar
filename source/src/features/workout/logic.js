@@ -1,5 +1,6 @@
 // Pure training logic (no DOM, no storage). Tested by logic.test.js.
 import { addDays, diffDays, weekStart, dayKey, weekday as weekdayOf } from '../../core/date.js';
+import { cardioDayOf } from '../../core/schema.js';
 import { PROGRAMS, DEFAULT_PROGRAM, LIBRARY, VOL_LM, MUSCLE_LM, PLAN_UPDATES, findLib, libById, enKey, muscleGroup, fineOf, isLowerMuscle } from './exercises.js';
 import { PLATEAU_PROTOCOLS, MOBILITY_PREP, STATIONS } from './content.js';
 
@@ -440,8 +441,15 @@ export function fromTemplate(id, { startDay = null } = {}) {
   if (t.version) p.tv = t.version;
   return p;
 }
-/** Template flags for a program record (z2 after lifting, mesocycle, heart-day weekday). */
-export const programFlags = (program) => { const t = PROGRAMS[program?.activeProgram]; return { z2: !!t?.z2, meso: !!t?.meso, heartDow: Number.isInteger(t?.heartDow) ? t.heartDow : null }; };
+/**
+ * Template flags for a program record: z2 after lifting, mesocycle, and the weekly cardio day (core/schema cardioDayOf):
+ * heartDow = its weekday, cardio = 'boxing' (ul4c v3, Thursday) | 'heart' (ul4c v1–v2, Saturday) | null.
+ */
+export const programFlags = (program) => {
+  const t = PROGRAMS[program?.activeProgram];
+  const c = t ? cardioDayOf(program) : null;
+  return { z2: !!t?.z2, meso: !!t?.meso, heartDow: c ? c.dow : null, cardio: c ? c.kind : null, boxing: c?.kind === 'boxing' };
+};
 
 export function itemFromLib(libId) {
   const L = libById(libId);
@@ -1271,6 +1279,12 @@ export function planUpdate(program) {
   for (let v = from + 1; v <= t.version; v++) {
     const u = ups[v]; if (!u) continue;
     title = u.title || title;
+    if (u.boxing) changes.push({ v, kind: 'info', ok: true, text: 'الخميس يوم الملاكمة: بيحل محل يوم القلب', why: u.boxing.why || '' });
+    if (u.schedule) {
+      const ok = sameSchedule(program.schedule, u.schedule.from);
+      changes.push({ v, kind: 'schedule', ok, schedule: u.schedule.to, trainingDays: u.schedule.trainingDays?.to || null, fromTd: u.schedule.trainingDays?.from || null,
+        text: `الجدول: ${scheduleText(u.schedule.to, program)}`, why: ok ? (u.schedule.why || '') : 'غيّرت أيامك بنفسك، فهنسيبها والملاكمة يوم السبت' });
+    }
     for (const c of u.changes) {
       const day = program.days[c.day];
       const dayName = day?.name || t.days[c.day]?.name || c.day;
@@ -1286,7 +1300,27 @@ export function planUpdate(program) {
       }
     }
   }
-  return { from, to: t.version, title, changes, applicable: changes.filter((c) => c.ok).length };
+  return { from, to: t.version, title, changes, applicable: changes.filter((c) => c.ok && c.kind !== 'info').length };
+}
+const DOW_AR = ['الحد', 'الاتنين', 'التلات', 'الأربع', 'الخميس', 'الجمعة', 'السبت'];
+const sameSchedule = (a, b) => { const x = a || {}, y = b || {}; const kx = Object.keys(x).sort(), ky = Object.keys(y).sort(); return kx.length === ky.length && kx.every((k, i) => k === ky[i] && x[k] === y[k]); };
+/** «السبت Upper A · الحد Lower A · …» in week order from Saturday. */
+function scheduleText(sched, program) {
+  return [6, 0, 1, 2, 3, 4, 5].filter((d) => sched[d] || sched[String(d)]).map((d) => `${DOW_AR[d]} ${program?.days?.[sched[d] || sched[String(d)]]?.name || sched[d] || sched[String(d)]}`).join(' · ');
+}
+/**
+ * Schedule migration for a ul4c record still on the old weekday layout (Mon UA · Tue LA · Thu UB · Fri LB):
+ * → {schedule, trainingDays} for template v3, or null when he already moved his days (nothing to migrate) / no template.
+ * trainingDays is only rewritten when the stored setting still equals the old one (or was never set).
+ */
+export function scheduleMigration(program, trainingDays = null) {
+  const ups = PLAN_UPDATES[program?.activeProgram] || {};
+  const m = Object.values(ups).map((u) => u.schedule).filter(Boolean).pop();
+  if (!m || !sameSchedule(program.schedule, m.from)) return null;
+  const td = Array.isArray(trainingDays) && trainingDays.length ? [...trainingDays].sort((a, b) => a - b) : null;
+  const oldTd = [...(m.trainingDays?.from || [])].sort((a, b) => a - b);
+  const keepTd = td && (td.length !== oldTd.length || td.some((d, i) => d !== oldTd[i]));
+  return { schedule: Object.fromEntries(Object.entries(m.to).map(([k, v]) => [String(k), v])), trainingDays: keepTd ? td : [...(m.trainingDays?.to || [])].sort((a, b) => a - b) };
 }
 /** Apply a pending update: swaps replace the old item in place (same position), `set` patches; tv = template version. */
 export function applyPlanUpdate(program) {
@@ -1295,7 +1329,15 @@ export function applyPlanUpdate(program) {
   const t = PROGRAMS[program.activeProgram];
   const next = { ...program, days: Object.fromEntries(Object.entries(program.days).map(([k, d]) => [k, { ...d, items: d.items.map((x) => ({ ...x })) }])) };
   const applied = [], skipped = [];
+  let trainingDays = null;
   for (const c of u.changes) {
+    if (c.kind === 'info') continue;
+    if (c.kind === 'schedule') {
+      if (!c.ok) { skipped.push(c); continue; }
+      next.schedule = Object.fromEntries(Object.entries(c.schedule).map(([k, v]) => [String(k), v]));
+      trainingDays = c.trainingDays ? [...c.trainingDays].sort((a, b) => a - b) : null;
+      applied.push(c); continue;
+    }
     const day = next.days[c.day];
     if (!c.ok || !day) { skipped.push(c); continue; }
     if (c.kind === 'set') { const it = day.items.find((x) => x.id === c.id); Object.assign(it, c.set); applied.push(c); continue; }
@@ -1311,7 +1353,7 @@ export function applyPlanUpdate(program) {
     if (next.days[d] && t.days[d]?.warmNote) next.days[d].warmNote = t.days[d].warmNote;
   }
   next.tv = t.version;
-  return { program: next, applied, skipped };
+  return { program: next, applied, skipped, trainingDays };
 }
 
 /**
@@ -1543,8 +1585,10 @@ export const budgetFor = (today) => (budgetPick.day === today ? budgetPick.min :
  * dayEstimate → {plan (planSession result), week, deload, lift, z2, total}: lifting minutes (warm-up included, after the
  * weekly balance and the time budget) plus the Zone 2 finisher the program adds after lifting.
  */
-export function dayEstimate({ program, sessions = [], today, dayId, training = {}, budgetMin = budgetFor(today), weekStartDow = 1, trainingDays = null, reentry = null }) {
-  const flags = programFlags(program);
+export function dayEstimate({ program: prog0, sessions = [], today, dayId, training = {}, budgetMin = budgetFor(today), weekStartDow = 1, trainingDays = null, reentry = null }) {
+  const flags = programFlags(prog0);
+  const bx = flags.boxing ? boxingAdjust(prog0) : { program: prog0, cuts: [] };
+  const program = bx.program;
   const re = reentry && reentry.active ? reentry : null;
   const start = blockStart(program.startDay, reentry);
   const week = flags.meso && !re ? mesoWeek(start, today) : null;
@@ -1562,8 +1606,39 @@ export function dayEstimate({ program, sessions = [], today, dayId, training = {
       changes: [{ code: 'reentry', text: `${reentryHeader(re)} · حوالي ${pct}% من المجموعات ووزن ${Math.round(REENTRY[Math.min(re.week, 2)].load * 100)}% من آخر مرة` },
         ...ap.changes.filter((c) => c.code !== 'carried')] };
   } else plan = planSession({ program: p0, sessions, today, dayId, budgetMin, carry: training.carry || {}, weekStartDow, trainingDays, deload });
+  for (const c of bx.cuts.filter((x) => x.day === dayId)) {
+    const it = program.days[dayId].items.find((x) => x.id === c.id);
+    if (it) plan.changes.push({ code: 'box', exId: it.id, muscle: 'كتف جانبي', n: 1, text: `${it.ar}: −1 مجموعة (الملاكمة بتشغّل الكتف الجانبي)` });
+  }
   const z2 = flags.z2 ? z2Minutes(plan.minutes, { deload: deload || !!re }) : 0;
   return { plan, week, block, deload, reentry: re, lift: plan.minutes, z2, total: plan.minutes + z2 };
+}
+// ══ Boxing Day shoulder load (boxing.js) ═══════════════════════
+/** Weekly side-delt sets taken off the plan when the week has a Boxing Day (bag rounds load the shoulders). */
+export const BOX_DELT_CUT = 2;
+/**
+ * boxingAdjust(program) → {program, cuts:[{day, id}]}: −1 set on up to BOX_DELT_CUT side-delt isolation slots (never below 2 sets).
+ * Slots: the template's boxDeltCut ids first (ul4c: the lateral raises on Lower A / Lower B), then any other side-delt isolation
+ * from the end of the week. Only for programs whose cardio day is boxing; everything else is returned untouched.
+ */
+export function boxingAdjust(program) {
+  if (!program || !programFlags(program).boxing) return { program, cuts: [] };
+  const t = PROGRAMS[program.activeProgram] || {};
+  const slots = [];
+  for (const id of t.boxDeltCut || []) for (const d of program.order) if (program.days[d]?.items.some((x) => x.id === id)) slots.push([d, id]);
+  for (const d of [...program.order].reverse()) for (const x of program.days[d]?.items || []) {
+    if (fineOf(x).prime === 'كتف جانبي' && kindOf(x) === 'isolation' && !slots.some(([dd, id]) => dd === d && id === x.id)) slots.push([d, x.id]);
+  }
+  const days = { ...program.days };
+  const cuts = [];
+  for (const [d, id] of slots) {
+    if (cuts.length >= BOX_DELT_CUT) break;
+    const it = days[d].items.find((x) => x.id === id);
+    if (!it || it.sets <= 2) continue;
+    days[d] = { ...days[d], items: days[d].items.map((x) => (x.id === id ? { ...x, sets: x.sets - 1, boxCut: 1 } : x)) };
+    cuts.push({ day: d, id });
+  }
+  return { program: cuts.length ? { ...program, days } : program, cuts };
 }
 /** A copy of the program whose items use their first-block rep range (`r1`) where they have one. */
 export function withBlockReps(program, dayId = null) {

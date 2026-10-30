@@ -1,12 +1,12 @@
 // #/workout — today's planned session, start/continue, quick session, program overview.
 import { fill } from '../../ui/dom.js';
-import { h, N, ico, band, relDay, safeWrite, DAY_NAMES, setsReps } from './view.js';
+import { h, N, ico, band, relDay, safeWrite, DAY_NAMES, setsReps, bidiRanges } from './view.js';
 import { countWord } from '../../ui/num.js';
 import * as L from './logic.js';
 import { loadAll, loadProgram, saveProgram, loadTraining, patchTraining, putSession, loadGateInputs } from './store.js';
 import { weekday, addDays, diffDays } from '../../core/date.js';
 import { videoLink, videoSource } from './exercise-videos.js';
-import { prepareStart, budgetPicker, newPlanCard, heartDayCard, weekOf, planForDay } from './today-plan.js';
+import { prepareStart, budgetPicker, newPlanCard, heartDayCard, boxingDayInfo, weekOf, planForDay } from './today-plan.js';
 
 // «معاك كام دقيقة؟»: the pick lives for the day (default 60)
 const budgetFor = (today) => L.budgetFor(today);
@@ -63,7 +63,9 @@ export async function renderOverview(el, ctx, params = {}) {
   const dl = L.deloadCheck(done, { today, deload: training.deload });
   const dismissed = training.deload?.dismissed && training.deload.dismissed >= addDays(today, -6);
   const gap = L.gapDays(done, today);
-  const [gi, planMod] = await Promise.all([loadGateInputs(ctx.db, today), !live ? import('./plan.js').catch(() => null) : null]);
+  const [gi, planMod, health] = await Promise.all([loadGateInputs(ctx.db, today), !live ? import('./plan.js').catch(() => null) : null,
+    tp.cardio === 'boxing' ? ctx.db.get('kv', 'health').then((r) => (r && r.value) || {}).catch(() => ({})) : null]);
+  const box = tp.cardio === 'boxing' ? boxingDayInfo(ctx, { program, training, health: health || {}, day: today }) : null;
   if (stale()) return undefined;
   el.textContent = '';
   const activeInj = L.activeInjuries(training.injuries).length;
@@ -96,7 +98,16 @@ export async function renderOverview(el, ctx, params = {}) {
     const prep = dayId === tp.dayId && tp.prep ? tp.prep : prepareStart(ctx, { program, sessions: done, training, dayId, budget, today });
     const est = prep.plan.minutes;
     const last = done.filter((s) => s.dayKey === dayId).pop();
-    if (!isTrainDay && !params.day) {
+    if (!isTrainDay && !params.day && box) {
+      // Thursday Boxing Day (plan v3): this week's combo, not a lifting day
+      const bxDone = all.find((s) => s && s.kind === 'boxing' && s.day === today && s.status === 'done');
+      const bxRounds = bxDone ? (bxDone.rounds || []).filter((x) => x.kind === 'bag' && x.doneS >= x.dur * 0.5).length : 0;
+      next.append(h('h2', { id: 'wk-next-h' }, 'يوم الملاكمة'),
+        bxDone ? h('p', {}, 'اتسجّل النهارده: ', N(String(bxRounds)), ' جولة شوال · ', N(String(bxDone.durationMin || 0)), ' دقيقة') : null,
+        h('p', {}, box.gate.stop ? 'ضغطك عالي جداً: مفيش تمرين النهارده.' : ['كومبو الأسبوع ', h('b', {}, ...bidiRanges(box.cw.combo.code)), ' · ', N(String(box.minutes)), ' دقيقة',
+          box.tech ? ' · تكنيك بس' : '', ' · مش جلسة رفع']),
+        h('a', { class: 'btn', href: '#/workout/boxing', dataset: { fk: 'box-go' } }, ico('play'), box.gate.stop ? 'افتح التعليمات' : bxDone ? 'جولات تاني' : 'ابدأ يوم الملاكمة'));
+    } else if (!isTrainDay && !params.day) {
       next.append(h('h2', { id: 'wk-next-h' }, 'يوم راحة'),
         h('p', {}, 'الراحة جزء من الخطة. لو حابب تتمرن، الجاي ', day.name, '.'));
     } else {
@@ -132,7 +143,7 @@ export async function renderOverview(el, ctx, params = {}) {
   if (pu) el.appendChild(pu);
 
   // ── Heart Day (Saturday on the new plan) ──
-  const hd = !live && !params.day ? heartDayCard(program, today, weekday) : null;
+  const hd = !live && !params.day ? heartDayCard(program, today, weekday, box) : null;
   if (hd) el.appendChild(hd);
 
   // ── recovery day (R1) ──

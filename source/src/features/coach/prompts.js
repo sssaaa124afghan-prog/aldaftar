@@ -1,7 +1,7 @@
 // Coach copy, quick prompts (all 10 from Solo Gym + NutriPro), intents → context blocks + model. Pure.
 import { MODELS } from '../../core/ai.js';
 
-export const ALL_BLOCKS = ['body', 'today', 'readiness', 'training', 'strength', 'volume', 'program', 'injuries', 'goals', 'nutrition', 'weight', 'patterns', 'attached'];
+export const ALL_BLOCKS = ['body', 'today', 'readiness', 'training', 'strength', 'volume', 'program', 'boxing', 'injuries', 'goals', 'nutrition', 'weight', 'patterns', 'attached'];
 
 /**
  * intent → {blocks, model, maxTokens, writes, protocol}
@@ -9,10 +9,10 @@ export const ALL_BLOCKS = ['body', 'today', 'readiness', 'training', 'strength',
  * ('food' = the short food/water/targets list, 'full' = + training plan). max_tokens are caps, not targets: replies are short.
  */
 export const INTENTS = Object.freeze({
-  chat: { blocks: ['body', 'today', 'readiness', 'training', 'nutrition', 'injuries', 'attached'], model: 'coach', maxTokens: 900, writes: true, protocol: 'full' },
+  chat: { blocks: ['body', 'today', 'readiness', 'training', 'boxing', 'nutrition', 'injuries', 'attached'], model: 'coach', maxTokens: 900, writes: true, protocol: 'full' },
   quick: { blocks: ['body', 'today', 'readiness', 'injuries', 'attached'], model: 'quick', maxTokens: 500, writes: true, protocol: 'food' },
   food_log: { blocks: ['today', 'attached'], model: 'quick', maxTokens: 1400, writes: true, protocol: 'food' },
-  training: { blocks: ['body', 'today', 'readiness', 'training', 'strength', 'volume', 'program', 'injuries', 'goals', 'attached'], model: 'coach', maxTokens: 1100, writes: true, protocol: 'full' },
+  training: { blocks: ['body', 'today', 'readiness', 'training', 'strength', 'volume', 'program', 'boxing', 'injuries', 'goals', 'attached'], model: 'coach', maxTokens: 1100, writes: true, protocol: 'full' },
   // plan edits from the chat chips: program + performance, proposals allowed (always behind a confirm card)
   plan_edit: { blocks: ['body', 'today', 'readiness', 'training', 'strength', 'volume', 'program', 'injuries', 'attached'], model: 'coach', maxTokens: 1600, writes: true, protocol: 'full' },
   nutrition: { blocks: ['body', 'today', 'readiness', 'nutrition', 'weight', 'patterns', 'attached'], model: 'coach', maxTokens: 900, writes: true, protocol: 'food' },
@@ -22,7 +22,7 @@ export const INTENTS = Object.freeze({
   patterns: { blocks: ['body', 'training', 'nutrition', 'patterns', 'weight'], model: 'coach', maxTokens: 1000, writes: false },
   session: { blocks: ['body', 'readiness', 'strength', 'training', 'injuries', 'attached'], model: 'coach', maxTokens: 900, writes: false },
   plan: { blocks: ['body', 'training', 'strength', 'volume', 'program', 'injuries', 'goals', 'attached'], model: 'coach', maxTokens: 1600, writes: false },
-  form: { blocks: ['body', 'injuries', 'attached'], model: 'coach', maxTokens: 800, writes: false },
+  form: { blocks: ['body', 'boxing', 'injuries', 'attached'], model: 'coach', maxTokens: 800, writes: false },
   food: { blocks: ['today', 'attached'], model: 'quick', maxTokens: 600, writes: true, protocol: 'food' },
   food_lookup: { blocks: ['attached'], model: 'quick', maxTokens: 600, writes: false },
   set_tip: { blocks: ['strength', 'attached'], model: 'quick', maxTokens: 300, writes: false },
@@ -36,7 +36,8 @@ const norm = (t) => String(t || '').toLowerCase().replace(/[أإآ]/g, 'ا').rep
 export const FOOD_LOG_RE = /(^|\s)(اكلت|كلت|فطرت|اتغديت|تغديت|اتعشيت|تعشيت|شربت|سجل(لي|ي)?|ضيف(لي)?|ضف|احسبلي|سجلي)(\s|$)/;
 const PLAN_RE = /حلل|تحليل|خطه|خطة|برنامج|جدول|اسبوع|أسبوع|تقييم|قيم|راجع|ديلود|deload|plateau|ثبات|عدل|غير|اقترح|نظام|تقدم|مقارنه|ليه|ازاي اكسر|periodiz/;
 const FOOD_RE = /غدا|عشا|فطار|اكل|بروتين|كارب|دهون|سعر|وجبه|ماكرو|مي[هة]|سجل|ضيف|رجيم|دايت|صايم|صيام/;
-const GYM_RE = /تمرين|اتمرن|جلسه|عضله|بنش|سكوات|ديدليفت|ثبات|plateau|تعب|fatigue|deload|ديلود|برنامج|خطه التمرين|مجموعات|سيت|كارديو|وجع|بيوجع/;
+const BOX_RE = /ملاكم|بوكس|boxing|كومبو|combo|جاب|كروس|هوك|ابركت|أبركت|سليب|رول|شوال|شادو|جوانتي|رباط|بيفوت|كاونتر/;
+const GYM_RE = /ملاكم|بوكس|كومبو|شوال|تمرين|اتمرن|جلسه|عضله|بنش|سكوات|ديدليفت|ثبات|plateau|تعب|fatigue|deload|ديلود|برنامج|خطه التمرين|مجموعات|سيت|كارديو|وجع|بيوجع/;
 
 /**
  * Free-text chat → intent. Logging → food_log (Haiku); planning / analysis → Sonnet with the right domain;
@@ -59,6 +60,7 @@ export function blocksFor(intent, text) {
   if (intent !== 'quick') return spec.blocks;
   const t = norm(text); const extra = [];
   if (GYM_RE.test(t)) extra.push('training', 'strength', 'program');
+  if (BOX_RE.test(t)) extra.push('boxing');
   if (FOOD_RE.test(t)) extra.push('nutrition');
   return [...new Set([...spec.blocks, ...extra])];
 }
@@ -127,6 +129,7 @@ const TRAINING_ACTIONS = [
   'Prefill: base it on the last sets of that day (Next session block): all sets hit the top of the rep range → add the smallest step (2.5 kg, 1 kg under 20 kg); otherwise same weight and aim for +1 rep. Respect readiness and injuries; never prescribe to failure on heavy compounds.',
   'Deload: suggest it after ~6 weeks of hard training, ≥ 2 stalled compound lifts, very low RIR for 2 weeks, or poor readiness; in the 6-week block week 6 is already a deload.',
   'Never change the Heart Day, isometrics (wall sit) or their blood-pressure gate, and never give medical advice; for pain or injury suggest a professional and a lighter swap.',
+  'Boxing Day (Boxing block): he trains alone on a heavy bag with gloves + wraps, no coach. For technique questions answer from that week\'s cues/mistakes in Egyptian Arabic (max 3 bullets), name the matching video in the app (يوم الملاكمة › ▶ فيديو الأداء), suggest filming a round for self-review; never change the boxing day, its technique-only safety rule or the wall sit; wraps every time; stop on chest pain or dizziness. Boxing is cardio, never lifting volume.',
   'Only propose plan changes when he asks for a change or a plan; a plain question gets a plain answer.',
 ].join('\n');
 

@@ -3,7 +3,7 @@
 // YouTube links, technique blurbs and warm-up pseudo-exercises dropped.
 // Program item ids keep the legacy Solo Gym ids so migrated session history lines up.
 
-import { HEART_DOW } from '../../core/schema.js';
+import { HEART_DOW, UL4C_TRAINING_DAYS, UL4C_LEGACY_TRAINING_DAYS } from '../../core/schema.js';
 
 /** kind: 'compound' | 'isolation' drives the rest rule (150 s / 90 s). */
 export const LIBRARY = [
@@ -245,14 +245,18 @@ PROGRAMS.fb3 = {
 
 /**
  * «أعلى/أسفل · 4 أيام»: the owner-approved compact plan (review.md §3.2–3.5, M1–M3 + S1). Lifting ≈ 46–48 min,
- * then 10–12 min Zone 2 on the bike (≤ 60 min visit). Mon UA · Tue LA · Wed rest · Thu UB · Fri LB · Sat Heart Day · Sun rest.
+ * then 10–12 min Zone 2 on the bike (≤ 60 min visit). From v3: Sat UA · Sun LA · Mon rest · Tue UB · Wed LB · Thu Boxing Day
+ * (replaces the Saturday Heart Day, boxing.js) · Fri rest. v1–v2 ran Mon UA · Tue LA · Thu UB · Fri LB · Sat Heart Day.
  * Legacy item ids are kept where the exercise is the same, so session history lines up.
  */
 export const PULLUP_NOTE = 'لما تعمل 3×8 عقلة بوزن جسمك عند RIR 2 ارجع للعقلة';
 PROGRAMS.ul4c = {
-  id: 'ul4c', name: 'أعلى/أسفل', version: 2, perWeek: 4, note: 'كل عضلة مرتين · سوبر سِت · رفع ~48 د + Zone 2 · أقل من 60 دقيقة',
+  id: 'ul4c', name: 'أعلى/أسفل', version: 3, perWeek: 4, note: 'كل عضلة مرتين · سوبر سِت · رفع ~48 د + Zone 2 · أقل من 60 دقيقة · الخميس ملاكمة',
   order: ['upperA', 'lowerA', 'upperB', 'lowerB'],
-  schedule: { 1: 'upperA', 2: 'lowerA', 4: 'upperB', 5: 'lowerB' }, heartDow: HEART_DOW.ul4c, z2: true, meso: true,
+  schedule: { 6: 'upperA', 0: 'lowerA', 2: 'upperB', 3: 'lowerB' }, heartDow: HEART_DOW.ul4c, z2: true, meso: true,
+  trainingDays: UL4C_TRAINING_DAYS, boxing: true,
+  // boxing loads the side delts: −1 set on these lateral-raise slots (−2 weekly sets, logic.js boxingAdjust)
+  boxDeltCut: ['laLR', 'lbLR'],
   days: {
     upperA: { name: 'Upper A', warm: [[0, 8], [60, 5], [80, 2]], warmNote: 'دقيقة تسخين عام + مجموعات البنش التمهيدية + سحب أمامي خفيف ×8',
       items: P([
@@ -303,6 +307,15 @@ export const PLAN_UPDATES = Object.freeze({
         { day: 'lowerA', id: 'la1', set: { r1: '6-10' }, why: 'أول 6 أسابيع: 6–10 عدّات للتكنيك، بعدها 5–8' },
       ],
       warmNote: { upperA: true },
+    },
+    3: {
+      title: 'الخميس يوم الملاكمة بدل يوم القلب · جدول جديد',
+      changes: [],
+      // weekday → day; applied only when his schedule is still the old one (he never moved a day himself)
+      schedule: { from: { 1: 'upperA', 2: 'lowerA', 4: 'upperB', 5: 'lowerB' }, to: { 6: 'upperA', 0: 'lowerA', 2: 'upperB', 3: 'lowerB' },
+        trainingDays: { from: UL4C_LEGACY_TRAINING_DAYS, to: UL4C_TRAINING_DAYS },
+        why: 'الملاكمة بعد يوم رجل بـ 24 ساعة، ويوم راحة قبل Upper A' },
+      boxing: { why: 'جولات شوال + تكنيك 35 د، ومعاها بلوك الضغط الثابت وقاع الحوض زي يوم القلب' },
     },
   },
 });

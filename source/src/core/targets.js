@@ -1,7 +1,7 @@
 // Day type (training/rest) from the training schedule, per-day-type targets, and portion math.
 // The only place macros are computed. Validation REPORTS problems; it never silently "fixes" numbers.
 
-import { DEFAULT_TARGETS, LEGACY_DEFAULT_TARGETS, DEFAULT_HEIGHT_CM, DEFAULT_BODY_KG, DEFAULT_TRAINING_DAYS, DAY_TYPES, HEART_DOW, DEFAULT_PROGRAM_ID, num } from './schema.js';
+import { DEFAULT_TARGETS, LEGACY_DEFAULT_TARGETS, DEFAULT_HEIGHT_CM, DEFAULT_BODY_KG, DEFAULT_TRAINING_DAYS, DAY_TYPES, HEART_DOW, CARDIO_DAY, cardioDayOf, DEFAULT_PROGRAM_ID, num } from './schema.js';
 import { weekday, isDayKey, addDays, diffDays } from './date.js';
 
 export const QTY_MIN_EXCLUSIVE = 0;
@@ -40,18 +40,24 @@ export function dayType(day, { trainingDays = DEFAULT_TRAINING_DAYS, overrides =
  * a v2 record → its template's day (null for custom/imported); a legacy Solo Gym record → null; nothing stored → default plan.
  */
 export function heartDowOf(rec) {
-  if (rec && rec.v === 2 && rec.days && Array.isArray(rec.order) && rec.order.length) {
-    const d = HEART_DOW[rec.activeProgram];
-    return Number.isInteger(d) ? d : null;
-  }
+  return cardioOf(rec)?.dow ?? null;
+}
+/**
+ * The weekly cardio day for a stored program record: {dow, kind:'boxing'|'heart'} | null. Same rules as heartDowOf
+ * (v2 record → its template + version; legacy Solo Gym record → none; nothing stored → the default plan, v3 = Thursday boxing).
+ */
+export function cardioOf(rec) {
+  if (rec && rec.v === 2 && rec.days && Array.isArray(rec.order) && rec.order.length) return cardioDayOf(rec);
   if (rec && rec.days && typeof rec.days === 'object' && !Array.isArray(rec.days)
     && Object.values(rec.days).some((d) => d && Array.isArray(d.exercises) && d.exercises.some((e) => e && !e.isWarmup))) return null;
-  return HEART_DOW[DEFAULT_PROGRAM_ID] ?? null;
+  return HEART_DOW[DEFAULT_PROGRAM_ID] === undefined ? null : { dow: HEART_DOW[DEFAULT_PROGRAM_ID], kind: CARDIO_DAY[DEFAULT_PROGRAM_ID]?.kind || 'heart' };
 }
 
-/** Days with a finished Heart Day session ({kind:'heart', mode:'heart'}; the 10-min isometric block alone does not count). */
+/** Kinds of a finished session that make the day a cardio ('heart' type) day: Heart Day and Boxing Day. */
+export const CARDIO_KINDS = Object.freeze(['heart', 'boxing']);
+/** Days with a finished Heart Day or Boxing Day session (the 10-min isometric block alone does not count). */
 export function heartDaysOf(sessions = []) {
-  return new Set((sessions || []).filter((s) => s && s.kind === 'heart' && s.mode !== 'iso' && isDayKey(s.day) && !s.discarded
+  return new Set((sessions || []).filter((s) => s && CARDIO_KINDS.includes(s.kind) && s.mode !== 'iso' && isDayKey(s.day) && !s.discarded
     && s.status !== 'active' && s.status !== 'running').map((s) => s.day));
 }
 

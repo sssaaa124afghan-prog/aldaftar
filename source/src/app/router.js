@@ -3,6 +3,7 @@ import { h, raw } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
 import { needsOnboarding, markOnboardingSeen } from './onboarding-gate.js';
 import { runTargetsMigration } from '../core/targets.js';
+import { pinTrainingDays } from '../core/schema.js';
 import { navDir, keyboardOpen, motionOK, revealBelowFold } from '../ui/motion.js';
 
 const loaders = import.meta.glob('../features/*/index.js');
@@ -66,7 +67,16 @@ export function startRouter({ view, nav, ctx }) {
     if (r.changed) ctx.emit('settings:changed', { key: 'targets' });
     if (r.toast) ctx.toast(r.toast, { ms: 8000 });
   }).catch((e) => console.warn('[boot] targets migration failed', e && e.message));
+  // training-days default moved to plan v3: pin the old days for installs that never saved them and still run an older layout
+  // (the first render waits for it, so Today never shows a day type from the wrong layout)
+  const pinReady = ctx.settings && typeof ctx.settings.has === 'function' && !ctx.settings.has('trainingDays')
+    ? Promise.resolve().then(() => ctx.db.get('programs', 'current')).then((rec) => {
+      const pin = pinTrainingDays(rec);
+      return pin ? ctx.settings.set('trainingDays', pin) : null;
+    }).catch((e) => console.warn('[boot] training days pin failed', e && e.message))
+    : null;
   async function render() {
+    if (pinReady) await pinReady;
     const my = ++seq;
     const cur = parseHash().route;
     if (lastRoute !== null && cur !== lastRoute) window.dispatchEvent(new CustomEvent('app:route-leave', { detail: { route: cur } })); // close open sheets
@@ -149,7 +159,7 @@ async function transition(view, dir, swap) {
 // Floating «اسأل المدرب» button on every main screen (hidden where it would clash: live session, coach, migration).
 let fab = null;
 function syncCoachFab(route, ctx) {
-  const hide = /^(coach|nutrition\/coach|workout\/session|workout\/recovery|profile\/migrate|profile\/welcome)/.test(route);
+  const hide = /^(coach|nutrition\/coach|workout\/session|workout\/recovery|workout\/boxing|profile\/migrate|profile\/welcome)/.test(route);
   if (!fab) {
     fab = h('button', { type: 'button', class: 'coach-fab', 'aria-label': 'اسأل المدرب', title: 'اسأل المدرب' });
     fab.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>المدرب</span>';

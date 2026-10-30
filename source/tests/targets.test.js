@@ -100,9 +100,14 @@ test('heart day type (S2): program heartDow or a logged Heart Day session → 25
   assert.equal(withDayTypes(null).isDefault, true);
   assert.equal(setTargets(withDayTypes(old), 'heart', { kcal: 2400, p: 165, c: 270, f: 70 }).targets.heart.kcal, 2400);
   assert.equal(kcalFromMacros(DEFAULT_TARGETS.heart), 2550);
-  // heartDowOf mirrors the workout normalizeProgram(): none stored → default plan (Saturday); old plan / custom / Solo Gym → none
-  assert.equal(heartDowOf(null), 6);
+  // heartDowOf mirrors the workout normalizeProgram(): none stored → default plan (v3: Thursday boxing); a ul4c record without tv
+  // (v1–v2) keeps the Saturday Heart Day until the «تحديث الخطة» card; old plan / custom / Solo Gym → none
+  assert.equal(heartDowOf(null), 4);
   assert.equal(heartDowOf({ v: 2, activeProgram: 'ul4c', order: ['upperA'], days: { upperA: {} } }), 6);
+  assert.equal(heartDowOf({ v: 2, activeProgram: 'ul4c', tv: 2, order: ['upperA'], days: { upperA: {} } }), 6);
+  assert.equal(heartDowOf({ v: 2, activeProgram: 'ul4c', tv: 3, order: ['upperA'], days: { upperA: {} }, schedule: { 6: 'upperA' } }), 4);
+  // v3 but he kept his old days (Thursday is a lifting day) → boxing moves to the free Saturday
+  assert.equal(heartDowOf({ v: 2, activeProgram: 'ul4c', tv: 3, order: ['upperA'], days: { upperA: {} }, schedule: { 1: 'upperA', 4: 'upperA' } }), 6);
   assert.equal(heartDowOf({ v: 2, activeProgram: 'ul4', order: ['a'], days: { a: {} } }), null);
   assert.equal(heartDowOf({ v: 2, activeProgram: 'custom', order: ['a'], days: { a: {} } }), null);
   assert.equal(heartDowOf({ days: { d1: { exercises: [{ name: 'Bench' }] } } }), null);

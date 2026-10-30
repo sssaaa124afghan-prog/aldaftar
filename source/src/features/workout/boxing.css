@@ -1,0 +1,61 @@
+/* Boxing Day (boxing.js): round timer, combo of the week, RPE chips. Tokens only; builds on health.css (hk-*). */
+.bx-root{padding-bottom:var(--s6)}
+.bx-root [hidden]{display:none!important}
+.bx-stage{display:flex;flex-direction:column;align-items:center;gap:var(--s3);margin-top:var(--s2);text-align:center}
+.bx-ring{width:232px;height:232px}
+.bx-ring .c{gap:2px}
+.bx-clock{font-size:calc(var(--t-40) * 1.5);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.bx-tag{font-size:var(--t-14);color:var(--mu)}
+.bx-info{display:grid;gap:var(--s1);justify-items:center;min-width:0;width:100%}
+.bx-round{font:700 var(--t-20)/1.2 var(--f);color:var(--tx)}
+.bx-name{font:600 var(--t-16)/1.3 var(--f);margin:0}
+.bx-sub{font-size:var(--t-14);line-height:var(--lh);max-width:34ch}
+.bx-now-combo{display:grid;gap:2px;justify-items:center;padding:var(--s3) var(--s4);border-radius:var(--r-inner);background:var(--glass-2);border:1px solid var(--edge);width:100%}
+.bx-k{font:600 var(--t-12)/1.3 var(--f);color:var(--mu)}
+.bx-combo{display:grid;gap:2px;justify-items:start;margin:0}
+.bx-now-combo .bx-combo{justify-items:center}
+.bx-code{font:800 var(--t-28)/1.15 var(--f);color:var(--orange);overflow-wrap:anywhere}
+.bx-combo.big .bx-code{font-size:var(--t-40)}
+.bx-combo small{font-size:var(--t-14);color:var(--mu)}
+.bx-player[data-kind="bag"] .bx-round{color:var(--orange)}
+.bx-player.is-warn .bx-clock{color:var(--amber)}
+.bx-ctrls .bx-ctl,.bx-ctrls .btn{min-height:var(--tap,48px);min-width:var(--tap,48px)}
+.bx-play{gap:var(--s2)}
+.bx-pi{display:inline-grid;place-items:center}
+.bx-play svg{width:18px;height:18px}
+.bx-end{margin-top:var(--s3);width:100%}
+.bx-rpe{margin-top:var(--s3);padding:var(--s3);border-radius:var(--r-inner);background:var(--glass-2);border:1px solid var(--edge)}
+.bx-rpe-q{font:600 var(--t-14)/1.4 var(--f);margin-bottom:var(--s2)}
+.bx-rpe-chips{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--s2)}
+.bx-rpe-chips .chip{min-height:44px;min-width:44px;justify-content:center;padding:0}
+.bx-rpe .wk-hint{margin-top:var(--s2)}
+.bx-all{margin-top:var(--s3)}
+.bx-all summary small{margin-inline-start:var(--s2);color:var(--mu);font-size:var(--t-12)}
+.bx-summary{margin-top:var(--s3)}
+.bx-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2);text-align:center}
+.bx-sum div{padding:var(--s3) var(--s2);border-radius:var(--r-inner);background:var(--glass-2)}
+.bx-sum small{display:block;font-size:var(--t-12);color:var(--mu)}
+.bx-sum b{font:700 var(--t-24)/1.2 var(--f)}
+.bx-len{margin:var(--s4) var(--gutter) 0}
+.bx-len .chips{display:flex;gap:var(--s2);flex-wrap:wrap}
+.bx-len .chip{min-height:var(--tap);padding-inline:var(--s4)}
+.bx-len .wk-muted{margin-top:var(--s2);font-size:var(--t-14)}
+.bx-week h3 small{display:block;margin:2px 0 0}
+.bx-week h4{margin-top:var(--s4)}
+.bx-cues{list-style:none;display:grid;gap:var(--s2)}
+.bx-cues li{position:relative;padding-inline-start:var(--s4);font-size:var(--t-14);line-height:var(--lh)}
+.bx-cues li::before{content:"";position:absolute;inset-inline-start:0;top:.6em;width:6px;height:6px;border-radius:50%;background:var(--orange)}
+.bx-cues.x li::before{background:var(--mu-3)}
+.bx-mis{margin-top:var(--s3)}
+.bx-vids{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s2)}
+.bx-vids .wk-vid{max-width:100%}
+.bx-wstat{margin-top:var(--s3)}
+.bx-pick{margin:var(--s4) var(--gutter) 0}
+.bx-pick select{max-width:100%}
+.bx-note .btn{margin-top:var(--s3)}
+@media (min-width:720px){
+  .bx-stage{flex-direction:row;text-align:start;align-items:center}
+  .bx-info{justify-items:start}
+  .bx-now-combo,.bx-now-combo .bx-combo{justify-items:start}
+}
+@media (prefers-reduced-motion:reduce){.bx-player *{transition:none!important;animation:none!important}}

@@ -8,6 +8,7 @@ import { renderRecovery } from './recovery.js';
 import './health.css';
 import { renderHeart } from './heart.js';
 import { renderKegel } from './kegel.js';
+import { renderBoxing } from './boxing.js';
 import { renderLibrary } from './library.js';
 import { renderTools } from './tools.js';
 import { renderInjuries } from './injuries.js';
@@ -37,6 +38,7 @@ export const routes = {
   'workout/recovery': wrap(renderRecovery),
   'workout/heart': wrap(renderHeart),
   'workout/kegel': wrap(renderKegel),
+  'workout/boxing': wrap(renderBoxing), // Thursday Boxing Day (replaces the Heart Day from plan v3)
   'workout/library': wrap(renderLibrary),
   'workout/tools': wrap(renderTools),
   'workout/injuries': wrap(renderInjuries),

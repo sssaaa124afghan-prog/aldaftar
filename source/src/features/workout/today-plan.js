@@ -1,10 +1,13 @@
 // Today's plan glue for the overview: new-plan confirm card, «معاك كام دقيقة؟» time chips with the autopilot diff,
 // and the start-time computation (mesocycle week, auto-deload in week 6, weekly balance, carry-over ledger).
-import { h, N, ico, safeWrite } from './view.js';
+import { h, N, ico, safeWrite, bidiRanges } from './view.js';
 import * as L from './logic.js';
 import { NEW_PROGRAM, PROGRAMS } from './exercises.js';
 import { loadAll, loadProgram, saveProgram, loadTraining, patchTraining } from './store.js';
 import { weekday } from '../../core/date.js';
+import { boxingToday, boxingBudget } from './boxing-plan.js';
+import { latestBP } from './bp.js';
+import { UL4C_TRAINING_DAYS } from '../../core/schema.js';
 import './plan.css';
 
 export const BUDGETS = [30, 45, 60, 75];
@@ -31,14 +34,15 @@ export function prepareStart(ctx, { program, sessions, training, dayId, budget =
 }
 
 // ══ "What is planned today?" — ONE answer for Today and the Workout overview (UX B6) ══
-/** Training days when the user never set them: the 4-day plan's Mon/Tue/Thu/Fri (same default as Today). */
-export const DEFAULT_TRAINING_DAYS = Object.freeze([1, 2, 4, 5]);
+/** Training days when the user never set them: the 4-day plan v3 Sat/Sun/Tue/Wed (same default as ctx settings). */
+export const DEFAULT_TRAINING_DAYS = UL4C_TRAINING_DAYS;
 const trainingDaysOf = (ctx) => { const d = ctx.settings.get('trainingDays'); return Array.isArray(d) && d.length ? d : [...DEFAULT_TRAINING_DAYS]; };
 
 /**
  * Sync core of todayPlan for callers that already hold the data (the overview).
  * → {day, kind, dayId, name, exercises, minutes, z2, total, week, deload, isTrainDay, heartDay, trainingDays, live, doneToday, prep, program}
- *   kind: 'active' (a session is running) | 'done' (lifting finished today) | 'training' | 'heart' (Heart Day) | 'rest'
+ *   kind: 'active' (a session is running) | 'done' (lifting finished today) | 'training' | 'heart' (the cardio day) | 'rest'
+ *   cardio: 'boxing' (Thursday Boxing Day, plan v3) | 'heart' (Saturday Heart Day, plan v1–v2) | null — what the cardio day is
  *   dayId/name: the planned program day (`dayId` param overrides it, e.g. the overview's ?day=); minutes = lifting incl. warm-up
  *   after weekly balance + the «معاك كام دقيقة؟» budget; z2 = Zone 2 finisher; total = minutes + z2.
  */
@@ -49,7 +53,7 @@ export function planForDay(ctx, { program, sessions = [], training = {}, day = c
   const trainingDays = trainingDaysOf(ctx);
   const dow = weekday(day);
   const isTrainDay = trainingDays.includes(dow);
-  const { heartDow } = L.programFlags(program);
+  const { heartDow, cardio } = L.programFlags(program);
   const heartDay = heartDow !== null && heartDow !== undefined && dow === heartDow && !isTrainDay;
   const id = program.days[dayId] ? dayId : L.nextDayId(program, done, day);
   const d = program.days[id];
@@ -58,7 +62,7 @@ export function planForDay(ctx, { program, sessions = [], training = {}, day = c
   const kind = live ? 'active' : doneToday ? 'done' : isTrainDay ? 'training' : heartDay ? 'heart' : 'rest';
   return { day, kind, dayId: id, name: d ? d.name : '', exercises: d ? d.items.length : 0,
     minutes: prep ? prep.plan.minutes : 0, z2: prep ? prep.plan.z2 || 0 : 0, total: prep ? prep.plan.total || prep.plan.minutes : 0,
-    week: prep ? prep.week ?? null : null, deload: !!prep?.deload, isTrainDay, heartDay, trainingDays, live, doneToday, prep, program };
+    week: prep ? prep.week ?? null : null, deload: !!prep?.deload, isTrainDay, heartDay, cardio: heartDay ? cardio : null, trainingDays, live, doneToday, prep, program };
 }
 
 /**
@@ -99,8 +103,8 @@ export function newPlanCard(ctx, { program, training, onDone }) {
     h('h3', { id: 'wk-np-h' }, 'خطة جديدة جاهزة', h('small', {}, 'أعلى/أسفل · 4 أيام')),
     h('p', { class: 'wk-muted' }, t.note),
     h('ul', { class: 'wk-np-list' },
-      h('li', {}, 'الاتنين Upper A · التلات Lower A · الخميس Upper B · الجمعة Lower B'),
-      h('li', {}, 'السبت يوم القلب ٣٠ د · الأربع والحد راحة ومشي'),
+      h('li', {}, 'السبت Upper A · الحد Lower A · التلات Upper B · الأربع Lower B'),
+      h('li', {}, 'الخميس يوم الملاكمة ٣٥ د · الاتنين والجمعة راحة ومشي'),
       h('li', {}, 'دورة ٦ أسابيع: الأسبوع السادس تخفيف تلقائي')),
     h('p', { class: 'wk-muted' }, 'خطتك الحالية هتتحفظ باسم «', OLD_NAME, '» وتقدر ترجعلها من شاشة الخطة.'),
     h('div', { class: 'btn-row' },
@@ -122,7 +126,7 @@ export async function activateNewPlan(ctx, training = {}) {
     await patchTraining(ctx.db, { newPlan: { decided: 'on', at: today }, carry: {} });
   });
   if (!ok) return false;
-  try { await ctx.settings.set('trainingDays', [1, 2, 4, 5]); } catch { /* settings are best effort */ }
+  try { await ctx.settings.set('trainingDays', [...(PROGRAMS[NEW_PROGRAM].trainingDays || [1, 2, 4, 5])]); } catch { /* settings are best effort */ }
   ctx.emit('session:changed', { state: 'plan' });
   ctx.toast('الخطة الجديدة اتفعّلت · خطتك القديمة محفوظة', { action: { label: 'تراجع', run: async () => {
     const { rec: r2 } = await loadProgram(ctx.db);
@@ -137,10 +141,27 @@ export async function activateNewPlan(ctx, training = {}) {
   return true;
 }
 
-/** Saturday on the new plan: the Heart Day card (route owned by heart.js). */
-export function heartDayCard(program, today, weekdayOf) {
-  const { heartDow } = L.programFlags(program);
+/**
+ * Boxing Day for a date (plan v3 cardio day): this week's curriculum week, combo, technique-only reason, planned minutes.
+ * opts: {program, training, health, settings} → boxingToday() result + {minutes} | null when the cardio day is not boxing.
+ */
+export function boxingDayInfo(ctx, { program, training = {}, health = {}, day = ctx.today() }) {
+  if (!L.programFlags(program).boxing) return null;
+  let reentry = null; try { reentry = L.reentryInfo(ctx.settings, day); } catch { /* none */ }
+  const t = boxingToday({ startDay: program.startDay, today: day, reentry, deload: training.deload, bp: health.bp || [], budgetMin: boxingBudget(L.budgetFor(day)) });
+  return { ...t, minutes: t.plan ? Math.round(t.plan.total / 60) : 0, lastBP: latestBP(health.bp || []) };
+}
+
+/** The cardio-day card: Thursday Boxing Day (boxing.js) on plan v3, else the Saturday Heart Day (heart.js). */
+export function heartDayCard(program, today, weekdayOf, box = null) {
+  const { heartDow, boxing } = L.programFlags(program);
   if (heartDow === null || weekdayOf(today) !== heartDow) return null;
+  if (boxing) {
+    const sub = box ? (box.gate?.stop ? 'ضغطك عالي جداً: مفيش تمرين النهارده' : ['كومبو الأسبوع ', ...bidiRanges(box.cw.combo.code), ' · ', N(String(box.minutes)), ' د', box.tech ? ' · تكنيك بس' : '']) : 'شوال + تكنيك · 35 دقيقة';
+    return h('a', { class: 'wk-recov glass wk-box', href: '#/workout/boxing', dataset: { fk: 'boxday' } },
+      h('span', { class: 'ic' }, ico('bolt')),
+      h('span', { class: 'grow' }, h('b', {}, 'يوم الملاكمة'), h('small', {}, ...[].concat(sub))), ico('chevron'));
+  }
   return h('a', { class: 'wk-recov glass', href: '#/workout/heart' },
     h('span', { class: 'ic' }, ico('heart')),
     h('span', { class: 'grow' }, h('b', {}, 'يوم القلب'), h('small', {}, '30 دقيقة · Zone 2 أو فترات + ضغط ثابت + قاع الحوض')), ico('chevron'));

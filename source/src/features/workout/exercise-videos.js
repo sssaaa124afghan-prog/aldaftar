@@ -6,6 +6,7 @@
 // To re-check every id:  node scripts/check-videos.mjs
 import { h, ico } from './view.js';
 import { libById, findLib } from './exercises.js';
+import { BOX_VIDEOS } from './boxing-videos.js';
 
 export const VERIFIED = '2026-10-24';
 const v = (id, channel, title, dur) => Object.freeze({ id, channel, title, dur, verified: VERIFIED });
@@ -45,6 +46,8 @@ export const VIDEOS = Object.freeze({
   "ex72": v("cJRVVxmytaM", "ScottHermanFitness", "How To: Dumbbell Shrugs", "1:42"),
   "wallsit": v("RG7z0P9qrLk", "E3 Rehab Exercise Library", "Wall Sit", "0:11"),
   "kegel": v("MJ7EfGu03-0", "Michelle Kenway", "Kegel Exercises for Men - Beginners Pelvic Floor Strengthening Guide", "6:35"),
+  // Boxing Day technique videos (boxing-videos.js, keys 'box.*')
+  ...BOX_VIDEOS,
 });
 
 const YT = 'https://www.youtube.com/';

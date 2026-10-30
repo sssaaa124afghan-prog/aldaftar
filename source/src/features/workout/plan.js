@@ -18,26 +18,33 @@ const DMY = (d) => { try { const [y, m, dd] = d.split('-'); return `${+dd}/${+m}
 export function planUpdateCard(ctx, { program, rec, onDone }) {
   const u = L.planUpdate(program);
   if (!u) return null;
-  const save = async (next, msg) => {
+  // td: training days that go with a schedule change (plan v3: Sat/Sun/Tue/Wed); restored on Undo
+  const save = async (next, msg, td = null) => {
     const before = { ...program };
+    const tdBefore = ctx.settings.get('trainingDays') || null;
     let r1 = rec;
     if (!(await safeWrite(ctx, async () => { r1 = await saveProgram(ctx.db, next, rec); }))) return;
+    if (td) { try { await ctx.settings.set('trainingDays', td); } catch { /* settings are best effort */ } }
     ctx.emit('session:changed', { state: 'plan' });
     ctx.toast(msg, { action: { label: 'تراجع', run: async () => {
-      if (await safeWrite(ctx, () => saveProgram(ctx.db, { ...before, tv: before.tv }, r1))) { ctx.emit('session:changed', { state: 'plan' }); onDone(); }
+      if (await safeWrite(ctx, () => saveProgram(ctx.db, { ...before, tv: before.tv }, r1))) {
+        if (td && tdBefore) { try { await ctx.settings.set('trainingDays', tdBefore); } catch { /* ignore */ } }
+        ctx.emit('session:changed', { state: 'plan' }); onDone();
+      }
     } } });
     onDone();
   };
+  const sched = u.changes.find((c) => c.kind === 'schedule');
   return h('section', { class: 'sheet-card wk-newplan wk-planup', 'aria-labelledby': 'wk-pu-h', dataset: { fk: 'planup' } },
     h('h3', { id: 'wk-pu-h' }, 'تحديث الخطة', h('small', {}, u.title)),
     h('ul', { class: 'wk-np-list' }, ...u.changes.map((c) => h('li', { class: c.ok ? null : 'wk-muted' },
       h('b', {}, c.text), c.ok ? null : ' (اتغيّر عندك، هنسيبه)', c.why ? h('small', { class: 'wk-muted' }, ' · ', c.why) : null))),
-    h('p', { class: 'wk-muted' }, 'نفس المجموعات والراحة والوقت. سجلّك القديم محفوظ.'),
+    h('p', { class: 'wk-muted' }, sched ? 'نفس التمارين والمجموعات. أيام التمرين بتتغيّر معاها. سجلّك القديم محفوظ.' : 'نفس المجموعات والراحة والوقت. سجلّك القديم محفوظ.'),
     h('div', { class: 'btn-row' },
       h('button', { type: 'button', class: 'btn sm', dataset: { fk: 'pu-on' }, disabled: u.applicable ? null : true,
-        onclick: () => { const r = L.applyPlanUpdate(program); return save(r.program, `اتحدّثت الخطة · ${r.applied.length} تعديل`); } }, 'طبّق التحديث'),
+        onclick: () => { const r = L.applyPlanUpdate(program); return save(r.program, `اتحدّثت الخطة · ${r.applied.length} تعديل`, r.trainingDays); } }, 'طبّق التحديث'),
       h('button', { type: 'button', class: 'btn ghost sm', dataset: { fk: 'pu-keep' },
-        onclick: () => save({ ...program, tv: TPL[program.activeProgram].version }, 'خطتك زي ما هي') }, 'خلّيها زي ما هي')));
+        onclick: () => save({ ...program, tv: TPL[program.activeProgram].version }, sched ? 'أيامك زي ما هي · الملاكمة يوم السبت' : 'خطتك زي ما هي') }, 'خلّيها زي ما هي')));
 }
 
 export async function renderPlan(el, ctx, params = {}) {

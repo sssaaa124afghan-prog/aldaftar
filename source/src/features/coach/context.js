@@ -1,7 +1,8 @@
 // Rich coach context (AI2): training + nutrition summary, block-selected by intent.
 // Privacy whitelist: body metrics only (age, sex, height, weight, measurements). Never name, job, location, email…
 import { addDays, diffDays, weekStart, isDayKey } from '../../core/date.js';
-import { sumEntries, targetsForDay, heartDaysOf, heartDowOf, withDayTypes } from '../../core/targets.js';
+import { sumEntries, targetsForDay, heartDaysOf, heartDowOf, cardioOf, withDayTypes } from '../../core/targets.js';
+import { boxingContextLines } from '../workout/boxing-plan.js';
 import { DEFAULT_TARGETS } from '../../core/schema.js';
 import * as WK from '../workout/logic.js';
 import * as NU from '../nutrition/logic.js';
@@ -77,7 +78,7 @@ export function buildContext(data, { blocks = ALL_BLOCKS, extra = null } = {}) {
 
   if (want.has('today') && today) {
     const t = tOf(today); const es = foodLog[today] || []; const sum = sumEntries(es);
-    L.push(`Today ${today} (${t.type === 'training' ? 'training day' : t.type === 'heart' ? 'heart day: 30 min cardio, no lifting' : 'rest day'}): target ${t.kcal} kcal P${t.p} C${t.c} F${t.f}; eaten ${Math.round(sum.kcal)} kcal P${r1(sum.p)} C${r1(sum.c)} F${r1(sum.f)}; left ${Math.round(t.kcal - sum.kcal)} kcal, ${r1(Math.max(0, t.p - sum.p))} g protein`);
+    L.push(`Today ${today} (${t.type === 'training' ? 'training day' : t.type === 'heart' ? (data.cardio === 'boxing' ? 'boxing day: 30–40 min heavy bag + technique, no lifting' : 'heart day: 30 min cardio, no lifting') : 'rest day'}): target ${t.kcal} kcal P${t.p} C${t.c} F${t.f}; eaten ${Math.round(sum.kcal)} kcal P${r1(sum.p)} C${r1(sum.c)} F${r1(sum.f)}; left ${Math.round(t.kcal - sum.kcal)} kcal, ${r1(Math.max(0, t.p - sum.p))} g protein`);
     if (es.length) L.push(`Today entries: ${es.slice(0, 20).map((e) => `[${s(e.id, 40)}] ${NU.SECTION_LABEL[NU.sectionOf(e)] || ''} ${s(e.name, 40)} ${e.qty || ''}${e.unit ? s(e.unit, 8) : ''} ${Math.round(e.kcal || 0)}kcal P${r1(+e.p || 0)}`).join(' | ')}`);
     const d = daily[today] || {};
     if (d.waterMl > 0) L.push(`Water today: ${d.waterMl} ml`);
@@ -138,6 +139,12 @@ export function buildContext(data, { blocks = ALL_BLOCKS, extra = null } = {}) {
   }
 
   if (want.has('program') && data.program && Array.isArray(data.program.order)) L.push(...programLines(data, sessions, today));
+  if (want.has('boxing') && today && data.program && data.cardio === 'boxing') {
+    try {
+      const f = WK.programFlags(data.program);
+      L.push(...boxingContextLines({ startDay: data.program.startDay, today, deload: (data.training || {}).deload, bp: data.bp || [], sessions, dow: f.heartDow, startDow }));
+    } catch { /* optional block */ }
+  }
 
   if (want.has('injuries')) {
     const inj = Array.isArray((data.training || {}).injuries) ? data.training.injuries : [];
@@ -206,7 +213,7 @@ export function programLines(data, sessions, today) {
     let mins = null; try { mins = WK.estimateMinutes(d.items); } catch { /* ignore */ }
     out.push(`- ${s(id, 20)} «${s(d.name, 24)}»${mins ? ` ~${mins}min lifting` : ''}: ${d.items.slice(0, 12).map((it) => `${s(it.id, 20)}/${s(it.lib || '-', 12)} ${s(it.ar, 28)} ${it.sets}×${s(it.reps, 12)}${it.restS ? ` r${it.restS}` : ''}${it.ss ? ` ss${it.ss}` : ''}`).join('; ')}`);
   }
-  const wk = weeklyPlanned(pg);
+  const wk = weeklyPlanned(WK.boxingAdjust(pg).program); // Boxing Day: side delts −2 weekly sets
   out.push(`Planned weekly sets per muscle [MEV-MRV]: ${Object.keys(MUSCLE_LM).filter((m) => wk[m] !== undefined).map((m) => `${m} ${wk[m]} [${MUSCLE_LM[m].mev}-${MUSCLE_LM[m].mrv}]`).join(', ')}`);
   if (today) {
     let nid = null; try { nid = WK.nextDayId(pg, sessions, today); } catch { /* ignore */ }
@@ -230,9 +237,9 @@ export async function loadCoachData(ctx) {
   const db = ctx.db; const today = ctx.today();
   const all = async (st) => { try { return await db.getAll(st); } catch { return []; } };
   const kv = async (k) => { try { const r = await db.get('kv', k); return r && r.value && typeof r.value === 'object' ? r.value : {}; } catch { return {}; } };
-  const [prof, weights, sessions, logs, dailyRows, measurements, targets, training, progress, nutrition, programRec] = await Promise.all([
+  const [prof, weights, sessions, logs, dailyRows, measurements, targets, training, progress, nutrition, programRec, health] = await Promise.all([
     db.get('profile', 'me').catch(() => null), all('bodyweight'), all('sessions'), all('foodLog'), all('daily'), all('measurements'),
-    kv('targets'), kv('training'), kv('progress'), kv('nutrition'), db.get('programs', 'current').catch(() => null)]);
+    kv('targets'), kv('training'), kv('progress'), kv('nutrition'), db.get('programs', 'current').catch(() => null), kv('health')]);
   const foodLog = {}; for (const r of logs) if (r && isDayKey(r.day) && Array.isArray(r.entries)) foodLog[r.day] = r.entries;
   const daily = {}; for (const r of dailyRows) if (r && isDayKey(r.day)) daily[r.day] = r;
   const p = prof || {};
@@ -241,7 +248,8 @@ export async function loadCoachData(ctx) {
     today, startDow: Number(ctx.settings.get('weekStart')) || 1, trainingDays: ctx.settings.get('trainingDays'),
     profile: { age, sex: p.sex || null, heightCm: p.heightCm || null }, // whitelist: no name / identifiers
     weights, sessions, foodLog, daily, measurements, targets: targets.training && targets.rest ? targets : null,
-    overrides: nutrition.dayTypeOverrides || {}, heartDow: heartDowOf(programRec), training, progress, nutrition,
+    overrides: nutrition.dayTypeOverrides || {}, heartDow: heartDowOf(programRec), cardio: cardioOf(programRec)?.kind || null, training, progress, nutrition,
+    bp: Array.isArray(health.bp) ? health.bp : [], // only used to pick the boxing mode; readings never enter the context text
     program: (() => { try { return WK.normalizeProgram(programRec); } catch { return null; } })(),
   };
 }

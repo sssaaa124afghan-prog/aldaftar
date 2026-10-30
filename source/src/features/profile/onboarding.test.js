@@ -6,7 +6,7 @@ test('onboarding defaults (owner): 72 kg, 175 cm, Mon/Tue/Thu/Fri, returning →
   const r = onboardingResult({ kg: String(OB_DEFAULTS.kg), heightCm: '175', days: [...OB_DEFAULTS.trainingDays], returning: true, today: '2026-10-20' });
   assert.deepEqual(r.weight, { kg: 72 });
   assert.deepEqual(r.profile, { heightCm: 175, age: 27 });
-  assert.deepEqual(r.settings.trainingDays, [1, 2, 4, 5]);
+  assert.deepEqual(r.settings.trainingDays, [0, 2, 3, 6]); // plan v3: Sat/Sun/Tue/Wed lifting, Thursday boxing
   assert.deepEqual(r.settings['wk.reentry'], { startDay: '2026-10-20', weeks: 2 });
   assert.equal(r.settings.onboarded, '2026-10-20');
 });

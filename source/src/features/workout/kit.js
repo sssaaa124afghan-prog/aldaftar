@@ -66,6 +66,28 @@ export function notifyRestEnd(ctx, body) {
     return true;
   } catch { return false; }
 }
+/**
+ * Phase-end alert on a locked screen for the guided timers (boxing rounds), on the rest timer's path: the page posts
+ * {type:'wk-rest', at, title, options} to the service worker (public/sw.js keeps itself alive until `at`), or arms a page
+ * timer when there is no SW. Same tag 'wk-rest', so it never doubles with a rest alert. Opt-in (wk.notify + permission).
+ */
+let phaseT = 0;
+export const notifyReady = (ctx) => pref(ctx, 'notify') && typeof Notification !== 'undefined' && Notification.permission === 'granted';
+export async function armPhaseNotice(ctx, { at, title, body = '', url = '#/workout' }) {
+  cancelPhaseNotice();
+  if (!notifyReady(ctx) || !(at > Date.now() + 500)) return false;
+  const options = { body, tag: 'wk-rest', renotify: true, silent: false, vibrate: [200, 100, 200, 100, 300], timestamp: at, data: { url } };
+  try {
+    const reg = navigator.serviceWorker && navigator.serviceWorker.getRegistration ? await navigator.serviceWorker.getRegistration() : null;
+    if (reg && reg.active) { reg.active.postMessage({ type: 'wk-rest', at, title, options }); return true; }
+  } catch { /* fall back to the page timer */ }
+  phaseT = setTimeout(() => { phaseT = 0; try { if (document.visibilityState !== 'visible') new Notification(title, options); } catch { /* best effort */ } }, at - Date.now());
+  return true;
+}
+export function cancelPhaseNotice() {
+  clearTimeout(phaseT); phaseT = 0;
+  try { navigator.serviceWorker?.getRegistration?.().then((reg) => { try { reg?.active?.postMessage({ type: 'wk-rest-cancel' }); } catch { /* ignore */ } }).catch(() => {}); } catch { /* ignore */ }
+}
 export async function askNotifyPermission() {
   try { if (!('Notification' in window)) return 'unsupported'; if (Notification.permission === 'default') return await Notification.requestPermission(); return Notification.permission; }
   catch { return 'denied'; }
