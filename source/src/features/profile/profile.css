@@ -64,7 +64,7 @@ summary:focus-visible{outline:2px solid var(--amber,#FCD34D);outline-offset:2px;
 .pswitch>span{flex:1;display:flex;flex-direction:column}
 .pswitch .hint{margin:2px 0 0}
 .pswitch input{position:absolute;opacity:0;width:1px;height:1px}
-.pswitch i{flex:none;width:44px;height:26px;border-radius:999px;background:rgba(255,255,255,.16);border:1px solid var(--edge);position:relative;transition:background-color var(--d)}
+.pswitch i{flex:none;width:44px;height:26px;border-radius:999px;background:rgba(255,255,255,.16);border:1px solid var(--edge);position:relative;transition:none}
 .pswitch i::after{content:"";position:absolute;top:2px;inset-inline-start:2px;width:20px;height:20px;border-radius:50%;background:var(--tx);transition:transform var(--d) var(--ease)}
 .pswitch input:checked+i{background:var(--carb)}
 .pswitch input:checked+i::after{transform:translateX(-18px)}
@@ -83,7 +83,7 @@ summary:focus-visible{outline:2px solid var(--amber,#FCD34D);outline-offset:2px;
 /* Profile › المظهر: design picker (large preview cards) + «تصميمات قديمة» */
 .dz{display:flex;flex-direction:column;gap:var(--s3)}
 .dz-group{display:flex;flex-direction:column;gap:var(--s3)}
-.dz-card{display:grid;grid-template-columns:116px 1fr 28px;align-items:center;gap:var(--s3);width:100%;min-height:112px;padding:10px;border-radius:var(--r-card);border:1px solid var(--edge);background:var(--glass);color:var(--tx);text-align:start;font:inherit;transition:border-color var(--d-fast),transform var(--d-press) var(--ease)}
+.dz-card{display:grid;grid-template-columns:116px 1fr 28px;align-items:center;gap:var(--s3);width:100%;min-height:112px;padding:10px;border-radius:var(--r-card);border:1px solid var(--edge);background:var(--glass);color:var(--tx);text-align:start;font:inherit;transition:transform var(--d-press) var(--ease)}
 .dz-card:active{transform:scale(.98)}
 .dz-card[aria-checked="true"]{border:2px solid var(--now);padding:9px}
 .dz-mini{display:flex;flex-direction:column;gap:6px;height:92px;border-radius:12px;padding:8px;overflow:hidden;direction:rtl}

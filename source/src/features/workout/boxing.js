@@ -314,8 +314,9 @@ export async function renderBoxing(el, ctx, params = {}) {
   // iOS: a locked iPhone only gets the round end through Web Push (Profile › «تنبيه والشاشة مقفولة», core/push.js)
   const IOS_NO_PUSH = 'الشاشة بتفضل منوّرة والجولات شغالة. الآيفون مش بيبعت تنبيه والشاشة مقفولة غير لو فعّلت «تنبيه والشاشة مقفولة» من الملف. من غيره: لو قفلتها، العدّاد بيكمّل وبنقولك اللي حصل أول ما تفتحها. مفتاح الصامت بيكتم الجرس.';
   const IOS_PUSH = '«تنبيه والشاشة مقفولة» متفعّل: لو قفلت الشاشة، هيوصلك إشعار لما الجولة اللي شغالة تخلص، والعدّاد بيكمّل وبنقولك اللي حصل أول ما تفتحها. مفتاح الصامت بيكتم الجرس.';
-  const cueNote = h('p', { class: 'wk-muted' }, alertEnv().ios ? IOS_NO_PUSH : 'الشاشة بتفضل منوّرة والجولات شغالة. الصوت والاهتزاز من الملف › الأصوات والتنبيهات.');
-  if (alertEnv().ios) pushStatus().then((st) => { if (st.on) cueNote.textContent = IOS_PUSH; }).catch(() => {});
+  const APP_NOTE = 'الشاشة بتفضل منوّرة والجولات شغالة. لو قفلتها، هيوصلك إشعار لما الجولة اللي شغالة تخلص. الجرس بيشتغل حتى ومفتاح الصامت مقفول.';
+  const cueNote = h('p', { class: 'wk-muted' }, alertEnv().native ? APP_NOTE : alertEnv().ios ? IOS_NO_PUSH : 'الشاشة بتفضل منوّرة والجولات شغالة. الصوت والاهتزاز من الملف › الأصوات والتنبيهات.');
+  if (alertEnv().ios && !alertEnv().native) pushStatus().then((st) => { if (st.on) cueNote.textContent = IOS_PUSH; }).catch(() => {});
   root.appendChild(h('details', { class: 'wk-fold hk-cues' }, h('summary', {}, 'الجرس والتنبيهات', h('small', {}, 'الجرس شغّال')),
     h('div', { class: 'hk-fold-body' },
       h('label', { class: 'wk-switch', for: bellId }, h('span', {}, 'جرس بداية ونهاية الجولة + تصقيفة قبل النهاية بـ 10 ثواني'),

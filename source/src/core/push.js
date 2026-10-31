@@ -8,6 +8,7 @@
 //
 // Every call is a graceful no-op when push is not configured, unsupported (iOS tab, not installed) or offline.
 import { getSecret, setSecret } from './db.js';
+import * as native from './native.js';
 
 export const TAGS = Object.freeze(['rest', 'box', 'test']);
 const S = Object.freeze({ url: 'pushUrl', token: 'pushToken', key: 'pushVapid', sub: 'pushSub' });
@@ -181,8 +182,29 @@ export function initPush(ctx) {
   return inst;
 }
 const noop = async () => ({ ok: false, reason: 'off' });
-export const schedulePush = (at, tag, title, body) => (inst ? inst.schedule(at, tag, title, body) : noop());
-export const cancelPush = (tag) => (inst ? inst.cancel(tag) : noop());
-export const enablePush = (opts) => (inst ? inst.enable(opts) : noop());
-export const disablePush = () => (inst ? inst.disable() : noop());
-export const pushStatus = () => (inst ? inst.status() : Promise.resolve({ on: false, url: '', support: 'no_sw' }));
+
+// ───────── iOS shell (core/native.js): local notifications on the phone, no server, nothing leaves the device ─────────
+/** Native twin of schedule(): same tags and limits, generic Arabic text per tag. */
+export function nativeSchedule(at, tag, { now = Date.now(), w } = {}) {
+  if (!TAGS.includes(tag)) return { ok: false, reason: 'tag' };
+  const t = Math.round(+at);
+  if (!Number.isFinite(t) || t <= now + 1000 || t > now + MAX_AHEAD_MS) return { ok: false, reason: 'at' };
+  const txt = native.NOTE_TEXT[tag];
+  return native.scheduleNotification({ id: native.noteId(tag), at: t, title: txt.title, body: txt.body }, w) ? { ok: true, native: true } : { ok: false, reason: 'off' };
+}
+export function nativeCancel(tag, { w } = {}) {
+  if (tag !== undefined && !TAGS.includes(tag)) return { ok: false, reason: 'tag' };
+  for (const t of tag === undefined ? TAGS : [tag]) native.cancelNotification(native.noteId(t), w);
+  return { ok: true, native: true };
+}
+/** status for the shell: on = notifications allowed (the shell asks at the first schedule / from Profile). */
+export async function nativeStatus(w) {
+  const permission = await native.notificationStatus(w);
+  return { on: permission === 'granted' || permission === 'provisional', url: '', support: 'native', native: true, permission };
+}
+
+export const schedulePush = (at, tag, title, body) => (native.isNative() ? Promise.resolve(nativeSchedule(at, tag)) : inst ? inst.schedule(at, tag, title, body) : noop());
+export const cancelPush = (tag) => (native.isNative() ? Promise.resolve(nativeCancel(tag)) : inst ? inst.cancel(tag) : noop());
+export const enablePush = (opts) => (native.isNative() ? noop() : inst ? inst.enable(opts) : noop());
+export const disablePush = () => (native.isNative() ? noop() : inst ? inst.disable() : noop());
+export const pushStatus = () => (native.isNative() ? nativeStatus() : inst ? inst.status() : Promise.resolve({ on: false, url: '', support: 'no_sw' }));

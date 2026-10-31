@@ -1140,7 +1140,12 @@ export async function renderSession(el, ctx) {
     const env = alertEnv();
     const close = async () => { tipPending = false; try { await ctx.settings.set('wk.alertTipSeen', true); } catch { /* ignore */ } if (!closed) drawDock(); };
     const lines = [];
-    if (env.ios && pushOn) {
+    if (env.native) {
+      // iOS shell «المدرب»: a local notification is scheduled on the phone at the rest end (core/native.js)
+      lines.push(pushOn ? 'لو قفلت الشاشة، هيوصلك إشعار «الراحة خلصت» في وقته — من غير نت ولا سيرفر.'
+        : 'فعّل التنبيهات من الملف › الأصوات والتنبيهات عشان يوصلك «الراحة خلصت» والشاشة مقفولة.');
+      lines.push('الصوت بيشتغل حتى ومفتاح الصامت مقفول، ومع المزيكا.');
+    } else if (env.ios && pushOn) {
       // Web Push is set up (core/push.js): the Worker wakes the locked iPhone at the rest end
       lines.push('«تنبيه والشاشة مقفولة» متفعّل: لو قفلت الشاشة، هيوصلك إشعار «الراحة خلصت» في وقته.');
       lines.push('والشاشة مفتوحة، الصوت والاهتزاز هيشتغلوا لما الراحة تخلص. مفتاح الصامت في جنب الآيفون بيكتم الصوت.');

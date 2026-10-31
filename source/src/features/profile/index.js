@@ -15,6 +15,7 @@ import { haptic } from '../../ui/anim.js';
 import { cue, say, buzz, unlock, alertEnv, KEYS as AK, volume as alertVolume } from '../../core/alerts.js';
 import { pushStatus } from '../../core/push.js';
 import { pushCard } from './push-card.js';
+import { isNative, requestNotificationPermission } from '../../core/native.js';
 import { DESIGNS, CLASSIC, designId, preloadDesignFonts } from '../../app/design.js';
 
 const DAYS = [[6, 'السبت'], [0, 'الأحد'], [1, 'الاتنين'], [2, 'التلات'], [3, 'الأربع'], [4, 'الخميس'], [5, 'الجمعة']];
@@ -279,7 +280,7 @@ async function renderProfile(el, ctx) {
       section('s-days', 'التمرين', 'dumbbell', h('div', { class: 'sheet-card pform' }, h('p', { class: 'lbl' }, 'أيام الحديد'), tdChips, tdNote,
         h('label', { class: 'pswitch', for: 'p-reentry' }, h('span', {}, 'راجع بعد انقطاع', reHint), reSw, h('i', { 'aria-hidden': 'true' })))),
       section('s-alerts', 'الأصوات والتنبيهات', 'bell', alertsCard),
-      section('s-push', 'تنبيه والشاشة مقفولة', 'bell', pushCard(ctx)),
+      isNative() ? null : section('s-push', 'تنبيه والشاشة مقفولة', 'bell', pushCard(ctx)), // iOS shell: local notifications, no Worker
       section('s-targets', 'أهداف الأكل', 'food', h('p', { class: 'hint' }, 'كل نوع يوم ليه هدفه. اضغط «عدّل» لو عايز تغيّر.'),
         h('div', { class: 'sheet-card' }, targetsBlock(ctx, targets, 'training'), targetsBlock(ctx, targets, 'heart'), targetsBlock(ctx, targets, 'rest'))),
       section('s-ai', 'المدرب الذكي', 'spark', h('div', { class: 'sheet-card pform' }, key.el, h('div', { class: 'btn-row wrap' }, saveKey, testKey, showKey), keyMsg,
@@ -309,21 +310,21 @@ function alertsGroup(ctx, hpSw, hpHint) {
   volRow.hidden = ctx.settings.get(AK.sound) === false;
   const voice = sw('p-voice', 'تنبيه بالكلام', 'صوت بيقول «الراحة خلصت»', ctx.settings.get(AK.voice) === true,
     async (on) => { await ctx.settings.set(AK.voice, on); if (on) { unlock(); say('الراحة خلصت', { force: true }); } });
-  hpHint.textContent = env.ios ? 'الآيفون بيهتز بس وانت لسه لامس الشاشة (تسجيل مجموعة، رقم شخصي)، مش لوحده لما الوقت يخلص' : 'نبضة لما تخلّص مجموعة، الراحة تخلص، رقم شخصي، أو أكل يتسجّل';
+  hpHint.textContent = env.native ? 'اهتزاز حقيقي من الآيفون لما تخلّص مجموعة، الراحة تخلص، أو رقم شخصي' : env.ios ? 'الآيفون بيهتز بس وانت لسه لامس الشاشة (تسجيل مجموعة، رقم شخصي)، مش لوحده لما الوقت يخلص' : 'نبضة لما تخلّص مجموعة، الراحة تخلص، رقم شخصي، أو أكل يتسجّل';
   const vib = h('label', { class: 'pswitch', for: 'p-haptic' }, h('span', {}, 'اهتزاز', hpHint), hpSw, h('i', { 'aria-hidden': 'true' }));
-  const wake = sw('p-wake', 'خلّي الشاشة منوّرة أثناء التمرين', env.wakeLock ? 'عشان الصوت والتنبيه يشتغلوا في وقتهم أثناء الراحة والجولات' : 'جهازك مش بيدعم ده: طوّل «القفل التلقائي» من إعدادات الموبايل أثناء التمرين',
+  const wake = sw('p-wake', 'خلّي الشاشة منوّرة أثناء التمرين', env.wakeLock || env.native ? 'عشان الصوت والتنبيه يشتغلوا في وقتهم أثناء الراحة والجولات' : 'جهازك مش بيدعم ده: طوّل «القفل التلقائي» من إعدادات الموبايل أثناء التمرين',
     ctx.settings.get(AK.wake) !== false, async (on) => { await ctx.settings.set(AK.wake, on); });
   const test = h('button', { type: 'button', class: 'btn ghost sm', dataset: { fk: 'alert-test' } }, raw(icon('bell')), 'جرّب الصوت');
   test.addEventListener('click', () => {
     unlock();
     const via = cue('test', { force: true }); buzz([200, 100, 200]); say('الراحة خلصت');
-    testMsg.textContent = via ? (env.ios ? 'لو ماسمعتش حاجة: شيّل مفتاح الصامت اللي في جنب الآيفون وعلّي الصوت.' : 'لو ماسمعتش حاجة: علّي صوت الجهاز.') : 'الجهاز ده مش بيشغّل أصوات من المتصفح.';
+    testMsg.textContent = via ? (env.native ? 'لو ماسمعتش حاجة: علّي صوت الآيفون (الصوت بيشتغل حتى ومفتاح الصامت مقفول).' : env.ios ? 'لو ماسمعتش حاجة: شيّل مفتاح الصامت اللي في جنب الآيفون وعلّي الصوت.' : 'لو ماسمعتش حاجة: علّي صوت الجهاز.') : 'الجهاز ده مش بيشغّل أصوات من المتصفح.';
   });
   const testMsg = h('p', { class: 'hint', 'aria-live': 'polite' });
   // notification status: honest per platform
   const ns = h('p', { class: 'hint', id: 'p-notif-st', 'aria-live': 'polite' });
   const nBtn = h('button', { type: 'button', class: 'btn ghost sm', dataset: { fk: 'notif-enable' } }, 'فعّل الإشعارات');
-  let pushOn = false;
+  let pushOn = false, nativePerm = 'unknown';
   const pushLink = h('button', { type: 'button', class: 'btn ghost sm', hidden: true, dataset: { fk: 'push-goto' } }, 'روح لـ«تنبيه والشاشة مقفولة»');
   pushLink.addEventListener('click', () => {
     const t = document.getElementById('s-push');
@@ -333,6 +334,14 @@ function alertsGroup(ctx, hpSw, hpHint) {
   });
   const paintN = () => {
     const e = alertEnv();
+    if (e.native) { // iOS shell «المدرب»: UNUserNotificationCenter local notifications, no server
+      pushLink.hidden = true;
+      nBtn.hidden = !(nativePerm === 'notDetermined' || nativePerm === 'unknown');
+      ns.textContent = pushOn ? 'التطبيق: التنبيهات شغالة والشاشة مقفولة ✓'
+        : nativePerm === 'denied' ? 'التنبيهات مقفولة للتطبيق. افتح الإعدادات › الإشعارات › المدرب وشغّلها.'
+          : 'فعّل التنبيهات عشان يوصلك «الراحة خلصت» حتى والشاشة مقفولة.';
+      return;
+    }
     nBtn.hidden = !e.canAsk;
     // iOS: only a Web Push (Profile › «تنبيه والشاشة مقفولة», core/push.js) reaches a locked iPhone
     pushLink.hidden = !e.ios || pushOn;
@@ -347,6 +356,7 @@ function alertsGroup(ctx, hpSw, hpHint) {
     else ns.textContent = 'الإشعارات مقفولة. فعّلها عشان يوصلك تنبيه لما الراحة تخلص والتطبيق في الخلفية.';
   };
   nBtn.addEventListener('click', async () => {
+    if (alertEnv().native) { nativePerm = await requestNotificationPermission(); pushOn = nativePerm === 'granted' || nativePerm === 'provisional'; paintN(); return; }
     let p = 'denied';
     try { p = await Notification.requestPermission(); } catch { /* unsupported */ }
     if (p === 'granted') await ctx.settings.set('wk.notify', true);
@@ -354,7 +364,7 @@ function alertsGroup(ctx, hpSw, hpHint) {
     paintN();
   });
   paintN();
-  pushStatus().then((s) => { pushOn = !!s.on; paintN(); }).catch(() => {});
+  pushStatus().then((s) => { pushOn = !!s.on; if (s.native) nativePerm = s.permission; paintN(); }).catch(() => {});
   const offPush = ctx.on('push:changed', (s) => { if (!ns.isConnected) { offPush(); return; } pushOn = !!(s && s.on); paintN(); });
   return h('div', { class: 'sheet-card pform palerts' }, snd, volRow, voice, vib, wake,
     h('div', { class: 'btn-row wrap' }, test), testMsg,

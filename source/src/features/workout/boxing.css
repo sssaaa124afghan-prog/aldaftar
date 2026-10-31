@@ -63,7 +63,7 @@
 /* live view (UX audit #11): full screen, no tab bar, the whole screen floods with the phase (designs.css --bx-*) */
 .bx-player.is-live{position:fixed;inset:0;z-index:35;margin:0;max-width:none;border:0;border-radius:0;display:flex;flex-direction:column;gap:var(--s3);overflow:auto;
   padding:calc(env(safe-area-inset-top,0px) + var(--s4)) var(--gutter) calc(env(safe-area-inset-bottom,0px) + var(--s4));
-  background:var(--bx-rest,var(--g1));color:var(--bx-rest-tx,var(--tx));transition:background-color var(--d-slow) var(--ease-out),color var(--d-slow) var(--ease-out)}
+  background:var(--bx-rest,var(--g1));color:var(--bx-rest-tx,var(--tx));transition:none}
 .bx-player.is-live[data-flood="work"]{background:var(--bx-work,var(--g2));color:var(--bx-work-tx,var(--tx))}
 .bx-player.is-live>h3{color:inherit;opacity:.85}
 .bx-player.is-live .bx-stage{flex:1;justify-content:center;cursor:pointer}

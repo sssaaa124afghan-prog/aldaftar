@@ -1,4 +1,5 @@
 // Motion helpers (Electric Glass Pro). All respect prefers-reduced-motion AND the in-app «قلّل الحركة» switch (html.rm).
+import { isNative, haptic as nativeHaptic } from '../core/native.js';
 const root = () => (typeof document !== 'undefined' ? document.documentElement : null);
 export const reduced = () => {
   const r = root();
@@ -76,6 +77,7 @@ function iosTick() {
 /** Light haptic tick (after a user gesture). ms is used where vibrate exists; double=true → two ticks (PR). */
 export function haptic(ms = 12, { double = false } = {}) {
   if (!hapticsOn) return;
+  if (isNative()) { nativeHaptic(double ? 'success' : ms >= 40 ? 'medium' : 'light'); return; } // iOS shell: Taptic Engine
   try {
     if (canVib()) {
       if (!navigator.userActivation || navigator.userActivation.hasBeenActive) navigator.vibrate(double ? [ms, 70, ms] : ms);

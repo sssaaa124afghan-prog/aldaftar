@@ -124,7 +124,7 @@
 .td-goals li.done span{color:var(--mu,#C3BEE3)}
 .td-goals li small{font-size:var(--t-12,12px);color:var(--mu-2,#9C96C4)}
 .td-goals li.done small{color:var(--carb,#86EFAC)}
-.td-ck{width:32px;height:32px;flex:none;border-radius:50%;border:1.5px solid rgba(255,255,255,.25);background:transparent;color:transparent;display:grid;place-items:center;position:relative;transition:background-color var(--d,200ms) var(--ease,ease)}
+.td-ck{width:32px;height:32px;flex:none;border-radius:50%;border:1.5px solid rgba(255,255,255,.25);background:transparent;color:transparent;display:grid;place-items:center;position:relative;transition:none}
 .td-ck::after{content:"";position:absolute;inset:-8px}
 .td-ck svg{stroke-width:3}
 .td-ck.on{background:var(--carb,#86EFAC);border-color:transparent;color:#0B2A16}

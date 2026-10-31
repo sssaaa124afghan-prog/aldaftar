@@ -36,7 +36,7 @@
 .co-mic{background:transparent;color:var(--mu,#C3BEE3)}
 .co-mic[aria-pressed="true"]{color:var(--danger,#FB7185);background:rgba(251,113,133,.12);animation:co-listen 1.4s ease-in-out infinite}
 .co-mic.heard{box-shadow:0 0 0 6px rgba(251,113,133,.22);animation-duration:.7s}
-@keyframes co-listen{50%{box-shadow:0 0 0 8px rgba(251,113,133,.06)}}
+@keyframes co-listen{50%{transform:scale(1.06)}}
 .co-vstate{margin:4px 2px 0;font-size:13px;color:var(--mu,#C3BEE3);display:flex;gap:6px;align-items:center}
 .co-vstate[hidden]{display:none}
 .co-vstate i{width:8px;height:8px;border-radius:50%;background:var(--danger,#FB7185);flex:none}

@@ -3,11 +3,18 @@ import { h } from '../../ui/dom.js';
 import { fmt } from '../../ui/num.js';
 import { loadData, saveData } from '../../core/db.js';
 import { serializeBackup, backupFileName, importBackupToDB, markBackedUp } from '../../core/backup.js';
+import { isNative, share, utf8ToBase64 } from '../../core/native.js';
 
 export async function exportNow(ctx) {
   try {
     const { data } = await loadData(ctx.db);
     const now = new Date();
+    if (isNative()) { // iOS shell: <a download> does nothing in WKWebView → share sheet (Save to Files, AirDrop, WhatsApp…)
+      if (!share({ filename: backupFileName(now), mime: 'application/json', dataBase64: utf8ToBase64(serializeBackup(data, { now })) })) throw new Error('share');
+      await saveData(ctx.db, markBackedUp(data, now)).catch(() => null);
+      ctx.toast('اختار «حفظ في الملفات» واحتفظ بالملف في مكان أمين.');
+      return;
+    }
     const blob = new Blob([serializeBackup(data, { now })], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = h('a', { href: url, download: backupFileName(now) });

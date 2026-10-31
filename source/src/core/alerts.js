@@ -11,6 +11,7 @@
 // What works on iPhone: screen on + app open → sound, haptic tick, banner; screen locked → the alert fires the moment
 // he unlocks (catch-up from the wall-clock end time). The wake lock keeps the screen on during a session (iOS 18.4+ PWA).
 import { haptic } from '../ui/anim.js';
+import * as native from './native.js';
 
 // ───────── settings (bound once from main.js; defaults when unset) ─────────
 let read = () => undefined;
@@ -203,6 +204,7 @@ export function cue(kind, { delay = 0, force = false } = {}) {
 export function buzz(pattern = 12) {
   if (!vibrateOn()) return false;
   const arr = Array.isArray(pattern) ? pattern : [pattern];
+  if (native.isNative()) return native.haptic(native.hapticFor(arr)); // iOS shell: real Taptic Engine (UIFeedbackGenerator)
   try {
     if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
       if (!navigator.userActivation || navigator.userActivation.hasBeenActive) navigator.vibrate(arr.length === 1 ? arr[0] : arr);
@@ -273,20 +275,22 @@ export function alertEnv(w = typeof window !== 'undefined' ? window : undefined)
   let standalone = nav.standalone === true;
   try { standalone = standalone || !!(w && w.matchMedia && w.matchMedia('(display-mode: standalone)').matches); } catch { /* ignore */ }
   const N = w && w.Notification;
+  const isApp = native.isNative(w); // iOS shell: local notifications through the bridge, no Web Push / SW
   const notify = !!N;
   const permission = notify ? String(N.permission || 'default') : 'unsupported';
   return {
-    ios, standalone, notify, permission,
+    ios, standalone, notify, permission, native: isApp,
     wakeLock: !!(nav.wakeLock && typeof nav.wakeLock.request === 'function'),
     // background alerts from the SW timer only work where the page/SW keep running: Android & desktop, never iOS
-    bgAlerts: notify && !ios,
-    canAsk: notify && permission === 'default' && !ios,
+    bgAlerts: notify && !ios && !isApp,
+    canAsk: notify && permission === 'default' && !ios && !isApp,
   };
 }
 
 // ───────── Screen Wake Lock during a session (re-acquired when the page comes back) ─────────
 let wantAwake = false, sentinel = null, owner = null;
 async function acquireWake() {
+  if (native.isNative()) return false;
   if (!wantAwake || sentinel || !wakeOn()) return false;
   try {
     if (typeof navigator === 'undefined' || !navigator.wakeLock || document.visibilityState !== 'visible') return false;
@@ -298,7 +302,15 @@ async function acquireWake() {
   } catch { sentinel = null; installUnlock(); return false; }
 }
 /** keepAwake(true, 'session') while a workout/rest/boxing timer runs; keepAwake(false, 'session') on leave. */
+let nativeAwake = false;
+function setNativeAwake(on) { if (nativeAwake === on) return; nativeAwake = on; native.keepAwake(on); }
 export function keepAwake(on, who = 'x') {
+  if (native.isNative()) { // iOS shell: UIApplication.isIdleTimerDisabled instead of the Screen Wake Lock
+    if (on) { wantAwake = true; owner = who; installUnlock(); setNativeAwake(wakeOn()); return Promise.resolve(nativeAwake); }
+    if (owner !== who && owner !== null) return Promise.resolve(false);
+    wantAwake = false; owner = null; setNativeAwake(false);
+    return Promise.resolve(true);
+  }
   if (on) { wantAwake = true; owner = who; installUnlock(); return acquireWake(); }
   if (owner !== who && owner !== null) return Promise.resolve(false);
   wantAwake = false; owner = null;
@@ -306,6 +318,7 @@ export function keepAwake(on, who = 'x') {
   if (s) { try { const p = s.release(); if (p && p.catch) p.catch(() => {}); } catch { /* ignore */ } }
   return Promise.resolve(true);
 }
-export const awake = () => !!sentinel;
+export const awake = () => !!sentinel || nativeAwake;
 /** Settings change: drop or re-take the lock. */
-export function refreshWake() { if (!wakeOn() && sentinel) { const s = sentinel; sentinel = null; try { s.release(); } catch { /* ignore */ } } else if (wakeOn() && wantAwake) acquireWake(); }
+export function refreshWake() {
+  if (native.isNative()) { setNativeAwake(wakeOn() && wantAwake); return; } if (!wakeOn() && sentinel) { const s = sentinel; sentinel = null; try { s.release(); } catch { /* ignore */ } } else if (wakeOn() && wantAwake) acquireWake(); }
