@@ -108,3 +108,9 @@ html[data-design="b"] .dz-card[aria-checked="true"] .dz-ck{color:#1C0800}
 .dz-old .dz-card{margin-bottom:var(--s3)}
 .dz-pl{margin:var(--s2) 0}
 .dz-old:not(.is-on) .chips{opacity:.7}
+/* «الساعة و Apple Health» */
+.phealth{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin:10px 0}
+.phealth>div{display:flex;flex-direction:column;gap:2px;padding:10px;border-radius:12px;background:color-mix(in srgb,var(--tx,#fff) 6%,transparent)}
+.phealth small{font-size:12px;color:var(--mu,#a8a8b3)}
+.phealth b{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
+.phealth span{font-size:11px;color:var(--mu,#a8a8b3)}

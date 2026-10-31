@@ -153,3 +153,12 @@ export async function nowPlayingStatus(w) {
   if (!v) return null;
   try { return JSON.parse(v); } catch { return null; }
 }
+
+// ───────── Apple Health (read-only: what Huawei Health / the watch syncs) ─────────
+const askJSON = async (type, payload, ms, w) => { const v = await ask(type, payload, { ms, fallback: '' }, w); if (!v) return null; try { return JSON.parse(v); } catch { return null; } };
+/** Shows the Health permission sheet → 'ok' | 'unavailable' | 'error:…' | 'unknown'. */
+export const healthConnect = (w) => ask('healthConnect', {}, { ms: 120000 }, w);
+/** {steps, activeKcal, sleepH, restingHr, hr, hrAt, kg} (missing keys = no data) or null. */
+export const healthSummary = (w) => askJSON('healthSummary', {}, 10000, w);
+/** Heart rate between two epoch-ms times → {avg, max, min, n} (n 0 = no samples yet). */
+export const healthHR = (from, to, w) => askJSON('healthHR', { from: Math.round(+from), to: Math.round(+to) }, 10000, w);

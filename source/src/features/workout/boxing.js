@@ -15,7 +15,7 @@ import { runner, ringSvg, loadHealth, patchHealth } from './heart.js';
 import * as L from './logic.js';
 import { pushSyncer } from './push-sync.js';
 import { pushStatus } from '../../core/push.js';
-import { liveTimer } from '../../core/native.js';
+import { liveTimer, isNative, healthHR } from '../../core/native.js';
 import { boxingToday, boxingPlan, boxingRecord, curriculumFor, boxingWeekStats, roundDone, SAFETY, GEAR_VIDEOS, PHASES, BOX_DEFAULT } from './boxing-plan.js';
 
 const fmtClock = (sec) => { const t = Math.max(0, Math.floor(sec || 0)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
@@ -78,7 +78,7 @@ export async function renderBoxing(el, ctx, params = {}) {
   const r = runner(phases, { now });
   const total = P.total;
   const rpe = {};
-  let pendingRpe = null, warned = -1, lastIdx = -1, finished = false, saved = null, hiddenAt = 0;
+  let startedMs = 0, pendingRpe = null, warned = -1, lastIdx = -1, finished = false, saved = null, hiddenAt = 0;
   // lock-screen alert at the end of the running round (bag / shadow). Paused, between rounds or finished → cancelled.
   const boxPush = pushSyncer('box');
   const syncBoxPush = () => boxPush.set(!finished && r.running() && ROUND.has(phases[r.s.idx].kind) ? Date.now() + (r.left() * 1000) / speed : null);
@@ -122,6 +122,7 @@ export async function renderBoxing(el, ctx, params = {}) {
     const wasStarted = r.s.started;
     unlock(); // unlock WebAudio inside the tap
     r.toggle();
+    if (!wasStarted && r.running()) startedMs = Date.now();
     if (r.running()) { if (!wasStarted || r.s.idx !== lastIdx) signal(ROUND.has(phases[r.s.idx].kind) ? 'start' : 'soft'); wake(true); }
     else wake(false);
     endBtn.hidden = !r.s.started;
@@ -249,6 +250,16 @@ export async function renderBoxing(el, ctx, params = {}) {
       h('div', {}, h('small', {}, 'الوقت'), h('b', {}, N(String(rec.durationMin)), h('small', {}, ' د'))),
       h('div', {}, h('small', {}, 'متوسط المجهود'), h('b', {}, rs.length ? N((rs.reduce((a, b) => a + b, 0) / rs.length).toFixed(1)) : '—'))),
     h('p', { class: 'wk-muted' }, 'اتسجّلت كدقايق كارديو، مش جلسة رفع.'));
+    // the watch's heart rate for the rounds (Huawei Health › Apple Health; the watch may sync a few minutes later)
+    if (isNative() && startedMs && ctx.settings.get('health.linked') === true) {
+      const hrEl = h('p', { class: 'wk-muted bx-hr', 'aria-live': 'polite' }, 'بجيب النبض من الساعة…');
+      summary.append(hrEl);
+      const from = startedMs, to = Date.now();
+      healthHR(from, to).then((x) => {
+        hrEl.textContent = x && x.n ? `النبض من الساعة: متوسط ${x.avg} · أعلى ${x.max} نبضة/د`
+          : 'النبض لسه ماوصلش من الساعة. افتح Huawei Health عشان يزامن، والنبض هيبان في Apple Health.';
+      }).catch(() => { hrEl.textContent = ''; });
+    }
   }
   async function done() {
     if (finished) return;

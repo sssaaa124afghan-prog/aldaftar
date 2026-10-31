@@ -15,7 +15,7 @@ import { haptic } from '../../ui/anim.js';
 import { cue, say, buzz, unlock, alertEnv, KEYS as AK, volume as alertVolume } from '../../core/alerts.js';
 import { pushStatus } from '../../core/push.js';
 import { pushCard } from './push-card.js';
-import { isNative, requestNotificationPermission, notificationDetails, scheduleNotification, NOTE_TEXT, noteId, nowPlayingStatus } from '../../core/native.js';
+import { isNative, requestNotificationPermission, notificationDetails, scheduleNotification, NOTE_TEXT, noteId, nowPlayingStatus, healthConnect, healthSummary } from '../../core/native.js';
 import { DESIGNS, CLASSIC, designId, preloadDesignFonts } from '../../app/design.js';
 
 const DAYS = [[6, 'السبت'], [0, 'الأحد'], [1, 'الاتنين'], [2, 'التلات'], [3, 'الأربع'], [4, 'الخميس'], [5, 'الجمعة']];
@@ -280,6 +280,7 @@ async function renderProfile(el, ctx) {
       section('s-days', 'التمرين', 'dumbbell', h('div', { class: 'sheet-card pform' }, h('p', { class: 'lbl' }, 'أيام الحديد'), tdChips, tdNote,
         h('label', { class: 'pswitch', for: 'p-reentry' }, h('span', {}, 'راجع بعد انقطاع', reHint), reSw, h('i', { 'aria-hidden': 'true' })))),
       section('s-alerts', 'الأصوات والتنبيهات', 'bell', alertsCard),
+      isNative() ? section('s-health', 'الساعة و Apple Health', 'heart', healthCard(ctx)) : null,
       isNative() ? null : section('s-push', 'تنبيه والشاشة مقفولة', 'bell', pushCard(ctx)), // iOS shell: local notifications, no Worker
       section('s-targets', 'أهداف الأكل', 'food', h('p', { class: 'hint' }, 'كل نوع يوم ليه هدفه. اضغط «عدّل» لو عايز تغيّر.'),
         h('div', { class: 'sheet-card' }, targetsBlock(ctx, targets, 'training'), targetsBlock(ctx, targets, 'heart'), targetsBlock(ctx, targets, 'rest'))),
@@ -290,6 +291,41 @@ async function renderProfile(el, ctx) {
         h('div', { class: 'sheet-card pform pfeel' },
           h('label', { class: 'pswitch', for: 'p-rm' }, h('span', {}, 'قلّل الحركة', rmHint), rmSw, h('i', { 'aria-hidden': 'true' })))),
     ));
+}
+
+/** Profile › «الساعة و Apple Health» (iOS shell): reads what Huawei Health syncs from the watch. Read-only, on the phone. */
+function healthCard(ctx) {
+  const st = h('p', { class: 'hint', 'aria-live': 'polite' });
+  const grid = h('div', { class: 'phealth', hidden: true });
+  const btn = h('button', { type: 'button', class: 'btn ghost sm', dataset: { fk: 'health-link' } }, raw(icon('heart')), 'اربط Apple Health');
+  const ago = (ms) => { const m = Math.round((Date.now() - ms) / 60000); return m < 60 ? `من ${m} د` : m < 1440 ? `من ${Math.round(m / 60)} س` : `من ${Math.round(m / 1440)} يوم`; };
+  const cell = (label, val, sub) => h('div', {}, h('small', {}, label), h('b', { class: 'num' }, val), sub ? h('span', {}, sub) : null);
+  async function load() {
+    const d = await healthSummary();
+    if (!grid.isConnected && !st.isConnected) return;
+    if (!d || d.error) { st.textContent = d && d.error === 'unavailable' ? 'Apple Health مش متاح على الجهاز ده.' : 'ماقدرتش أقرا من Apple Health.'; return; }
+    const any = ['steps', 'sleepH', 'restingHr', 'hr', 'activeKcal'].some((k) => Number.isFinite(d[k]));
+    grid.hidden = !any;
+    grid.textContent = '';
+    grid.append(
+      cell('خطوات النهارده', Number.isFinite(d.steps) ? fmt(d.steps) : '—'),
+      cell('نوم امبارح', Number.isFinite(d.sleepH) ? `${fmt(d.sleepH, { dp: 1 })} س` : '—'),
+      cell('نبض الراحة', Number.isFinite(d.restingHr) ? `${d.restingHr}` : '—', Number.isFinite(d.restingHr) ? 'نبضة/د' : ''),
+      cell('آخر نبض', Number.isFinite(d.hr) ? `${d.hr}` : '—', Number.isFinite(d.hrAt) ? ago(d.hrAt) : ''),
+      cell('حرق نشاط', Number.isFinite(d.activeKcal) ? fmt(d.activeKcal) : '—', Number.isFinite(d.activeKcal) ? 'سعرة' : ''));
+    st.textContent = any ? 'دي آخر بيانات وصلت من ساعتك عن طريق Huawei Health › Apple Health.'
+      : 'مفيش بيانات لسه. افتح Huawei Health › أنا › الإعدادات › مشاركة البيانات › Apple Health وشغّل النبض والخطوات والنوم، وبعدين تعالى هنا تاني.';
+  }
+  btn.addEventListener('click', async () => {
+    st.textContent = 'بيفتح طلب الإذن…';
+    const r = await healthConnect();
+    if (r === 'ok') { await ctx.settings.set('health.linked', true); btn.textContent = 'حدّث'; load(); }
+    else if (r === 'unavailable') st.textContent = 'Apple Health مش متاح على الجهاز ده.';
+    else st.textContent = `ماقدرتش أربط Apple Health${String(r).startsWith('error:') ? ` (${String(r).slice(6)})` : ''}. غالباً التوقيع مش سامح بـHealthKit؛ ابعت الجملة دي.`;
+  });
+  if (ctx.settings.get('health.linked') === true) { btn.textContent = 'حدّث'; load(); }
+  else st.textContent = 'اربط Apple Health عشان أقرا النبض والخطوات والنوم اللي ساعتك هواوي بتبعتها. قراية بس، ومفيش حاجة بتطلع من الموبايل.';
+  return h('div', { class: 'sheet-card pform' }, st, grid, h('div', { class: 'btn-row wrap' }, btn));
 }
 
 /** Profile › «الأصوات والتنبيهات»: sound, volume, voice, vibration, screen on, test, notification status (core/alerts.js). */
