@@ -15,7 +15,7 @@ import { haptic } from '../../ui/anim.js';
 import { cue, say, buzz, unlock, alertEnv, KEYS as AK, volume as alertVolume } from '../../core/alerts.js';
 import { pushStatus } from '../../core/push.js';
 import { pushCard } from './push-card.js';
-import { isNative, requestNotificationPermission, notificationDetails, scheduleNotification, NOTE_TEXT, noteId, nowPlayingStatus, healthConnect, healthSummary } from '../../core/native.js';
+import { isNative, requestNotificationPermission, notificationDetails, scheduleNotification, NOTE_TEXT, noteId, nowPlayingStatus, runHealthShortcut, HEALTH_SHORTCUT } from '../../core/native.js';
 import { DESIGNS, CLASSIC, designId, preloadDesignFonts } from '../../app/design.js';
 
 const DAYS = [[6, 'السبت'], [0, 'الأحد'], [1, 'الاتنين'], [2, 'التلات'], [3, 'الأربع'], [4, 'الخميس'], [5, 'الجمعة']];
@@ -293,39 +293,44 @@ async function renderProfile(el, ctx) {
     ));
 }
 
-/** Profile › «الساعة و Apple Health» (iOS shell): reads what Huawei Health syncs from the watch. Read-only, on the phone. */
+/** Profile › «الساعة و Apple Health» (iOS shell): the watch's data through the «BD Health» shortcut (app/health.js). */
 function healthCard(ctx) {
   const st = h('p', { class: 'hint', 'aria-live': 'polite' });
   const grid = h('div', { class: 'phealth', hidden: true });
-  const btn = h('button', { type: 'button', class: 'btn ghost sm', dataset: { fk: 'health-link' } }, raw(icon('heart')), 'اربط Apple Health');
-  const ago = (ms) => { const m = Math.round((Date.now() - ms) / 60000); return m < 60 ? `من ${m} د` : m < 1440 ? `من ${Math.round(m / 60)} س` : `من ${Math.round(m / 1440)} يوم`; };
+  const btn = h('button', { type: 'button', class: 'btn ghost sm', dataset: { fk: 'health-run' } }, raw(icon('heart')), 'حدّث من الساعة');
+  const ago = (ms) => { const m = Math.max(0, Math.round((Date.now() - ms) / 60000)); return m < 1 ? 'دلوقتي' : m < 60 ? `من ${m} د` : m < 1440 ? `من ${Math.round(m / 60)} س` : `من ${Math.round(m / 1440)} يوم`; };
   const cell = (label, val, sub) => h('div', {}, h('small', {}, label), h('b', { class: 'num' }, val), sub ? h('span', {}, sub) : null);
-  async function load() {
-    const d = await healthSummary();
-    if (!grid.isConnected && !st.isConnected) return;
-    if (!d || d.error) { st.textContent = d && d.error === 'unavailable' ? 'Apple Health مش متاح على الجهاز ده.' : 'ماقدرتش أقرا من Apple Health.'; return; }
-    const any = ['steps', 'sleepH', 'restingHr', 'hr', 'activeKcal'].some((k) => Number.isFinite(d[k]));
-    grid.hidden = !any;
+  const ok = (v) => Number.isFinite(v);
+  function paint(d) {
+    if (!d) { grid.hidden = true; st.textContent = `اعمل الاختصار «${HEALTH_SHORTCUT}» مرة واحدة (الخطوات تحت)، وبعدين دوس «حدّث من الساعة».`; return; }
+    grid.hidden = false;
     grid.textContent = '';
     grid.append(
-      cell('خطوات النهارده', Number.isFinite(d.steps) ? fmt(d.steps) : '—'),
-      cell('نوم امبارح', Number.isFinite(d.sleepH) ? `${fmt(d.sleepH, { dp: 1 })} س` : '—'),
-      cell('نبض الراحة', Number.isFinite(d.restingHr) ? `${d.restingHr}` : '—', Number.isFinite(d.restingHr) ? 'نبضة/د' : ''),
-      cell('آخر نبض', Number.isFinite(d.hr) ? `${d.hr}` : '—', Number.isFinite(d.hrAt) ? ago(d.hrAt) : ''),
-      cell('حرق نشاط', Number.isFinite(d.activeKcal) ? fmt(d.activeKcal) : '—', Number.isFinite(d.activeKcal) ? 'سعرة' : ''));
-    st.textContent = any ? 'دي آخر بيانات وصلت من ساعتك عن طريق Huawei Health › Apple Health.'
-      : 'مفيش بيانات لسه. افتح Huawei Health › أنا › الإعدادات › مشاركة البيانات › Apple Health وشغّل النبض والخطوات والنوم، وبعدين تعالى هنا تاني.';
+      cell('خطوات النهارده', ok(d.steps) ? fmt(d.steps) : '—'),
+      cell('نوم امبارح', ok(d.sleepH) ? `${fmt(d.sleepH, { dp: 1 })} س` : '—'),
+      cell('نبض الراحة', ok(d.restingHr) ? `${d.restingHr}` : '—', ok(d.restingHr) ? 'نبضة/د' : ''),
+      cell('نبض آخر ساعة', ok(d.hrAvg) ? `${d.hrAvg}` : ok(d.hr) ? `${d.hr}` : '—', ok(d.hrMax) ? `أعلى ${d.hrMax}` : ''),
+      cell('حرق نشاط', ok(d.activeKcal) ? fmt(d.activeKcal) : '—', ok(d.activeKcal) ? 'سعرة' : ''));
+    st.textContent = `آخر تحديث ${ago(d.at)} · من ساعتك عن طريق Huawei Health › Apple Health.`;
   }
-  btn.addEventListener('click', async () => {
-    st.textContent = 'بيفتح طلب الإذن…';
-    const r = await healthConnect();
-    if (r === 'ok') { await ctx.settings.set('health.linked', true); btn.textContent = 'حدّث'; load(); }
-    else if (r === 'unavailable') st.textContent = 'Apple Health مش متاح على الجهاز ده.';
-    else st.textContent = `ماقدرتش أربط Apple Health${String(r).startsWith('error:') ? ` (${String(r).slice(6)})` : ''}. غالباً التوقيع مش سامح بـHealthKit؛ ابعت الجملة دي.`;
-  });
-  if (ctx.settings.get('health.linked') === true) { btn.textContent = 'حدّث'; load(); }
-  else st.textContent = 'اربط Apple Health عشان أقرا النبض والخطوات والنوم اللي ساعتك هواوي بتبعتها. قراية بس، ومفيش حاجة بتطلع من الموبايل.';
-  return h('div', { class: 'sheet-card pform' }, st, grid, h('div', { class: 'btn-row wrap' }, btn));
+  btn.addEventListener('click', () => { if (!runHealthShortcut()) st.textContent = 'مش قادر أفتح تطبيق الاختصارات.'; });
+  const off = ctx.on('health:changed', (d) => { if (!grid.isConnected) { off(); return; } paint(d); });
+  paint(ctx.settings.get('health.snapshot') || null);
+  const li = (...k) => h('li', {}, ...k);
+  const code = (t) => h('code', { dir: 'ltr' }, t);
+  const guide = h('details', { class: 'phealth-guide' }, h('summary', {}, 'إزاي أعمل الاختصار (مرة واحدة · 5 دقايق)'),
+    h('ol', {},
+      li('في Huawei Health: أنا › الإعدادات › مشاركة البيانات › Apple Health، وشغّل الخطوات والنبض والنوم.'),
+      li('افتح تطبيق «الاختصارات» › + › سمّيه بالظبط ', code(HEALTH_SHORTCUT), '.'),
+      li('ضيف «البحث عن عينات الصحة» (Find Health Samples): النوع «الخطوات»، تاريخ البدء «اليوم». بعده «حساب الإحصائيات» (Calculate Statistics) › «المجموع».'),
+      li('تاني «البحث عن عينات الصحة»: «معدل ضربات القلب»، تاريخ البدء «في آخر 1 ساعة». بعده «حساب الإحصائيات» › «المتوسط»، وكمان واحدة › «الحد الأقصى» على نفس العينات.'),
+      li('تالت واحدة: «معدل ضربات القلب أثناء الراحة»، «في آخر 7 أيام»، رتّب بالأحدث وحد 1. بعده «حساب الإحصائيات» › «المتوسط».'),
+      li('رابع واحدة: «تحليل النوم»، «في آخر 1 يوم». بعده «الحصول على تفاصيل عينات الصحة» › «المدة»، وبعده «حساب الإحصائيات» › «المجموع».'),
+      li('ضيف «عنوان URL» واكتب ', code('bardumbbell://health?steps=…&hravg=…&hrmax=…&rhr=…&sleep=…'), ' وحط مكان كل … النتيجة بتاعتها (دوس عليها واختار المتغيّر).'),
+      li('آخر خطوة «فتح عناوين URL». شغّل الاختصار مرة واسمح لـ«الاختصارات» تقرا Apple Health.'),
+      li('اختياري: الاختصارات › الأتمتة › الوقت (7 الصبح مثلاً) › شغّل «', HEALTH_SHORTCUT, '» › «تشغيل فوراً».')),
+    h('p', { class: 'hint' }, 'لو حاجة مش موجودة عندك (زي النوم) سيبها، التطبيق بياخد اللي يوصله. البيانات بتفضل على الموبايل.'));
+  return h('div', { class: 'sheet-card pform' }, st, grid, h('div', { class: 'btn-row wrap' }, btn), guide);
 }
 
 /** Profile › «الأصوات والتنبيهات»: sound, volume, voice, vibration, screen on, test, notification status (core/alerts.js). */

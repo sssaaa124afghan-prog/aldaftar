@@ -162,3 +162,24 @@ export const healthConnect = (w) => ask('healthConnect', {}, { ms: 120000 }, w);
 export const healthSummary = (w) => askJSON('healthSummary', {}, 10000, w);
 /** Heart rate between two epoch-ms times → {avg, max, min, n} (n 0 = no samples yet). */
 export const healthHR = (from, to, w) => askJSON('healthHR', { from: Math.round(+from), to: Math.round(+to) }, 10000, w);
+
+// ───────── watch data from the «BD Health» shortcut (free accounts can't use HealthKit directly) ─────────
+export const HEALTH_SHORTCUT = 'BD Health';
+/** Runs the owner's shortcut; it reads Apple Health and comes back through bardumbbell://health?… */
+export function runHealthShortcut(w = win()) {
+  if (!handler(w)) return false;
+  try { w.location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(HEALTH_SHORTCUT)}`; return true; } catch { return false; }
+}
+/** fn(data) whenever the shortcut comes back while the page runs. */
+export function onHealth(fn, w = win()) {
+  if (!handler(w)) return () => {};
+  const N = helper(w);
+  N.__health = (json) => { try { const d = typeof json === 'string' ? JSON.parse(json) : json; if (d) fn(d); } catch { /* ignore */ } };
+  return () => { delete N.__health; };
+}
+/** Data that arrived while the page was loading (null = none). */
+export async function takeHealth(w) {
+  const v = await ask('healthTake', {}, { ms: 1500, fallback: '' }, w);
+  if (!v) return null;
+  try { return JSON.parse(v); } catch { return null; }
+}

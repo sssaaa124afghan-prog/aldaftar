@@ -15,7 +15,7 @@ import { runner, ringSvg, loadHealth, patchHealth } from './heart.js';
 import * as L from './logic.js';
 import { pushSyncer } from './push-sync.js';
 import { pushStatus } from '../../core/push.js';
-import { liveTimer, isNative, healthHR } from '../../core/native.js';
+import { liveTimer, isNative, runHealthShortcut } from '../../core/native.js';
 import { boxingToday, boxingPlan, boxingRecord, curriculumFor, boxingWeekStats, roundDone, SAFETY, GEAR_VIDEOS, PHASES, BOX_DEFAULT } from './boxing-plan.js';
 
 const fmtClock = (sec) => { const t = Math.max(0, Math.floor(sec || 0)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
@@ -250,15 +250,14 @@ export async function renderBoxing(el, ctx, params = {}) {
       h('div', {}, h('small', {}, 'الوقت'), h('b', {}, N(String(rec.durationMin)), h('small', {}, ' د'))),
       h('div', {}, h('small', {}, 'متوسط المجهود'), h('b', {}, rs.length ? N((rs.reduce((a, b) => a + b, 0) / rs.length).toFixed(1)) : '—'))),
     h('p', { class: 'wk-muted' }, 'اتسجّلت كدقايق كارديو، مش جلسة رفع.'));
-    // the watch's heart rate for the rounds (Huawei Health › Apple Health; the watch may sync a few minutes later)
-    if (isNative() && startedMs && ctx.settings.get('health.linked') === true) {
-      const hrEl = h('p', { class: 'wk-muted bx-hr', 'aria-live': 'polite' }, 'بجيب النبض من الساعة…');
-      summary.append(hrEl);
-      const from = startedMs, to = Date.now();
-      healthHR(from, to).then((x) => {
-        hrEl.textContent = x && x.n ? `النبض من الساعة: متوسط ${x.avg} · أعلى ${x.max} نبضة/د`
-          : 'النبض لسه ماوصلش من الساعة. افتح Huawei Health عشان يزامن، والنبض هيبان في Apple Health.';
-      }).catch(() => { hrEl.textContent = ''; });
+    // the watch's heart rate for the rounds: the «BD Health» shortcut sends the last hour (avg / max)
+    if (isNative()) {
+      const hrEl = h('p', { class: 'wk-muted bx-hr', 'aria-live': 'polite' });
+      const show = (d) => { if (d && Number.isFinite(d.hrAvg) && d.at > startedMs) hrEl.textContent = `النبض من الساعة (آخر ساعة): متوسط ${d.hrAvg}${Number.isFinite(d.hrMax) ? ` · أعلى ${d.hrMax}` : ''} نبضة/د`; };
+      const btn = h('button', { type: 'button', class: 'btn ghost sm', onclick: () => runHealthShortcut() }, 'جيب النبض من الساعة');
+      summary.append(hrEl, h('div', { class: 'btn-row' }, btn));
+      const off = ctx.on('health:changed', (d) => { if (!hrEl.isConnected) { off(); return; } show(d); });
+      show(ctx.settings.get('health.snapshot'));
     }
   }
   async function done() {
