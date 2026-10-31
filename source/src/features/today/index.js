@@ -1,11 +1,12 @@
-// Today (النهارده) — Electric Glass Pro: greeting → calorie gauge → 4 macro rings → today's workout card →
-// tiles (water / readiness / consistency) → «ذكاء اليوم» → «أهداف النهارده».
+// Today (اليوم): one time-aware «what now» hero with the screen's only primary action → one-line calories/protein →
+// compact «now» rows (weight, usual meal, BP, pelvic floor) that collapse to «✓ done» in place → week strip →
+// tiles (consistency / readiness / water) → «ذكاء اليوم» → «أهداف النهارده» (collapsed). Profile is in the ⋯ menu.
 import './today.css';
 import { h, raw, fill } from '../../ui/dom.js';
 import { icon } from '../../ui/icons.js';
 import { fmt, countText, parseNum } from '../../ui/num.js';
-import { ring } from '../../ui/ring.js';
-import { countUp, pop, haptic } from '../../ui/anim.js';
+import { pop, haptic } from '../../ui/anim.js';
+import { holdRepeat } from '../../ui/hold.js';
 import { parseDayKey, weekday, addDays, diffDays } from '../../core/date.js';
 import { sumEntries, dayType, heartDowOf, heartDaysOf, cardioOf } from '../../core/targets.js';
 import { DAY_TYPE_LABEL, sessionState, loadTargets } from '../../app/day.js';
@@ -90,55 +91,26 @@ async function patchProgress(ctx, fn) {
 
 // ───────── pieces ─────────
 
-function gauge(st) {
-  const eaten = Math.round(sumEntries(st.entries).kcal);
-  const goal = st.target.kcal; const left = goal - eaten; const over = left < 0;
-  const frac = Math.max(0, Math.min(1, eaten / goal));
-  const svg = svgEl('svg', { viewBox: '0 0 250 134', class: 'td-arc', 'aria-hidden': 'true' });
-  const defs = svgEl('defs'); const lg = svgEl('linearGradient', { id: 'td-ga', x1: '1', y1: '0', x2: '0', y2: '0' });
-  lg.append(svgEl('stop', { offset: '0', 'stop-color': '#FDE68A' }), svgEl('stop', { offset: '1', 'stop-color': '#FB923C' })); defs.append(lg); svg.append(defs);
-  svg.append(svgEl('path', { d: 'M17 125 A108 108 0 0 1 233 125', class: 'td-arc-tr' }));
-  const v = svgEl('path', { d: 'M233 125 A108 108 0 0 0 17 125', class: `td-arc-v${over ? ' over' : ''}`, pathLength: '100', stroke: over ? 'var(--fat)' : 'url(#td-ga)' });
-  v.style.setProperty('--p', String(Math.round(frac * 1000) / 10));
-  svg.append(v);
-  const big = h('b', { class: 'num' }, fmt(Math.abs(left)));
-  const ate = h('b', { class: 'num td-cal' }, fmt(eaten));
-  const pLeft = Math.max(0, Math.round(st.target.p - sumEntries(st.entries).p));
-  const card = h('section', { class: 'td-gauge gl', 'aria-label': `السعرات: أكلت ${fmt(eaten)} من ${fmt(goal)}، ${over ? `زيادة ${fmt(-left)}` : `فاضل ${fmt(left)}`}` },
-    svg, h('div', { class: 'td-mid', 'aria-hidden': 'true' }, big, h('span', {}, over ? 'سعرة زيادة عن الهدف' : 'سعرة فاضلة النهارده')),
-    h('div', { class: 'td-g3', 'aria-hidden': 'true' },
-      h('div', {}, ate, h('span', {}, 'أكلت')), h('div', {}, h('b', { class: 'num' }, fmt(goal)), h('span', {}, 'الهدف')),
-      h('div', {}, h('b', { class: 'num td-pro' }, fmt(pLeft)), h('span', {}, 'بروتين فاضل (جم)'))));
-  requestAnimationFrame(() => { countUp(big, Math.abs(left), { from: goal }); countUp(ate, eaten); });
-  return card;
+/** One-line fuel bar (UX audit #1/#3): calories and protein against today's target; the full breakdown lives in الأكل. */
+function fuel(st) {
+  const tot = sumEntries(st.entries);
+  const kcal = Math.round(tot.kcal); const p = Math.round(tot.p);
+  const pc = (v, max) => `${Math.max(0, Math.min(100, max ? (v / max) * 100 : 0))}%`;
+  const over = kcal > st.target.kcal;
+  return h('a', { class: 'td-fuel gl', href: '#/nutrition' }, h('span', { class: 'vh' }, 'افتح الأكل: '),
+    h('div', { class: 'td-fx', style: '--k:var(--cal)' }, h('span', { class: 'td-fl' }, 'سعرات'),
+      h('b', { class: `num${over ? ' over' : ''}` }, fmt(kcal)), h('small', { class: 'num' }, `/ ${fmt(st.target.kcal)}`),
+      h('i', { class: 'td-fb', 'aria-hidden': 'true' }, h('u', { style: { width: pc(kcal, st.target.kcal) } }))),
+    h('div', { class: 'td-fx', style: '--k:var(--pro)' }, h('span', { class: 'td-fl' }, 'بروتين'),
+      h('b', { class: 'num' }, fmt(p)), h('small', { class: 'num' }, `/ ${fmt(st.target.p)} g`),
+      h('i', { class: 'td-fb', 'aria-hidden': 'true' }, h('u', { style: { width: pc(p, st.target.p) } }))),
+    I('chevron', { size: 18 }));
 }
 
-// big ring figure: final value at first paint; counts up (from 0, or from what it showed before a repaint) once on screen
-const shownNum = new Map();
-function countNum(key, val, format) {
-  const b = h('b', { class: 'num' }, format ? format(val) : fmt(val));
-  const from = shownNum.has(key) ? shownNum.get(key) : 0;
-  shownNum.set(key, val);
-  if (from !== val) countUp(b, val, { from, ms: 800, format: format || ((v) => fmt(Math.round(v))) });
-  return b;
-}
+const isLatin = (t) => /^[\x20-\x7E]+$/.test(String(t || ''));
 
-function macros(st, ctx) {
-  const tot = sumEntries(st.entries); const md = mealsDone(st.entries);
-  const mk = (val, max, color, name, sub, label, href) => h('a', { class: 'td-mc gl', href, style: `--k:${color}` },
-    h('div', { class: 'td-rw' }, ring({ value: val, max, color, size: 64, stroke: 6, track: 'rgba(255,255,255,.12)', label }), countNum(name, val)),
-    h('div', { class: 'td-nm' }, name), h('div', { class: 'td-sub' }, sub));
-  const meals = h('a', { class: 'td-mc gl', href: md.next ? `#/nutrition?section=${md.next}` : '#/nutrition', style: '--k:var(--cal)' },
-    h('div', { class: 'td-rw' }, ring({ value: md.done, max: md.total, color: 'var(--cal)', size: 64, stroke: 6 }), countNum('meals', md.done, (v) => `${Math.round(v)}/${md.total}`)),
-    h('div', { class: 'td-nm', 'aria-hidden': 'true' }, 'وجبات'), h('div', { class: 'td-sub', 'aria-hidden': 'true' }, md.next ? `${SECTION_LABEL[md.next]} فاضل` : 'كمّلت'));
-  return h('div', { class: 'td-macros' },
-    mk(Math.round(tot.p), st.target.p, 'var(--pro)', 'بروتين', `من ${fmt(st.target.p)} جم`, `بروتين ${fmt(tot.p)} من ${fmt(st.target.p)} جم`, '#/nutrition'),
-    mk(Math.round(tot.c), st.target.c, 'var(--carb)', 'كارب', `من ${fmt(st.target.c)} جم`, `كارب ${fmt(tot.c)} من ${fmt(st.target.c)} جم`, '#/nutrition'),
-    mk(Math.round(tot.f), st.target.f, 'var(--fat)', 'دهون', `من ${fmt(st.target.f)} جم`, `دهون ${fmt(tot.f)} من ${fmt(st.target.f)} جم`, '#/nutrition'),
-    meals);
-}
-
-function workoutCard(st, ctx) {
+/** «What now»: the day's one job and its one primary action (UX audit #1). → {kind, small, title, sub, btn, run} */
+function heroOf(st, ctx, hour) {
   const todays = st.sessions.filter((s) => s && s.day === st.day);
   const active = todays.find((s) => sessionState(s) === 'active');
   const done = todays.find((s) => sessionState(s) === 'done' && !M.isRecovery(s));
@@ -146,70 +118,79 @@ function workoutCard(st, ctx) {
   const recDone = todays.find((s) => M.isRecovery(s) && sessionState(s) === 'done');
   let program = null; try { program = WK.normalizeProgram(st.programRec); } catch { /* none */ }
   let wp = null; try { wp = WK.weeksOnPlan(st.sessions, { plannedPerWeek: st.trainingDays.length || 4, weekStartDow: st.startDow, today: st.day }); } catch { /* ignore */ }
-  let small, title, sub, btn, run, icn = 'dumbbell';
+  const later = hour < 15 ? 'النهارده' : 'دلوقتي';
+  const eat = { btn: 'سجّل أكل', run: () => ctx.go('nutrition/add') };
   if (active) {
-    small = 'الجلسة شغالة'; title = active.dayName || 'التمرين'; sub = `${(active.exercises || []).length} تمارين`; btn = 'كمّل'; run = () => ctx.go('workout/session');
-  } else if (done) {
-    small = 'التمرين اتسجل'; title = done.dayName || 'جلسة النهارده'; sub = `${fmt(WK.sessionVolume(done))} كجم · ${WK.sessionSetCount(done)} مجموعة${done.durationMin ? ` · ${done.durationMin} دقيقة` : ''}`; btn = 'التفاصيل'; run = () => ctx.go('workout');
-  } else if (st.planned === 'training' || st.type === 'training') {
-    const fin = WK.finished(st.sessions);
-    const id = program ? WK.nextDayId(program, fin, st.day) : null;
-    const d = program && id ? program.days[id] : null;
-    // same estimate as the workout overview (lifting incl. warm-up after balance + time budget, then Zone 2)
-    let est = null; try { if (d) est = WK.dayEstimate({ program, sessions: fin, today: st.day, dayId: id, training: st.training, weekStartDow: ctx.settings.get('weekStart') ?? 1, trainingDays: ctx.settings.get('trainingDays') || null }); } catch { /* fall back */ }
-    small = wp ? `جلسة ${wp.thisWeek + 1} من ${wp.planned} الأسبوع ده` : 'تمرين النهارده';
+    const n = (active.exercises || []).length;
+    return { kind: 'active', small: 'الجلسة شغالة', title: active.dayName || 'التمرين', sub: n ? countText(n, 'exercise') : 'كمّل من حيث وقفت', btn: `كمّل ${active.dayName || 'الجلسة'}`, run: () => ctx.go('workout/session') };
+  }
+  if (done && done.kind !== 'boxing' && done.kind !== 'heart') {
+    return { kind: 'done', small: 'تمرين النهارده اتسجّل', title: done.dayName || 'جلسة النهارده', sub: `${fmt(WK.sessionVolume(done))} كجم · ${WK.sessionSetCount(done)} مجموعة${done.durationMin ? ` · ${done.durationMin} دقيقة` : ''}`, ...eat, link: { label: 'التفاصيل', href: '#/workout' } };
+  }
+  if (st.planned === 'training' || st.type === 'training') {
     const P = st.plan;
+    let title; let sub;
     if (P) {
-      // same day name / count / minutes as the Workout tab (todayPlan)
       title = P.name;
       sub = [P.count ? countText(P.count, 'exercise') : null, P.minutes ? `${P.minutes} دقيقة${P.z2 ? ` + Zone 2 ‏${P.z2} د` : ''}` : null].filter(Boolean).join(' · ') || 'الخطة جاهزة';
     } else {
-      title = d ? d.name : 'يوم تمرين'; sub = d ? `${countText(d.items.length, 'exercise')} · ${est ? est.lift : WK.estimateMinutes(d.items)} دقيقة${est && est.z2 ? ` + Zone 2 ‏${est.z2} د` : ''}` : 'الخطة جاهزة';
+      const fin = WK.finished(st.sessions);
+      const id = program ? WK.nextDayId(program, fin, st.day) : null;
+      const d = program && id ? program.days[id] : null;
+      title = d ? d.name : 'يوم تمرين';
+      sub = d ? `${countText(d.items.length, 'exercise')} · ${WK.estimateMinutes(d.items)} دقيقة` : 'الخطة جاهزة';
     }
-    btn = 'ابدأ'; run = () => ctx.go('workout', { start: '1' });
-  } else if ((st.type === 'heart' || st.planned === 'heart') && st.cardio === 'boxing' && program) {
-    // Boxing Day (program cardio day, Thursday on plan v3): this week's combo; cardio minutes, not a lifting session.
-    icn = 'bolt';
+    return { kind: 'training', small: wp ? `تمرين ${later} · جلسة ${wp.thisWeek + 1} من ${wp.planned} الأسبوع ده` : `تمرين ${later}`, title, sub, btn: `ابدأ ${title}`, run: () => ctx.go('workout', { start: '1' }) };
+  }
+  if ((st.type === 'heart' || st.planned === 'heart') && st.cardio === 'boxing' && program) {
     const bxDone = todays.find((s) => s.kind === 'boxing' && sessionState(s) === 'done');
     let box = null; try { box = TP.boxingDayInfo(ctx, { program, training: st.training, health: st.health, day: st.day }); } catch { /* fall back */ }
-    title = `يوم الملاكمة · ${box && box.minutes ? box.minutes : 35} د`;
     if (bxDone) {
-      small = 'يوم الملاكمة اتسجل';
       const rounds = (bxDone.rounds || []).filter((x) => x.kind === 'bag' && x.doneS >= x.dur * 0.5).length;
-      sub = `${rounds} جولة شوال · ${bxDone.durationMin || 0} دقيقة · مش بتتحسب جلسة رفع`; btn = 'التفاصيل';
-    } else {
-      small = box && box.week ? `يوم الملاكمة · الأسبوع ${box.week} من 12` : 'يوم الملاكمة';
-      sub = !box ? 'شوال + تكنيك' : box.gate.stop ? 'ضغطك عالي جداً: مفيش تمرين النهارده، افتح التعليمات'
-        : `كومبو الأسبوع: ${box.cw.combo.code}${box.tech ? ' · تكنيك بس' : ''}`;
-      btn = box && box.gate.stop ? 'افتح' : 'ابدأ';
+      return { kind: 'done', small: 'يوم الملاكمة اتسجّل', title: 'يوم الملاكمة', sub: `${rounds} جولة شوال · ${bxDone.durationMin || 0} دقيقة`, ...eat, link: { label: 'التفاصيل', href: '#/workout/boxing' } };
     }
-    run = () => ctx.go('workout/boxing');
-  } else if (st.type === 'heart' || st.planned === 'heart') {
-    // Heart Day (program heartDow, e.g. Saturday on the 4-day plan): 30 min, not a lifting session.
-    icn = 'heart'; title = 'يوم القلب · 30 د';
-    if (heartDone) {
-      small = 'يوم القلب اتسجل';
-      const min = Math.round((+heartDone.durationS || 0) / 60);
-      sub = `${min ? `${min} دقيقة · ` : ''}مش بتتحسب جلسة رفع`; btn = 'التفاصيل';
-    } else {
-      const g = bpGate(st.bp, st.day).state;
-      small = 'يوم القلب';
-      sub = g === 'stop' ? 'ضغطك عالي جداً: مفيش تمرين النهارده، افتح التعليمات'
-        : g === 'ok' ? 'Zone 2 أو فترات + ضغط ثابت + قاع الحوض'
-          : 'مشي / Zone 2 بس لحد ما قراءات الضغط تتأكد';
-      btn = g === 'stop' ? 'افتح' : 'ابدأ';
-    }
-    run = () => ctx.go('workout/heart');
-  } else {
-    icn = 'timer'; small = 'يوم راحة';
-    title = recDone ? 'التعافي اتسجل' : 'يوم تعافي'; sub = recDone ? 'العضلات بتتبني دلوقتي' : 'كارديو زون 2 أو إطالة 12 دقيقة';
-    btn = recDone ? 'تاني' : 'ابدأ'; run = () => ctx.go('workout/recovery');
+    const stop = box && box.gate.stop;
+    return { kind: 'boxing', small: box && box.week ? `الأسبوع ${box.week} من 12 · ${box && box.minutes ? box.minutes : 35} دقيقة` : 'شوال + تكنيك',
+      title: 'يوم الملاكمة', sub: stop ? 'ضغطك عالي جداً: مفيش تمرين النهارده، افتح التعليمات' : box ? `كومبو الأسبوع ${box.cw.combo.code}${box.tech ? ' · تكنيك بس' : ''}` : 'شوال + تكنيك',
+      btn: stop ? 'افتح التعليمات' : 'ابدأ الملاكمة', run: () => ctx.go('workout/boxing') };
   }
-  const go = h('button', { type: 'button', class: 'td-go' }, I('play', { size: 16 }), btn);
-  go.addEventListener('click', () => { haptic(); run(); });
-  return h('section', { class: 'td-wo gl', 'aria-label': `${small}: ${title}` },
-    h('div', { class: 'td-ic', 'aria-hidden': 'true' }, I(icn)),
-    h('div', { class: 't' }, h('small', {}, small), h('b', {}, title), h('span', {}, sub)), go);
+  if (st.type === 'heart' || st.planned === 'heart') {
+    if (heartDone) { const min = Math.round((+heartDone.durationS || 0) / 60); return { kind: 'done', small: 'يوم القلب اتسجّل', title: 'يوم القلب', sub: `${min ? `${min} دقيقة · ` : ''}مش بتتحسب جلسة رفع`, ...eat }; }
+    const g = bpGate(st.bp, st.day).state;
+    return { kind: 'heart', small: 'يوم القلب · 30 دقيقة', title: 'يوم القلب',
+      sub: g === 'stop' ? 'ضغطك عالي جداً: مفيش تمرين النهارده، افتح التعليمات' : g === 'ok' ? 'Zone 2 أو فترات + ضغط ثابت + قاع الحوض' : 'مشي / Zone 2 بس لحد ما قراءات الضغط تتأكد',
+      btn: g === 'stop' ? 'افتح التعليمات' : 'ابدأ يوم القلب', run: () => ctx.go('workout/heart') };
+  }
+  if (recDone) return { kind: 'done', small: 'يوم راحة', title: 'التعافي اتسجّل', sub: 'العضلات بتتبني دلوقتي', ...eat };
+  return { kind: 'rest', small: 'يوم راحة', title: 'يوم تعافي', sub: 'كارديو زون 2 أو إطالة 12 دقيقة', btn: 'ابدأ التعافي', run: () => ctx.go('workout/recovery') };
+}
+
+function hero(st, ctx, hour) {
+  const x = heroOf(st, ctx, hour);
+  const go = h('button', { type: 'button', class: 'btn td-primary', dataset: { primary: '1' } }, x.kind === 'done' ? I('plus', { size: 18 }) : I('play', { size: 18 }), x.btn);
+  go.addEventListener('click', () => { haptic(); x.run(); });
+  return h('section', { class: `td-hero k-${x.kind}`, 'aria-labelledby': 'td-hero-t' },
+    h('p', { class: 'td-hs' }, x.small),
+    h('h2', { id: 'td-hero-t', class: `td-ht${isLatin(x.title) ? ' lat num' : ''}` }, x.title),
+    h('p', { class: 'td-hsub' }, x.sub),
+    go,
+    x.link ? h('a', { class: 'td-hlink', href: x.link.href }, x.link.label) : null);
+}
+
+/** This week at a glance: done / planned / today (comps, all three directions). */
+function week(st) {
+  const start = addDays(st.day, -((weekday(st.day) - st.startDow + 7) % 7));
+  const doneDays = new Set(st.sessions.filter((s) => s && s.day && sessionState(s) === 'done').map((s) => s.day));
+  const SHORT = ['أحد', 'اتنين', 'تلات', 'أربع', 'خميس', 'جمعة', 'سبت'];
+  const cells = Array.from({ length: 7 }, (_, i) => {
+    const d = addDays(start, i); const dow = weekday(d);
+    const plan = st.trainingDays.includes(dow) || dow === st.heartDow;
+    const cls = [doneDays.has(d) ? 'done' : '', plan ? 'plan' : '', d === st.day ? 'now' : ''].filter(Boolean).join(' ');
+    const state = doneDays.has(d) ? 'اتعمل' : plan ? (d < st.day ? 'فات' : 'متخطط') : 'راحة';
+    return h('li', { class: cls, 'aria-label': `${WEEKDAY[dow]} ${parseDayKey(d).getDate()}: ${state}${d === st.day ? ' · النهارده' : ''}` },
+      h('span', { 'aria-hidden': 'true' }, SHORT[dow]), h('b', { class: 'num', 'aria-hidden': 'true' }, String(parseDayKey(d).getDate())));
+  });
+  return h('ol', { class: 'td-week', 'aria-label': 'الأسبوع ده' }, ...cells);
 }
 
 function tiles(st, ctx, openWellness) {
@@ -294,11 +275,16 @@ function goals(st, ctx, rerender) {
   const day = rows.filter((r) => r.group === 'day'); const pre = rows.filter((r) => r.group === 'pregym');
   const n = day.filter((r) => r.done).length;
   const edit = h('button', { type: 'button', class: 'td-lnk', onclick: () => editGoals(st, ctx, rerender) }, 'عدّل');
-  return h('section', { class: 'td-goals gl', 'aria-labelledby': 'td-goals-h' },
-    h('div', { class: 'td-gh' }, h('h2', { id: 'td-goals-h' }, 'أهداف النهارده'), h('span', { class: 'num' }, `${n}/${day.length}`), edit),
+  // collapsed by default (UX audit IA: Today answers «what now?»; the checklist is one tap away)
+  const dEl = h('details', { class: 'td-goals gl', open: goalsOpen ? true : null },
+    h('summary', { class: 'td-gh' }, h('h2', { id: 'td-goals-h' }, 'أهداف النهارده'), h('span', { class: 'num' }, `${n}/${day.length}`), I('chevron', { size: 18 })),
+    h('div', { class: 'td-gtools' }, edit),
     h('ul', {}, ...day.map(item)),
     pre.length ? h('h3', {}, 'قبل الجيم') : null, pre.length ? h('ul', {}, ...pre.map(item)) : null);
+  dEl.addEventListener('toggle', () => { goalsOpen = dEl.open; });
+  return dEl;
 }
+let goalsOpen = false;
 
 function editGoals(st, ctx, rerender) {
   const cfg = structuredClone(st.progress.checklist || {});
@@ -354,116 +340,145 @@ function wellnessSheet(st, ctx, rerender) {
 
 // ───────── «دلوقتي»: the one-tap jobs for this hour (weight, usual meal) and due health cards ─────────
 
-async function logEntries(ctx, day, entries, label) {
-  let prev;
+async function logEntries(ctx, day, entries) {
   try {
-    prev = (await ctx.db.get('foodLog', day).catch(() => null)) || { day, entries: [] };
+    const prev = (await ctx.db.get('foodLog', day).catch(() => null)) || { day, entries: [] };
     await ctx.db.put('foodLog', { ...prev, day, entries: [...(Array.isArray(prev.entries) ? prev.entries : []), ...entries] });
-  } catch { ctx.toast('ماقدرناش نحفظ دلوقتي. جرّب تاني.'); return false; }
+  } catch { ctx.toast('ماقدرناش نحفظ دلوقتي. جرّب تاني.'); return null; }
   const ids = new Set(entries.map((e) => e.id));
   ctx.emit('food:changed', { day });
-  ctx.toast(label, { action: { label: 'تراجع', run: async () => {
+  return async () => {
     const cur = (await ctx.db.get('foodLog', day).catch(() => null)) || { day, entries: [] };
     await ctx.db.put('foodLog', { ...cur, entries: (cur.entries || []).filter((e) => !ids.has(e.id)) });
     ctx.emit('food:changed', { day });
-  } } });
-  return true;
+  };
 }
 
 function mealFor(st, hour) {
   return quickMeal({ hour, todayEntries: st.entries, days: st.recentDays, yesterday: st.yesterday, savedMeals: st.savedMeals });
 }
-async function logMeal(ctx, st, m) {
-  const es = entriesForLog(m);
-  const name = m.kind === 'yesterday' ? `${SECTION_LABEL[m.section]} زي امبارح` : 'الفطار المعتاد';
-  return logEntries(ctx, st.day, es, `اتسجّل ${name} · ${fmt(m.kcal)} سعرة`);
+const mealName = (m) => (m.kind === 'yesterday' ? `${SECTION_LABEL[m.section]} زي امبارح` : 'الفطار المعتاد');
+/** Logs a quick meal. With `quiet` the caller shows the confirmation in its own row; otherwise a toast with «تراجع». */
+async function logMeal(ctx, st, m, { quiet = false } = {}) {
+  const undo = await logEntries(ctx, st.day, entriesForLog(m));
+  if (undo && !quiet) ctx.toast(`اتسجّل ${mealName(m)} · ${fmt(m.kcal)} سعرة`, { action: { label: 'تراجع', run: undo } });
+  return undo;
 }
 
-function mealCard(st, ctx, hour) {
+// Rows logged during this visit stay on screen as a «✓ done» line of the same height (UX audit #5: no layout jump).
+// key → {text, undo}; cleared when Today is left.
+const doneRows = new Map();
+function doneRow(key, icn, text, rerender) {
+  const d = doneRows.get(key);
+  const undo = h('button', { type: 'button', class: 'td-undo' }, 'تراجع');
+  undo.addEventListener('click', async () => { undo.disabled = true; doneRows.delete(key); try { await d.undo(); } catch { ctx0 && ctx0.toast('ماقدرناش نرجّعها.'); } rerender(); });
+  return h('li', { class: 'td-row1 is-done', dataset: { row: key }, style: d.h ? { minHeight: `${d.h}px` } : null },
+    h('span', { class: 'td-ri ok', 'aria-hidden': 'true' }, I('check', { size: 18 })),
+    h('span', { class: 'td-rt' }, h('b', {}, text), d.sub ? h('small', {}, d.sub) : null), d.undo ? undo : null);
+}
+let ctx0 = null;
+const rowH = (el) => { const li = el && el.closest('li'); return li ? Math.round(li.getBoundingClientRect().height) : 0; };
+
+function mealRow(st, ctx, hour, rerender) {
+  if (doneRows.has('meal')) return doneRow('meal', 'food', doneRows.get('meal').text, rerender);
   const m = mealFor(st, hour);
   if (!m) return null;
   const title = m.kind === 'yesterday' ? `${SECTION_LABEL[m.section]} زي امبارح` : 'فطارك المعتاد';
-  const small = m.source === 'seed' ? 'الفطار الثابت · تقدر تغيّره من التغذية' : m.source === 'saved' ? 'من وجباتي' : m.kind === 'yesterday' ? 'نفس أكل امبارح' : 'اللي بتاكله عادةً';
-  const go = h('button', { type: 'button', class: 'td-go', dataset: { quick: 'meal' }, 'aria-label': `سجّل ${title}: ${fmt(m.kcal)} سعرة` }, I('plus', { size: 16 }), 'سجّله');
-  go.addEventListener('click', async () => { go.disabled = true; haptic(); pop(go); if (!(await logMeal(ctx, st, m))) go.disabled = false; });
-  return h('section', { class: 'td-wo td-meal gl', 'aria-label': title },
-    h('div', { class: 'td-ic', 'aria-hidden': 'true' }, I('food')),
-    h('div', { class: 't' }, h('small', {}, small), h('b', {}, title), h('span', { class: 'td-ml' }, mealLine(m.entries)),
-      h('span', {}, h('span', { class: 'num' }, fmt(m.kcal)), ' سعرة · ', h('span', { class: 'num' }, fmt(m.p)), ' جم بروتين')), go);
+  const go = h('button', { type: 'button', class: 'td-act', dataset: { quick: 'meal' }, 'aria-label': `سجّل ${title}: ${fmt(m.kcal)} سعرة` }, 'سجّله');
+  go.addEventListener('click', async () => {
+    go.disabled = true; haptic();
+    const undo = await logMeal(ctx, st, m, { quiet: true });
+    if (!undo) { go.disabled = false; return; }
+    doneRows.set('meal', { text: `${mealName(m)} اتسجّل`, sub: `${fmt(m.kcal)} سعرة · ${fmt(m.p)} جم بروتين`, undo, h: rowH(go) });
+    rerender();
+  });
+  return h('li', { class: 'td-row1', dataset: { row: 'meal' } },
+    h('span', { class: 'td-ri', 'aria-hidden': 'true' }, I('food', { size: 18 })),
+    h('span', { class: 'td-rt' }, h('b', {}, title), h('small', {}, mealLine(m.entries), ' · ', h('span', { class: 'num' }, fmt(m.kcal)), ' سعرة')), go);
 }
 
-function weightRow(st, ctx) {
-  const last = st.weights.length ? st.weights[st.weights.length - 1].kg : null;
-  const input = h('input', { id: 'td-kg', type: 'text', inputmode: 'decimal', enterkeyhint: 'done', autocomplete: 'off', class: 'num', value: last != null ? String(last) : '', 'aria-describedby': 'td-kg-h td-kg-err' });
+function weightRow(st, ctx, rerender) {
+  if (doneRows.has('kg')) return doneRow('kg', 'scale', doneRows.get('kg').text, rerender);
+  const prevW = st.weights.filter((w) => w.day !== st.day);
+  const last = prevW.length ? prevW[prevW.length - 1].kg : null;
+  const input = h('input', { id: 'td-kg', type: 'text', inputmode: 'decimal', enterkeyhint: 'done', autocomplete: 'off', class: 'num', value: last != null ? String(last) : '', 'aria-label': 'وزنك النهارده بالكيلو', 'aria-describedby': 'td-kg-err' });
   const err = h('p', { class: 'td-err', id: 'td-kg-err', 'aria-live': 'polite' });
   const clear = () => { err.textContent = ''; input.removeAttribute('aria-invalid'); };
-  const step = (d) => { const v = parseNum(input.value); const base = Number.isFinite(v) ? v : (last ?? 72); input.value = String(Math.round((base + d) * 10) / 10); clear(); };
-  const save = h('button', { type: 'button', class: 'td-save' }, 'احفظ');
+  const step = (d) => { const v = parseNum(input.value); const base = Number.isFinite(v) ? v : (last ?? 72); input.value = (Math.round((base + d) * 10) / 10).toFixed(1); clear(); };
+  const save = h('button', { type: 'button', class: 'td-act' }, 'احفظ');
   const run = async () => {
     const v = validKg(input.value);
     if (!v.ok) { err.textContent = v.message; input.setAttribute('aria-invalid', 'true'); input.focus(); return; }
     save.disabled = true; haptic();
-    try { await saveWeight(ctx, v.kg, st.day); } catch { err.textContent = 'ماقدرناش نحفظ دلوقتي — جرّب تاني.'; save.disabled = false; }
+    let undo; try { undo = await saveWeight(ctx, v.kg, st.day, { quiet: true }); } catch { err.textContent = 'ماقدرناش نحفظ دلوقتي — جرّب تاني.'; save.disabled = false; return; }
+    const dlt = last != null ? Math.round((v.kg - last) * 10) / 10 : null;
+    doneRows.set('kg', { h: rowH(save), text: `وزنك ${fmt(v.kg, { dp: 1 })} كجم`, sub: dlt == null ? 'أول وزن' : dlt === 0 ? 'زي آخر مرة' : `${dlt > 0 ? '+' : '−'}${fmt(Math.abs(dlt), { dp: 1 })} عن آخر مرة`, undo });
+    rerender();
   };
   save.addEventListener('click', run);
   input.addEventListener('input', clear);
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
-  const sb = (d, label, txt) => h('button', { type: 'button', class: 'td-stp', 'aria-label': label, onclick: () => step(d) }, txt);
-  return h('section', { class: 'td-now td-kgrow gl', 'aria-labelledby': 'td-kg-l' },
-    h('div', { class: 'td-nh' }, I('scale', { size: 16 }), h('label', { for: 'td-kg', id: 'td-kg-l' }, 'وزنك النهارده'),
-      h('small', { id: 'td-kg-h' }, last != null ? `آخر مرة ${fmt(last, { dp: 1 })} كجم` : 'على الريق لو تقدر')),
-    h('div', { class: 'td-kgin' }, sb(0.1, 'زوّد 0.1 كجم', '+'), input, sb(-0.1, 'قلّل 0.1 كجم', '−'), save), err);
+  const sb = (d, label, txt) => { const b = h('button', { type: 'button', class: 'td-stp', 'aria-label': label }, txt); holdRepeat(b, () => step(d)); return b; };
+  return h('li', { class: 'td-row1 td-kgrow', dataset: { row: 'kg' } },
+    h('span', { class: 'td-ri', 'aria-hidden': 'true' }, I('scale', { size: 18 })),
+    h('span', { class: 'td-rt' }, h('b', {}, 'وزنك'), h('small', {}, last != null ? `آخر مرة ${fmt(last, { dp: 1 })}` : 'على الريق')),
+    h('span', { class: 'td-kgin' }, sb(-0.1, 'قلّل 0.1 كجم', '−'), input, sb(0.1, 'زوّد 0.1 كجم', '+')), save, err);
 }
 
-function bpCard(st, ctx, force = false) {
+function bpRow(st, ctx, force, rerender) {
+  if (doneRows.has('bp')) return doneRow('bp', 'heart', doneRows.get('bp').text, rerender);
   const g = bpGate(st.bp, st.day);
   const due = bpDue({ gateState: g.state, bp: st.bp, day: st.day });
   if (!due && !force) return null;
-  const f = (id, label, min, max, hint) => {
+  const sub = due ? `قراءة ${due.today + 1} من 2 · يوم ${g.days} من 3` : 'قراءة جديدة';
+  const li = h('li', { class: 'td-row1 td-bprow', dataset: { row: 'bp' } });
+  const open = h('button', { type: 'button', class: 'td-act', 'aria-expanded': 'false', 'aria-controls': 'td-bpf' }, 'سجّل');
+  const head = [h('span', { class: 'td-ri', 'aria-hidden': 'true' }, I('heart', { size: 18 })),
+    h('span', { class: 'td-rt' }, h('b', {}, 'ضغط البيت'), h('small', {}, sub))];
+  const f = (id, label, hint) => {
     const input = h('input', { id, type: 'text', inputmode: 'numeric', autocomplete: 'off', class: 'num', 'aria-describedby': `${id}-err`, enterkeyhint: id === 'td-sys' ? 'next' : 'done' });
     const err = h('p', { class: 'td-err', id: `${id}-err`, 'aria-live': 'polite' });
-    input.addEventListener('input', () => { err.textContent = ''; input.removeAttribute('aria-invalid'); });
-    return { input, err, el: h('div', { class: 'td-bpf' }, h('label', { for: id }, label, h('small', {}, hint)), input, err), min, max };
+    input.addEventListener('input', () => { err.textContent = ''; input.removeAttribute('aria-invalid'); const t = String(input.value).replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660)); if (t !== input.value) input.value = t; });
+    return { input, err, el: h('div', { class: 'td-bpf' }, h('label', { for: id }, label, h('small', {}, hint)), input, err) };
   };
-  const sys = f('td-sys', 'الانقباضي', 70, 260, ' (الكبير)');
-  const dia = f('td-dia', 'الانبساطي', 40, 160, ' (الصغير)');
-  const save = h('button', { type: 'button', class: 'td-save' }, 'سجّل');
-  const run = async () => {
-    const H = await import('../workout/heart.js');
-    const v = H.validateBP({ sys: sys.input.value.trim(), dia: dia.input.value.trim() });
-    sys.err.textContent = v.errors.sys || ''; dia.err.textContent = v.errors.dia || '';
-    sys.input.setAttribute('aria-invalid', String(!!v.errors.sys)); dia.input.setAttribute('aria-invalid', String(!!v.errors.dia));
-    if (!v.ok) { (v.errors.sys ? sys : dia).input.focus(); return; }
-    save.disabled = true; haptic();
-    const row = { id: `bp:${Date.now().toString(36)}`, at: new Date().toISOString(), day: st.day, ...v.value, cuff: st.health.cuffArm === false ? 'other' : 'arm' };
-    try { await H.patchHealth(ctx.db, (c) => ({ ...c, bp: [...(c.bp || []), row].slice(-400) })); } catch { ctx.toast('ماقدرناش نحفظ دلوقتي. جرّب تاني.'); save.disabled = false; return; }
-    ctx.toast(`اتسجّل ${row.sys}/${row.dia}: ${H.bpCategory(row.sys, row.dia).label}`);
-    ctx.emit('health:changed', { day: st.day });
+  const expand = () => {
+    const sys = f('td-sys', 'الانقباضي', ' (الكبير)'); const dia = f('td-dia', 'الانبساطي', ' (الصغير)');
+    const save = h('button', { type: 'button', class: 'td-act' }, 'احفظ');
+    const run = async () => {
+      const H = await import('../workout/heart.js');
+      const v = H.validateBP({ sys: sys.input.value.trim(), dia: dia.input.value.trim() });
+      sys.err.textContent = v.errors.sys || ''; dia.err.textContent = v.errors.dia || '';
+      sys.input.setAttribute('aria-invalid', String(!!v.errors.sys)); dia.input.setAttribute('aria-invalid', String(!!v.errors.dia));
+      if (!v.ok) { (v.errors.sys ? sys : dia).input.focus(); return; }
+      save.disabled = true; haptic();
+      const row = { id: `bp:${Date.now().toString(36)}`, at: new Date().toISOString(), day: st.day, ...v.value, cuff: st.health.cuffArm === false ? 'other' : 'arm' };
+      try { await H.patchHealth(ctx.db, (c) => ({ ...c, bp: [...(c.bp || []), row].slice(-400) })); } catch { ctx.toast('ماقدرناش نحفظ دلوقتي. جرّب تاني.'); save.disabled = false; return; }
+      doneRows.set('bp', { h: rowH(save), text: `ضغطك ${row.sys}/${row.dia}`, sub: H.bpCategory(row.sys, row.dia).label,
+        undo: async () => { await H.patchHealth(ctx.db, (c) => ({ ...c, bp: (c.bp || []).filter((x) => x.id !== row.id) })); ctx.emit('health:changed', { day: st.day }); } });
+      ctx.emit('health:changed', { day: st.day });
+    };
+    sys.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); dia.input.focus(); } });
+    dia.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
+    save.addEventListener('click', run);
+    li.classList.add('open');
+    fill(li, ...head, h('a', { class: 'td-lnk', href: '#/workout/heart?tab=bp' }, 'السجل'),
+      h('div', { class: 'td-bpin', id: 'td-bpf' }, sys.el, h('span', { class: 'td-slash', 'aria-hidden': 'true' }, '/'), dia.el, save),
+      h('p', { class: 'td-hint' }, 'جهاز دراع، بعد 5 دقايق راحة وإنت قاعد · قراءتين بينهم دقيقة'));
   };
-  const toNum = (s) => String(s).replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660));
-  for (const x of [sys, dia]) x.input.addEventListener('input', () => { const t = toNum(x.input.value); if (t !== x.input.value) x.input.value = t; });
-  sys.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); dia.input.focus(); } });
-  dia.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
-  save.addEventListener('click', run);
-  const sub = due ? `قراءة ${due.today + 1} من 2 · يوم ${g.days} من 3` : 'قراءة جديدة';
-  return h('section', { class: 'td-now td-bp gl', 'aria-labelledby': 'td-bp-h' },
-    h('div', { class: 'td-nh' }, I('heart', { size: 16 }), h('h2', { id: 'td-bp-h' }, 'ضغط البيت'), h('small', {}, sub),
-      h('a', { class: 'td-lnk', href: '#/workout/heart?tab=bp' }, 'السجل')),
-    h('div', { class: 'td-bpin' }, sys.el, h('span', { class: 'td-slash', 'aria-hidden': 'true' }, '/'), dia.el, save),
-    h('p', { class: 'td-hint' }, 'جهاز دراع، بعد 5 دقايق راحة وإنت قاعد · قراءتين بينهم دقيقة'));
+  open.addEventListener('click', () => { expand(); requestAnimationFrame(() => document.getElementById('td-sys')?.focus()); });
+  if (force) expand(); else fill(li, ...head, open);
+  return li;
 }
 
-function kegelCard(st, ctx) {
+function kegelRow(st, ctx) {
   const kg = st.health.kegel || {};
   let week = 1; try { if (kg.start) week = Math.floor(diffDays(kg.start, st.day) / 7) + 1; } catch { /* default */ }
   const due = kegelDue({ kegel: kg, day: st.day, week });
   if (!due) return null;
-  const go = h('button', { type: 'button', class: 'td-go', dataset: { quick: 'kegel' } }, I('play', { size: 16 }), 'ابدأ');
-  go.addEventListener('click', () => { haptic(); ctx.go('workout/kegel'); });
-  return h('section', { class: 'td-wo td-kegel gl', 'aria-label': `تمرين قاع الحوض: مرة ${due.done + 1} من ${due.perDay} النهارده` },
-    h('div', { class: 'td-ic', 'aria-hidden': 'true' }, I('timer')),
-    h('div', { class: 't' }, h('small', {}, 'في البيت · حوالي 4 دقايق'), h('b', {}, 'تمرين قاع الحوض'),
-      h('span', {}, `مرة ${due.done + 1} من ${due.perDay} النهارده`)), go);
+  const go = h('a', { class: 'td-act', href: '#/workout/kegel', dataset: { quick: 'kegel' } }, 'ابدأ');
+  return h('li', { class: 'td-row1', dataset: { row: 'kegel' } },
+    h('span', { class: 'td-ri', 'aria-hidden': 'true' }, I('timer', { size: 18 })),
+    h('span', { class: 'td-rt' }, h('b', {}, 'تمرين قاع الحوض'), h('small', {}, `مرة ${due.done + 1} من ${due.perDay} · حوالي 4 دقايق`)), go);
 }
 
 function moreMenu(st, ctx) {
@@ -471,6 +486,7 @@ function moreMenu(st, ctx) {
   const body = h('div', {});
   const s = ctx.sheet({ title: 'خيارات اليوم', body });
   const item = (ic, text, run) => body.appendChild(h('button', { type: 'button', class: 'menu-item', onclick: () => { s.close(); run(); } }, I(ic), text));
+  item('user', 'الملف والإعدادات', () => ctx.go('profile'));
   item('repeat', flip === 'rest' ? 'خلّي النهارده يوم راحة' : 'خلّي النهارده يوم تمرين', async () => {
     const n = await kv(ctx.db, 'nutrition'); const prev = { ...(n.dayTypeOverrides || {}) };
     try { await ctx.db.put('kv', { key: 'nutrition', value: { ...n, dayTypeOverrides: { ...prev, [day]: flip } } }); } catch { ctx.toast('ماقدرناش نحفظ دلوقتي.'); return; }
@@ -480,9 +496,7 @@ function moreMenu(st, ctx) {
     } } });
   });
   item('scale', 'سجّل الوزن', () => openWeightSheet(ctx));
-  item('msg', 'اسأل المدرب', () => import('../coach/api.js').then((a) => a.openCoachSheet(ctx, { intent: 'chat' })));
-  item('chart', 'التقدّم والتقارير', () => ctx.go('progress'));
-  item('settings', 'الملف والإعدادات', () => ctx.go('profile'));
+  item('check', 'أهداف النهارده', () => { const d = document.querySelector('.td-goals'); if (d) { d.open = true; d.scrollIntoView({ block: 'start' }); } });
 }
 
 
@@ -509,27 +523,33 @@ async function quickAction(ctx, params, getSt, setForceBP) {
 
 export async function renderToday(el, ctx, params = {}) {
   let st; let alive = true;
-  shownNum.clear(); // a fresh visit counts the ring figures up again
+  doneRows.clear(); ctx0 = ctx;
   let forceBP = !!params.bp;
   const paint = () => {
     if (!alive) return;
     const hour = new Date().getHours();
     const greet = st.name ? `${hour < 12 ? 'صباح الفل' : 'مساء الفل'} يا ${st.name}` : dayTitle(st.day);
-    const more = h('button', { type: 'button', class: 'td-ib gl', 'aria-label': 'خيارات اليوم', 'aria-haspopup': 'dialog', onclick: () => moreMenu(st, ctx) }, I('more'));
+    const more = h('button', { type: 'button', class: 'td-ib', 'aria-label': 'خيارات اليوم والملف', 'aria-haspopup': 'dialog', onclick: () => moreMenu(st, ctx) }, I('more'));
     const openW = () => wellnessSheet(st, ctx, paint);
     const weighed = st.weights.some((w) => w.day === st.day);
+    const lastKg = st.weights.length ? st.weights[st.weights.length - 1].kg : null;
+    const rows = [weightDue({ hour, weighed }) || doneRows.has('kg') ? weightRow(st, ctx, paint) : null, mealRow(st, ctx, hour, paint), bpRow(st, ctx, forceBP, paint), kegelRow(st, ctx)].filter(Boolean);
+    const tag = st.type === 'heart' && st.cardio === 'boxing' ? 'يوم الملاكمة' : DAY_TYPE_LABEL[st.type];
     fill(el, h('div', { class: 'td' },
-      h('header', { class: 'td-hd' }, h('div', {}, h('p', { class: 'td-dayp' }, st.name ? dayTitle(st.day) : '', h('b', { class: st.type === 'training' ? 'tr' : st.type === 'heart' ? 'hd' : 'rs' }, st.type === 'heart' && st.cardio === 'boxing' ? 'يوم الملاكمة' : DAY_TYPE_LABEL[st.type])), h('h1', {}, greet)), more),
-      weightDue({ hour, weighed }) ? weightRow(st, ctx) : null, mealCard(st, ctx, hour), bpCard(st, ctx, forceBP),
-      gauge(st), macros(st, ctx), workoutCard(st, ctx), kegelCard(st, ctx), tiles(st, ctx, openW), intel(st, ctx, openW), goals(st, ctx, paint)));
+      h('header', { class: 'td-hd' },
+        h('div', {}, h('p', { class: 'td-dayp' }, st.name ? `${dayTitle(st.day)} · ${tag}` : tag), h('h1', {}, greet)),
+        lastKg != null ? h('span', { class: 'td-kgtag num', 'aria-label': `آخر وزن ${fmt(lastKg, { dp: 1 })} كجم` }, `${fmt(lastKg, { dp: 1 })} kg`) : null, more),
+      hero(st, ctx, hour), fuel(st),
+      rows.length ? h('ul', { class: 'td-rows gl', 'aria-label': 'دلوقتي' }, ...rows) : null,
+      week(st), tiles(st, ctx, openW), intel(st, ctx, openW), goals(st, ctx, paint)));
   };
   const refresh = async () => { st = await load(ctx); paint(); };
   await refresh();
   await quickAction(ctx, params, () => st, (v) => { forceBP = v; paint(); });
   const offs = ['food:changed', 'session:changed', 'weight:changed', 'settings:changed', 'wellness:changed', 'health:changed'].map((e) => ctx.on(e, () => { if (e === 'health:changed') forceBP = false; refresh(); }));
-  const onVis = () => { if (document.visibilityState === 'visible' && st && st.day !== ctx.today()) refresh(); };
+  const onVis = () => { if (document.visibilityState === 'visible' && st && st.day !== ctx.today()) { doneRows.clear(); refresh(); } };
   document.addEventListener('visibilitychange', onVis);
-  return () => { alive = false; offs.forEach((f) => f()); document.removeEventListener('visibilitychange', onVis); };
+  return () => { alive = false; doneRows.clear(); offs.forEach((f) => f()); document.removeEventListener('visibilitychange', onVis); };
 }
 
 export const routes = { today: renderToday };

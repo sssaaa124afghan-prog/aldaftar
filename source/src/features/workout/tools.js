@@ -6,7 +6,7 @@ import { loadAll } from './store.js';
 import { parseNum } from '../../ui/num.js';
 import { ring } from '../../ui/ring.js';
 import { tone, speak } from './kit.js';
-import { canVibrate } from './view.js';
+import { buzz } from '../../core/alerts.js';
 
 export async function renderTools(el, ctx, params = {}) {
   const { done } = await loadAll(ctx.db);
@@ -105,8 +105,9 @@ export async function renderTools(el, ctx, params = {}) {
   function tick() {
     if (closed || !T.mode) return;
     if (Date.now() >= T.endsAt) {
-      if (canVibrate()) try { navigator.vibrate([120, 80, 120]); } catch { /* optional */ }
-      tone(ctx);
+      const last = T.idx >= T.phases.length - 1;
+      buzz(last ? [200, 100, 200, 100, 300] : [120, 80, 120]); // Android vibrate / iOS switch tick (core/alerts.js)
+      tone(ctx, last ? 'restEnd' : 'phase');
       if (T.idx >= T.phases.length - 1) { speak(ctx, T.mode === 'hiit' ? 'خلص التمرين' : 'الراحة خلصت'); ctx.toast(T.mode === 'hiit' ? 'خلص الإنترفال.' : 'الراحة خلصت.'); T.mode = null; paintT(true); return; }
       T.idx++; T.endsAt += T.phases[T.idx].sec * 1000; speak(ctx, T.phases[T.idx].work ? 'شغل' : 'راحة'); paintT(true); return;
     }

@@ -2,21 +2,26 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './styles/components.css';
 import './styles/palettes.css';
+import './styles/designs.css';
+import { applyDesign } from './app/design.js';
 import { openDB, createMemoryDB } from './core/db.js';
 import { createCtx, toast } from './app/ctx.js';
 import { startRouter, renderTabs, go, parseHash } from './app/router.js';
 import { readMigrationGate } from './features/profile/migration.js';
 import { setReduceMotion, setHaptics } from './ui/anim.js';
+import { initAlerts, refreshWake } from './core/alerts.js';
 
 async function boot() {
   let db; let memory = false;
   try { db = await openDB(); } catch (e) { db = createMemoryDB(); memory = true; console.warn('[boot] IndexedDB unavailable, using memory', e && e.code); }
   const ctx = await createCtx(db, { go });
-  applyPalette(ctx.settings.get('palette'));
+  const applyLook = () => applyDesign(ctx.settings.get('design'), ctx.settings.get('palette'));
+  applyLook();
   // Profile › المظهر: «قلّل الحركة» (default off; the OS setting applies on its own) and «اهتزاز خفيف» (default on)
   const applyFeel = () => { setReduceMotion(ctx.settings.get('ui.reduceMotion') === true); setHaptics(ctx.settings.get('ui.haptics') !== false); };
   applyFeel();
-  ctx.on('settings:changed', ({ key }) => { if (key === 'palette') applyPalette(ctx.settings.get('palette')); if (key === 'ui.reduceMotion' || key === 'ui.haptics') applyFeel(); });
+  initAlerts(ctx.settings); // first tap anywhere unlocks WebAudio / <audio> (iOS); see core/alerts.js
+  ctx.on('settings:changed', ({ key }) => { if (key === 'palette' || key === 'design') applyLook(); if (key === 'ui.reduceMotion' || key === 'ui.haptics') applyFeel(); if (key === 'wk.wakeLock') refreshWake(); });
   window.__ctx = import.meta.env.DEV ? ctx : undefined;
   const view = document.getElementById('view');
   const nav = document.getElementById('tabs');
@@ -30,14 +35,7 @@ async function boot() {
   registerSW();
 }
 
-// Optional colour palette (Profile → «ألوان البرنامج»). Unset/unknown = the default Electric Glass Pro look.
-const PALETTE_BG = { emerald: '#03121A', ember: '#09090B', ocean: '#020A1C', sand: '#0D0906', aurora: '#090B0E', steel: '#0E1116', navy: '#060C1A', racing: '#0B0C0F', tactical: '#0C0E09' };
-function applyPalette(id) {
-  const root = document.documentElement;
-  if (PALETTE_BG[id]) root.dataset.palette = id; else delete root.dataset.palette;
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = PALETTE_BG[id] || '#0D0B2E';
-}
+// Design + palette: src/app/design.js (Profile › المظهر). index.html applies the cached choice before first paint.
 
 function registerSW() {
   if (!('serviceWorker' in navigator) || import.meta.env.DEV || location.protocol === 'file:') return;

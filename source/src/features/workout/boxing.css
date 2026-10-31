@@ -59,3 +59,30 @@
   .bx-now-combo,.bx-now-combo .bx-combo{justify-items:start}
 }
 @media (prefers-reduced-motion:reduce){.bx-player *{transition:none!important;animation:none!important}}
+
+/* live view (UX audit #11): full screen, no tab bar, the whole screen floods with the phase (designs.css --bx-*) */
+.bx-player.is-live{position:fixed;inset:0;z-index:35;margin:0;max-width:none;border:0;border-radius:0;display:flex;flex-direction:column;gap:var(--s3);overflow:auto;
+  padding:calc(env(safe-area-inset-top,0px) + var(--s4)) var(--gutter) calc(env(safe-area-inset-bottom,0px) + var(--s4));
+  background:var(--bx-rest,var(--g1));color:var(--bx-rest-tx,var(--tx));transition:background-color var(--d-slow) var(--ease-out),color var(--d-slow) var(--ease-out)}
+.bx-player.is-live[data-flood="work"]{background:var(--bx-work,var(--g2));color:var(--bx-work-tx,var(--tx))}
+.bx-player.is-live>h3{color:inherit;opacity:.85}
+.bx-player.is-live .bx-stage{flex:1;justify-content:center;cursor:pointer}
+.bx-player.is-live .bx-ring{width:auto;height:auto}
+.bx-player.is-live .bx-ring svg{display:none}
+.bx-player.is-live .bx-ring .c{position:static}
+.bx-player.is-live .bx-clock{font-size:clamp(104px,34vw,168px);font-family:var(--fn,var(--f));font-weight:600;color:inherit;letter-spacing:-.01em}
+.bx-player.is-live :is(.bx-tag,.bx-round,.bx-name,.bx-sub,.hk-prog,.hk-next,.bx-k,.bx-combo small){color:inherit}
+.bx-player.is-live :is(.bx-tag,.bx-sub,.hk-prog,.hk-next,.bx-k){opacity:.85}
+.bx-player.is-live .bx-round{font-size:var(--t-24)}
+.bx-player.is-live[data-flood="work"] .bx-code{color:var(--bx-work-acc,var(--orange))}
+.bx-player.is-live .bx-now-combo{background:color-mix(in srgb,currentColor 10%,transparent);border-color:color-mix(in srgb,currentColor 20%,transparent)}
+.bx-player.is-live .bx-ctrls{margin-top:auto}
+.bx-player.is-live .bx-ctl{background:color-mix(in srgb,currentColor 14%,transparent);border-color:transparent;color:inherit}
+.bx-player.is-live .bx-play{min-height:64px;background:var(--bx-btn,var(--cta));color:var(--bx-btn-tx,var(--on-accent));box-shadow:none}
+html .bx-player.is-live .bx-end{background:transparent;color:inherit;border-color:color-mix(in srgb,currentColor 40%,transparent)}
+.bx-player.is-live .bx-all{display:none}
+.bx-player.is-live .bx-rpe{background:color-mix(in srgb,currentColor 10%,transparent);border-color:transparent}
+.bx-player.is-live .bx-rpe .chip{background:transparent;color:inherit;border-color:color-mix(in srgb,currentColor 35%,transparent)}
+.bx-player.is-live .bx-rpe .chip[aria-checked="true"]{background:var(--bx-btn,var(--cta));color:var(--bx-btn-tx,var(--on-accent))}
+html.bx-live .toast-host{z-index:60}
+.bx-player.is-live b{color:inherit}

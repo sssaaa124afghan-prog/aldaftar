@@ -1,7 +1,7 @@
 // Versioned app-shell cache. Bump VERSION on every release.
 // Cache-first for same-origin shell files; network-only for everything else (never caches
 // api.anthropic.com, openfoodfacts or any other cross-origin call).
-const VERSION = 'v4-2026-10-24-0a99bc0a';
+const VERSION = 'v5-2026-10-31-dbe7c866';
 const CACHE = `shell-${VERSION}`;
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
@@ -19,8 +19,10 @@ self.addEventListener('activate', (e) => {
   })());
 });
 
-// Workout rest timer on a locked phone: the page posts {type:'wk-rest', at, title, options} when it goes to the background;
-// the SW keeps itself alive until `at` and shows the end alert (tag 'wk-rest'), unless the page cancels on return.
+// Workout rest timer in the background — ANDROID / DESKTOP ONLY: the page posts {type:'wk-rest', at, title, options} when it
+// goes to the background; the SW keeps itself alive until `at` and shows the end alert (tag 'wk-rest'), unless the page
+// cancels on return. iOS freezes a locked/backgrounded PWA *and* its service worker, so this timer never fires there; the
+// page only posts it where core/alerts.js alertEnv().bgAlerts is true. A locked iPhone needs a real Web Push (council/alerts.md).
 let restTimer = 0, restDone = null;
 const restCancel = () => { clearTimeout(restTimer); restTimer = 0; if (restDone) { restDone(); restDone = null; } };
 self.addEventListener('message', (e) => {

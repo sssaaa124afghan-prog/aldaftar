@@ -216,7 +216,7 @@ export async function mountChat(el, ctx, { intent = 'chat', attach = null, promp
 
   const attachNote = attach && Object.keys(attach).length
     ? h('p', { class: 'co-attach' }, I('check'), attach.liveSession ? 'الجلسة الحالية مرفقة' : attach.session ? 'الجلسة مرفقة' : attach.exercise ? 'التمرين مرفق' : 'فيه بيانات مرفقة') : null;
-  const keyNote = hasKey(ctx) ? null : h('p', { class: 'co-hint' }, 'محتاج مفتاح API عشان المدرب يرد. «ضيف 150 جرام …» شغالة من غيره. ', h('a', { href: '#/profile', onclick: nav }, 'حط المفتاح'));
+  const keyNote = hasKey(ctx) ? null : keyInline(ctx);
 
   el.textContent = '';
   el.classList.add('co-wrap');
@@ -228,3 +228,24 @@ export async function mountChat(el, ctx, { intent = 'chat', attach = null, promp
   return { submit };
 }
 
+
+/** Inline API-key field (UX audit #12): save without leaving the coach, with a visible ✓. Same rule as Profile › المدرب الذكي. */
+function keyInline(ctx) {
+  const id = `co-key-${Math.random().toString(36).slice(2, 7)}`;
+  const inp = h('input', { id, type: 'password', autocomplete: 'off', spellcheck: 'false', dir: 'ltr', placeholder: 'sk-ant-…', 'aria-describedby': `${id}-m` });
+  const msg = h('p', { class: 'co-keymsg', id: `${id}-m`, 'aria-live': 'polite' }, 'محتاج مفتاح API عشان المدرب يرد. «ضيف 150 جرام …» شغالة من غيره. المفتاح بيفضل على الجهاز ده بس.');
+  const save = h('button', { type: 'button', class: 'btn ghost sm' }, 'احفظ المفتاح');
+  const box = h('div', { class: 'co-key' }, h('label', { for: id }, 'مفتاح Anthropic API'), h('div', { class: 'co-keyrow' }, inp, save), msg);
+  save.addEventListener('click', async () => {
+    const v = inp.value.trim();
+    if (!v) { msg.textContent = 'اكتب المفتاح الأول.'; inp.focus(); return; }
+    if (!/^sk-ant-/.test(v)) { msg.textContent = 'المفتاح عادة بيبدأ بـ sk-ant- — راجعه.'; inp.setAttribute('aria-invalid', 'true'); inp.focus(); return; }
+    save.disabled = true;
+    try { await ctx.settings.set('anthropicKey', v); } catch { msg.textContent = 'ماقدرناش نحفظ المفتاح — جرّب تاني.'; save.disabled = false; return; }
+    box.classList.add('ok');
+    box.textContent = '';
+    box.append(h('p', { class: 'co-keydone' }, raw(icon('check', { size: 18 })), 'اتحفظ المفتاح · اكتب سؤالك تحت'));
+  });
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save.click(); } });
+  return box;
+}

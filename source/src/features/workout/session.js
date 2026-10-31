@@ -2,7 +2,7 @@
 // One tap «سجّل المجموعة» completes the current set and starts the rest timer in the hero ring.
 // Timer is timestamp based (survives screen lock). Undo via ctx.toast. Sounds / TTS / notifications are opt-in.
 import { fill } from '../../ui/dom.js';
-import { h, N, ico, safeWrite, canVibrate, setsReps, bidiRanges } from './view.js';
+import { h, N, ico, safeWrite, setsReps, bidiRanges } from './view.js';
 import * as L from './logic.js';
 import { loadAll, loadProgram, saveProgram, putSession, deleteSession, loadTraining, patchTraining, loadGateInputs } from './store.js';
 import * as EA from './entry-assist.js';
@@ -10,8 +10,10 @@ import { pickExercise } from './picker.js';
 import { parseNum, countText } from '../../ui/num.js';
 import { ring } from '../../ui/ring.js';
 import { pop, haptic, countUp, reduced } from '../../ui/anim.js';
+import { holdRepeat } from '../../ui/hold.js';
 import { nextTrainLabel } from './overview.js';
-import { spark, tone, speak, loadCoach, pref, prefSwitch, askNotifyPermission, coachingFor } from './kit.js';
+import { spark, loadCoach, pref, prefSwitch, askNotifyPermission, coachingFor } from './kit.js';
+import { cue, alertNow, unlock, alertEnv, keepAwake, timerCues, lateText } from '../../core/alerts.js';
 import { STRETCH_PROTOCOLS } from './content.js';
 import { libById } from './exercises.js';
 import { videoLink } from './exercise-videos.js';
@@ -72,8 +74,9 @@ export async function renderSession(el, ctx) {
   const root = h('div', { class: 'wk-session' });
   const announcer = h('p', { class: 'vh', 'aria-live': 'assertive' });
   el.append(root, announcer);
-  let clockEl = null, closed = false, hero = null, dock = null, justSet = null;
+  let clockEl = null, closed = false, hero = null, dock = null, justSet = null, tipPending = false;
   // inline entry state: typing updates the model + the touched bits only (never a full re-render under the finger)
+  let stepBlock = null; // current set's kg / reps steppers: live in the dock, right above the CTA (UX audit #2)
   let rowUI = [], stepUI = null, needHint = null, rirBox = null, typeChip = null, volEl = null, bestW = 0, apply = null, saveT = 0, redrawLater = false, lastTap = { ev: null, k: '', t: -1 };
   let lastUndo = null; // the latest «تراجع» of a logged set (voice «امسح» runs it)
   const vc = V.createVoiceUI({ h, ico, onInput: (alts) => onVoice(alts) });
@@ -113,6 +116,8 @@ export async function renderSession(el, ctx) {
     if (!(+t.r > 0)) return;
     carryAcc = null; clearTimeout(carryT); // the carried values are on screen; the set toast takes the one toast slot
     const was = { cur: { ...live.cur }, rest: live.rest };
+    // a tap during a running rest ends it early: say so (toast + cue), never a silent state change (UX audit #2)
+    const cutRest = !!(live.rest && !Number.isFinite(live.rest.pausedLeft) && L.restRemaining(live.rest) > 0);
     t.done = true; t.at = Date.now();
     if ((t.rir === null || t.rir === undefined) && Number.isFinite(t.rirEst)) t.rirEst = L.estimateRir(t.w, t.r, recentBest(e));
     recomputePR(e);
@@ -124,6 +129,9 @@ export async function renderSession(el, ctx) {
     if (nx.cur) live.cur = nx.cur;
     justSet = t;
     haptic(t.pr ? 30 : 12, { double: !!t.pr }); // inside the tap (iOS switch haptic needs the gesture); PR = two ticks
+    unlock(); cue(t.pr ? 'pr' : 'set'); // inside the tap: unlocks WebAudio on iOS for the rest-end cue later
+    if (cutRest) cue('relax', { delay: 0.15 }); // second, lower note = «rest cancelled»
+    if (live.rest && !alertTipSeen()) tipPending = true;
     await save();
     draw('done');
     const idx = e.sets.indexOf(t) + 1;
@@ -135,7 +143,7 @@ export async function renderSession(el, ctx) {
       await save(); draw('done');
     };
     lastUndo = undo;
-    ctx.toast(t.pr ? `رقم شخصي جديد · ${L.fmtW(t.w)} × ${t.r}` : ssHop ? `سوبر سِت · على ${live.exercises[nx.cur.ex].name} من غير راحة` : `المجموعة ${idx} اتسجّلت`, { action: { label: 'تراجع', run: undo } });
+    ctx.toast(t.pr ? `رقم شخصي جديد · ${L.fmtW(t.w)} × ${t.r}` : cutRest ? `المجموعة ${idx} اتسجّلت · الراحة اللي فاتت اتلغت` : ssHop ? `سوبر سِت · على ${live.exercises[nx.cur.ex].name} من غير راحة` : `المجموعة ${idx} اتسجّلت`, { action: { label: 'تراجع', run: undo } });
     if (!e.sets.some((s) => !s.done)) afterExercise(e);
     if (!L.nextOpen(live)) announce('خلصت كل المجموعات. اقفل الجلسة لما تكون جاهز.');
   }
@@ -318,6 +326,7 @@ export async function renderSession(el, ctx) {
   }
 
   // ── first-session calibration: guided ramp, three answers, no typing (UX #10) ──
+  // first-time ramp: answered in the dock (in place of the CTA, under the A1/A2 strip in a superset), never as a popup
   const calibOn = (e = curEx()) => !!e && EA.needsCalibration(e) && !!curSet() && !curSet().done;
   function calibState(e) {
     if (!e.calib || e.calib.locked !== undefined || e.calib.skip) e.calib = EA.calibStart(e, bwKg, { reentry, reps: L.parseReps(e.reps)?.lo || 8 });
@@ -429,17 +438,18 @@ export async function renderSession(el, ctx) {
     if (curSet()?.done) live.cur = { ex: live.cur.ex, set: e.sets.length - 1 };
     save(); draw();
   }
-  function skipRest() { live.rest = null; save(); draw(); focusDock(); }
+  function skipRest() { live.rest = null; tipPending = false; save(); draw(); focusDock(); }
   function shiftRest(sec) {
     if (!live.rest) return;
     if (Number.isFinite(live.rest.pausedLeft)) live.rest.pausedLeft = Math.max(0, live.rest.pausedLeft + sec);
     else live.rest.endsAt = Math.max(Date.now(), live.rest.endsAt + sec * 1000);
     live.rest.total = Math.max(live.rest.total, restLeft());
+    live.rest.fired = {}; // the 10 s tick / 3-2-1 replay for the new end time
     save(); paintRest();
   }
   function togglePause() {
     if (!live.rest) return;
-    if (Number.isFinite(live.rest.pausedLeft)) { live.rest.endsAt = Date.now() + live.rest.pausedLeft * 1000; delete live.rest.pausedLeft; }
+    if (Number.isFinite(live.rest.pausedLeft)) { live.rest.endsAt = Date.now() + live.rest.pausedLeft * 1000; delete live.rest.pausedLeft; live.rest.fired = {}; }
     else live.rest.pausedLeft = L.restRemaining(live.rest);
     save(); draw('pause');
   }
@@ -585,9 +595,9 @@ export async function renderSession(el, ctx) {
   }
   function prefsSheet() {
     ctx.sheet({ title: 'إعدادات الجلسة', body: h('div', { class: 'wk-prefs' },
-      h('p', { class: 'wk-muted' }, 'كل التنبيهات مقفولة لحد ما تفتحها.'),
+      h('p', { class: 'wk-muted' }, alertEnv().ios ? 'الصوت والاهتزاز شغالين والتطبيق مفتوح. لو قفلت الشاشة، التنبيه بييجي أول ما تفتحها. باقي الإعدادات في الملف › الأصوات والتنبيهات.' : 'الصوت شغال من الأول. باقي الإعدادات في الملف › الأصوات والتنبيهات.'),
       prefSwitch(ctx, 'sound'), prefSwitch(ctx, 'tts'),
-      prefSwitch(ctx, 'notify', { onChange: async (on) => { if (!on) return true; const p = await askNotifyPermission(); if (p !== 'granted') { ctx.toast('الإشعارات مش مسموحة من المتصفح.'); return false; } return true; } }),
+      alertEnv().bgAlerts ? prefSwitch(ctx, 'notify', { onChange: async (on) => { if (!on) return true; const p = await askNotifyPermission(); if (p !== 'granted') { ctx.toast('الإشعارات مش مسموحة من المتصفح.'); return false; } return true; } }) : null,
       prefSwitch(ctx, 'swipe', { onChange: () => { setTimeout(() => safeDraw(), 0); return true; } }),
       coach ? prefSwitch(ctx, 'aiTip') : null) });
   }
@@ -693,6 +703,7 @@ export async function renderSession(el, ctx) {
           return line ? h('span', { class: 'wk-meso' }, bidiRanges(line)) : null;
         })()),
       h('span', { class: 'wk-live', 'aria-label': 'مدة الجلسة' }, clockEl),
+      h('button', { type: 'button', class: 'wk-endbtn', dataset: { fk: 'end' }, onclick: finish }, 'إنهاء'), // UX audit #8: finish in ≤ 2 taps
       h('button', { type: 'button', class: 'ibtn', 'aria-label': 'خيارات الجلسة', 'aria-haspopup': 'dialog', dataset: { fk: 'menu' }, onclick: menu }, ico('more'))));
 
     // live band: volume Δ + completion
@@ -710,8 +721,8 @@ export async function renderSession(el, ctx) {
 
     // what the autopilot / balance engine changed for today (why + undo lives on the overview before start)
     if (!prog.done && live.plan && live.plan.changes && live.plan.changes.length) {
-      root.appendChild(h('details', { class: 'wk-fold wk-planfold', open: true },
-        h('summary', {}, ico('spark'), 'خطة النهارده', h('small', {}, N(String(live.plan.minutes)), ' د من ', N(String(live.plan.budget)))),
+      root.appendChild(h('details', { class: 'wk-fold wk-planfold' }, // collapsed: the session opens on the current set (UX audit #2)
+        h('summary', {}, ico('spark'), 'خطة النهارده', h('small', {}, countText(live.plan.changes.length, 'change'), ' · ', N(String(live.plan.minutes)), ' د من ', N(String(live.plan.budget)))),
         h('ul', {}, ...live.plan.changes.map((c) => h('li', {}, c.text)))));
     }
     // mobility prep at the start (W51)
@@ -742,8 +753,8 @@ export async function renderSession(el, ctx) {
       h('p', { class: 'wk-meta' }, e.muscle ? [e.muscle, ' · '] : null, 'راحة ', N(L.fmtClock(e.ss ? L.groupRest(live, idx) : L.restFor(e))),
         bestSet.w ? [' · أفضل ', N(`${L.fmtW(bestSet.w)} × ${bestSet.r}`, undefined, 'wk-best')] : null,
         pr0.e1rm ? [' · e1RM ', N(L.fmtW(Math.round(pr0.e1rm)))] : null),
-      h('div', { class: 'wk-vidrow' }, videoLink(e, { name: e.name })),
-      tops.length >= 2 ? h('div', { class: 'wk-spark-row' }, spark(tops, { label: `أعلى وزن في آخر ${tops.length} جلسات` }), h('small', {}, 'آخر ', N(String(tops.length)), ' جلسات')) : null,
+      e.ss ? null : h('div', { class: 'wk-vidrow' }, videoLink(e, { name: e.name })),
+      tops.length >= 2 && !e.ss ? h('div', { class: 'wk-spark-row' }, spark(tops, { label: `أعلى وزن في آخر ${tops.length} جلسات` }), h('small', {}, 'آخر ', N(String(tops.length)), ' جلسات')) : null,
       e.ss ? h('p', { class: 'wk-ss' }, ico('bolt'), 'سوبر سِت ', e.ss, ' مع ', ssPeers.join(' و'), ' · من غير راحة بينهم') : null);
     root.appendChild(head);
 
@@ -797,16 +808,16 @@ export async function renderSession(el, ctx) {
     justSet = null;
 
     // steppers for the current set (update in place; fixed height so nothing jumps)
-    stepUI = null; rirBox = null; typeChip = null; needHint = null;
+    stepUI = null; rirBox = null; typeChip = null; needHint = null; stepBlock = null;
     if (t) {
       const mk = (f) => h('input', { class: 'num wk-stepin', type: 'text', inputmode: f === 'w' ? 'decimal' : 'numeric', enterkeyhint: f === 'w' ? 'next' : 'done', autocomplete: 'off',
         value: f === 'w' ? L.fmtW(t.w) : String(t.r), 'aria-label': f === 'w' ? 'وزن المجموعة الحالية بالكيلو' : 'عدّات المجموعة الحالية', dataset: { fk: f === 'w' ? 'win' : 'rin' } });
       const sw = mk('w'), sr = mk('r');
       bindField(sw, 'w', () => live.cur.set, () => stepUI?.r);
       bindField(sr, 'r', () => live.cur.set);
-      const btn = (fk, label, iconName, run) => h('button', { type: 'button', class: 'wk-stb', 'aria-label': label, dataset: { fk }, onclick: run }, ico(iconName));
-      const wp = btn('w+', '', 'plus', (ev) => adjust('w', wStepNow(), ev));
-      const wm = btn('w-', '', 'minus', (ev) => adjust('w', -wStepNow(), ev));
+      const btn = (fk, label, iconName, run) => { const b = h('button', { type: 'button', class: 'wk-stb', 'aria-label': label, dataset: { fk } }, ico(iconName)); holdRepeat(b, () => run({ timeStamp: performance.now() + Math.random() })); return b; };
+      const wp = btn('w+', 'زوّد الوزن', 'plus', (ev) => adjust('w', wStepNow(), ev));
+      const wm = btn('w-', 'قلّل الوزن', 'minus', (ev) => adjust('w', -wStepNow(), ev));
       const wLbl = h('small', {}, 'كجم');
       const wBox = h('div', { class: 'step' }, wp, h('div', {}, sw, wLbl), wm);
       const title = h('span', {});
@@ -818,13 +829,13 @@ export async function renderSession(el, ctx) {
         plateLine.hidden = !plateLine.hidden; ev.currentTarget.setAttribute('aria-expanded', String(!plateLine.hidden));
       } }, 'أقراص الوزن ده'), plateLine);
       stepUI = { w: sw, r: sr, wp, wm, wBox, wLbl, title, plateBar };
-      root.appendChild(h('div', { class: 'wk-stepper', role: 'group', 'aria-label': 'تعديل المجموعة الحالية' },
+      stepBlock = h('div', { class: 'wk-stepper', role: 'group', 'aria-label': 'تعديل المجموعة الحالية' },
         h('p', { class: 'wk-stepl' }, title),
         wBox,
         h('div', { class: 'step' },
           btn('r+', 'زوّد عدّة', 'plus', (ev) => adjust('r', 1, ev)),
           h('div', {}, sr, h('small', {}, 'عدّة')),
-          btn('r-', 'قلّل عدّة', 'minus', (ev) => adjust('r', -1, ev)))));
+          btn('r-', 'قلّل عدّة', 'minus', (ev) => adjust('r', -1, ev))));
       root.appendChild(plateBar);
       needHint = h('p', { class: 'wk-needw', role: 'note', hidden: true }, ico('edit'), h('span', {}, 'اكتب الوزن · التمرين ده بوزن، مش هيتسجّل بـ 0 كجم'));
       root.appendChild(needHint);
@@ -840,6 +851,7 @@ export async function renderSession(el, ctx) {
       h('button', { type: 'button', class: 'chip wk-addset', dataset: { fk: 'addset' }, onclick: addSet }, ico('plus'), 'مجموعة'),
       e.sets.some((x) => !x.done && +x.r > 0) ? h('button', { type: 'button', class: 'chip wk-asplan', dataset: { fk: 'asplan' }, onclick: logAsPlanned }, ico('check'), 'كله زي الخطة') : null,
       typeChip,
+      h('button', { type: 'button', class: 'chip', dataset: { fk: 'timer' }, onclick: presetsSheet, 'aria-haspopup': 'dialog' }, ico('timer'), 'مؤقّت'),
       h('button', { type: 'button', class: 'chip', dataset: { fk: 'note' }, onclick: noteSheet }, ico('edit'), e.note ? 'الملاحظة' : 'ملاحظة')));
     volEl = root.querySelector('.wk-vol');
     paintLive();
@@ -989,6 +1001,8 @@ export async function renderSession(el, ctx) {
     hero.textContent = ''; heroArc = heroNum = null;
     const e = curEx();
     const resting = live.rest && restLeft() > 0;
+    hero.hidden = !(z2On() && live.z2.startedAt && !L.nextOpen(live));
+    if (hero.hidden) return;
     if (resting) {
       const left = restLeft(), total = live.rest.total || left;
       const svg = ring({ value: left, max: total, size: HERO, stroke: HERO_STROKE, color: 'url(#wk-rg)', label: 'الراحة' });
@@ -1039,33 +1053,57 @@ export async function renderSession(el, ctx) {
     const defs = document.createElementNS(NS, 'defs');
     const g = document.createElementNS(NS, 'linearGradient');
     g.setAttribute('id', 'wk-rg'); g.setAttribute('x1', '0'); g.setAttribute('y1', '0'); g.setAttribute('x2', '1'); g.setAttribute('y2', '1');
-    for (const [o, c] of [['0', '#BAE6FD'], ['1', '#A78BFA']]) { const s = document.createElementNS(NS, 'stop'); s.setAttribute('offset', o); s.setAttribute('stop-color', c); g.appendChild(s); }
+    for (const [o, c] of [['0', 'var(--pro)'], ['1', 'var(--violet)']]) { const s = document.createElementNS(NS, 'stop'); s.setAttribute('offset', o); s.style.stopColor = c; g.appendChild(s); }
     defs.appendChild(g); svg.insertBefore(defs, svg.firstChild);
   }
 
   function drawDock() {
     if (!dock) return;
     const micFocused = document.activeElement === vc.mic;
-    for (const c of [...dock.children]) if (c !== vc.panel) c.remove();
+    for (const c of [...dock.children]) if (c !== vc.panel && c !== stepBlock) c.remove();
     if (vc.panel.parentNode !== dock) dock.prepend(vc.panel);
+    // the one-time rest-alert explanation takes the stepper's place while it is up (the dock never covers half the screen)
+    const tipUp = !!(live.rest && restLeft() > 0 && tipPending && !alertTipSeen());
+    const showStep = !!(stepBlock && curSet() && !curSet().done && !calibOn() && !tipUp);
+    if (stepBlock) { if (showStep && stepBlock.parentNode !== dock) dock.appendChild(stepBlock); if (!showStep) stepBlock.remove(); }
+    const above = (el) => (stepBlock && stepBlock.parentNode === dock ? dock.insertBefore(el, stepBlock) : dock.appendChild(el));
+    const ss = ssStrip(); if (ss) above(ss);
     const allDone = !L.nextOpen(live);
     const t = curSet();
     const nextName = (() => { const n = L.nextAfter(live, live.cur.ex).cur; const ex = n ? live.exercises[n.ex] : null; return ex && ex !== curEx() ? ex.name : (curEx()?.name || ''); })();
     // rest countdown pinned in the dock (thumb zone): visible even when the hero ring is scrolled away (UX #7)
     restUI = null;
-    if (live.rest && restLeft() > 0) dock.appendChild(restBar());
+    const resting = !!(live.rest && restLeft() > 0);
+    if (resting) { if (tipPending && !alertTipSeen()) above(alertTip()); above(restBar()); }
     // first time on a loaded lift: the guided ramp replaces the CTA (three answers, no keyboard)
-    if (!allDone && calibOn()) { dock.appendChild(calibPanel(curEx())); if (micFocused && vc.mic.isConnected) vc.mic.focus({ preventScroll: true }); return; }
+    if (!allDone && calibOn()) { above(calibPanel(curEx())); if (micFocused && vc.mic.isConnected) vc.mic.focus({ preventScroll: true }); return; }
     const noW = !!(t && !t.done && EA.needsWeight(curEx(), t));
     let btn;
     if (noW) btn = h('button', { type: 'button', class: 'btn wk-cta wk-cta-w', onclick: () => focusWeight(live.cur.set) }, ico('edit'), 'اكتب الوزن');
     else if (allDone && (!t || t.done) && z2On() && !live.z2.startedAt) btn = h('button', { type: 'button', class: 'btn wk-cta', onclick: startZ2 }, ico('play'), 'ابدأ ', h('bdi', { dir: 'ltr' }, 'Zone 2'), ' · ', N(String(z2Plan())), ' د');
     else if (allDone && (!t || t.done)) btn = h('button', { type: 'button', class: 'btn wk-cta', onclick: finish }, ico('check'), 'اقفل الجلسة');
     else if (t && t.done) btn = h('button', { type: 'button', class: 'btn wk-cta', onclick: complete }, ico('check'), 'احفظ التعديل');
+    // during a rest the CTA turns secondary and says it ends the rest (UX audit #3: never a silent cancel)
+    else if (resting && !Number.isFinite(live.rest.pausedLeft)) btn = h('button', { type: 'button', class: 'btn ghost wk-cta wk-cta-rest', disabled: !(t && +t.r > 0), onclick: complete }, ico('check'), 'سجّل وأنهِ الراحة');
     else btn = h('button', { type: 'button', class: 'btn wk-cta', disabled: !(t && +t.r > 0), onclick: complete }, ico('check'), 'سجّل المجموعة');
     dock.appendChild(h('div', { class: 'wk-logbar' },
       h('div', { class: 'meta' }, allDone ? (z2On() && !live.z2.doneAt ? 'آخر خطوة' : 'الجلسة') : 'الجاي', h('b', {}, allDone ? (z2On() && !live.z2.startedAt ? 'Zone 2 على العجلة' : 'جاهزة تتقفل') : nextName)), t ? vc.mic : null, btn));
     if (micFocused && vc.mic.isConnected) vc.mic.focus({ preventScroll: true });
+    fitDock();
+  }
+  // the scroll area always clears the (variable-height) dock
+  function fitDock() { if (dock && dock.isConnected) root.style.paddingBottom = `${Math.ceil(dock.getBoundingClientRect().height) + 16}px`; }
+  /** Superset on one screen (UX audit #9): A1 / A2 rows in the dock, the active one highlighted; tap to jump. */
+  function ssStrip() {
+    const e = curEx(); if (!e || !e.ss) return null;
+    const g = L.groupOf(live, live.cur.ex); if (g.length < 2) return null;
+    return h('ol', { class: 'wk-ssstrip', 'aria-label': `سوبر سِت ${e.ss}` }, ...g.map((k, n) => {
+      const x = live.exercises[k]; const j = x.sets.findIndex((q) => !q.done); const q = x.sets[j >= 0 ? j : x.sets.length - 1];
+      const on = k === live.cur.ex;
+      return h('li', {}, h('button', { type: 'button', class: `wk-ssrow${on ? ' on' : ''}`, 'aria-current': on ? 'step' : null, onclick: () => { if (!on && j >= 0) select(k, j); } },
+        h('b', { class: 'num' }, `${e.ss}${n + 1}`), h('span', {}, x.name),
+        h('small', {}, j >= 0 ? [N(`${j + 1}/${x.sets.length}`), ' · ', N(`${L.fmtW(q.w)}×${q.r}`)] : 'خلص')));
+    }));
   }
   function focusDock() { dock?.querySelector('button.wk-cta, .wk-calib button')?.focus({ preventScroll: true }); }
   let restUI = null;
@@ -1074,21 +1112,45 @@ export async function renderSession(el, ctx) {
     const ne = live.exercises.find((x) => x.exId === live.rest.forId);
     const num = h('b', { class: 'num' }, L.fmtClock(left));
     const b = (cls, label, run, ...kids) => h('button', { type: 'button', class: `wk-rb ${cls}`, 'aria-label': label, onclick: run }, ...kids);
-    const canNotify = typeof Notification !== 'undefined' && Notification.permission !== 'denied' && !pref(ctx, 'notify') && ctx.settings.get('wk.notifyAsked') !== true;
+    const canNotify = alertEnv().canAsk && !pref(ctx, 'notify') && ctx.settings.get('wk.notifyAsked') !== true && !tipPending;
     restUI = { num };
     return h('div', { class: `wk-restbar${paused ? ' paused' : ''}`, role: 'timer', 'aria-label': 'الراحة' },
       h('div', { class: 'wk-rb-t' }, h('small', {}, paused ? 'الراحة واقفة' : live.rest.ss ? 'راحة الجولة' : 'راحة', ne && ne.exId !== live.rest.fromId ? [' · ', ne.name] : ''), num),
       b('num', 'قلّل 15 ثانية', () => shiftRest(-15), h('bdi', { dir: 'ltr' }, '−15')),
       b('num', 'زوّد 15 ثانية', () => shiftRest(15), h('bdi', { dir: 'ltr' }, '+15')),
-      canNotify ? b('wk-rb-bell', 'نبّهني لما الراحة تخلص والشاشة مقفولة', enableNotify, ico('bell')) : null,
+      canNotify ? b('wk-rb-bell', 'نبّهني بإشعار لما الراحة تخلص والتطبيق في الخلفية', enableNotify, ico('bell')) : null,
       b('sk', 'تخطّي الراحة', skipRest, ico('skip'), 'تخطّي'));
   }
   async function enableNotify() {
     try { await ctx.settings.set('wk.notifyAsked', true); } catch { /* best effort */ }
     const p = await askNotifyPermission();
-    if (p === 'granted') { try { await ctx.settings.set('wk.notify', true); } catch { /* ignore */ } ctx.toast('هننبّهك لما الراحة تخلص حتى والشاشة مقفولة.'); }
-    else ctx.toast('الإشعارات مقفولة من المتصفح. تقدر تفتحها من إعدادات الجلسة.');
+    if (p === 'granted') { try { await ctx.settings.set('wk.notify', true); } catch { /* ignore */ } ctx.toast('هيوصلك إشعار لما الراحة تخلص والتطبيق في الخلفية.'); }
+    else ctx.toast('الإشعارات مقفولة من المتصفح. الصوت والاهتزاز شغالين والتطبيق مفتوح.');
     if (!closed) drawDock();
+  }
+  // One-time, honest explanation the first time a rest starts (UX: right moment, from a tap). iOS: no lock-screen alerts
+  // for web apps → keep the screen on + catch-up. Android/desktop: offer the background notification (permission from the tap).
+  const alertTipSeen = () => ctx.settings.get('wk.alertTipSeen') === true;
+  function alertTip() {
+    const env = alertEnv();
+    const close = async () => { tipPending = false; try { await ctx.settings.set('wk.alertTipSeen', true); } catch { /* ignore */ } if (!closed) drawDock(); };
+    const lines = [];
+    if (env.ios) {
+      lines.push('الآيفون مش بيسمح لتطبيقات الويب تنبّه والشاشة مقفولة.');
+      lines.push(env.wakeLock && ctx.settings.get('wk.wakeLock') !== false ? 'عشان كده الشاشة هتفضل منوّرة أثناء التمرين، والصوت والاهتزاز هيشتغلوا لما الراحة تخلص. لو قفلتها، التنبيه هييجي أول ما تفتحها.'
+        : 'خلّي الشاشة مفتوحة أثناء الراحة، أو طوّل «القفل التلقائي» من الإعدادات › الشاشة والسطوع. لو قفلتها، التنبيه هييجي أول ما تفتحها.');
+      lines.push('مفتاح الصامت في جنب الآيفون بيكتم صوت التنبيه.');
+      if (!env.standalone) lines.push('الأحسن تفتحه من الشاشة الرئيسية: زر المشاركة › «إضافة إلى الشاشة الرئيسية».');
+    } else if (env.canAsk) {
+      lines.push('لو سبت التطبيق في الخلفية، نقدر نبعتلك إشعار لما الراحة تخلص.');
+    } else {
+      lines.push('الصوت والاهتزاز هيشتغلوا لما الراحة تخلص والتطبيق مفتوح. لو قفلت الشاشة، التنبيه هييجي أول ما تفتحها.');
+    }
+    const acts = [];
+    if (env.canAsk) acts.push(h('button', { type: 'button', class: 'btn sm', onclick: async () => { await enableNotify(); close(); } }, ico('bell'), 'فعّل الإشعارات'));
+    acts.push(h('button', { type: 'button', class: 'btn ghost sm', onclick: close }, env.canAsk ? 'مش دلوقتي' : 'فهمت'));
+    return h('div', { class: 'wk-alert-tip glass', role: 'note', 'aria-labelledby': 'wk-at-h' },
+      h('b', { id: 'wk-at-h' }, 'تنبيه نهاية الراحة'), ...lines.map((t) => h('p', {}, t)), h('div', { class: 'btn-row wrap' }, ...acts));
   }
 
   function paintRest() {
@@ -1104,7 +1166,8 @@ export async function renderSession(el, ctx) {
   // On hide: one quiet «راحة لحد 10:42» notice (absolute end time, right even if every timer freezes), then the end alert from
   // the service worker (survives a frozen page) or a page timer when there is no SW. Same tag → never two end alerts.
   const notice = { t: 0, armed: false, sw: false, fired: 0 };
-  const notifyOK = () => pref(ctx, 'notify') && typeof Notification !== 'undefined' && Notification.permission === 'granted';
+  // Android / desktop only: iOS freezes a locked PWA (page and service worker), so a timer-based notification never fires there.
+  const notifyOK = () => pref(ctx, 'notify') && alertEnv().bgAlerts && Notification.permission === 'granted';
   async function swReg() {
     try { return navigator.serviceWorker && navigator.serviceWorker.getRegistration ? (await navigator.serviceWorker.getRegistration()) || null : null; } catch { return null; }
   }
@@ -1163,32 +1226,31 @@ export async function renderSession(el, ctx) {
       if (heroArc) heroArc.setAttribute('stroke-dasharray', `${heroC * Math.max(0, Math.min(1, left / (live.z2.total || 1)))} ${heroC}`);
       if (!left) {
         live.z2.doneAt = Date.now(); save(); drawHero(); drawDock();
-        if (canVibrate()) try { navigator.vibrate([120, 80, 120]); } catch { /* optional */ }
-        tone(ctx); announce('Zone 2 خلص. اقفل الجلسة.');
+        alertNow('done'); announce('Zone 2 خلص. اقفل الجلسة.');
       }
     }
     if (live.rest && !Number.isFinite(live.rest.pausedLeft)) {
-      if (L.restRemaining(live.rest) <= 0) {
+      // wall-clock cues: 10 s tick, 3-2-1, end (with catch-up after a locked / hidden screen)
+      const rc = timerCues(live.rest, Date.now());
+      for (const ev of rc.events) if (ev.kind !== 'restEnd') cue(ev.kind, { delay: ev.delay || 0 });
+      if (rc.events.some((ev) => ev.kind === 'restEnd')) {
         const rest = live.rest;
-        live.rest = null; save(); drawHero(); drawDock();
-        if (canVibrate()) try { navigator.vibrate([120, 80, 120]); } catch { /* optional */ }
-        else haptic(12, { double: true }); // iOS: switch tick (plays when Safari still counts the last tap as active)
+        live.rest = null; tipPending = false; save(); drawHero(); drawDock();
         const e = curEx();
         const msg = e ? `الراحة خلصت · المجموعة ${live.cur.set + 1} من ${e.name}` : 'الراحة خلصت';
-        tone(ctx); speak(ctx, msg); restEndNotice(msg, rest.endsAt);
-        announce(msg);
-        void rest;
+        alertNow('restEnd', { speech: 'الراحة خلصت' });
+        restEndNotice(msg, rest.endsAt);
+        if (rc.catchUp) ctx.toast(`${lateText(rc.late)} · المجموعة ${live.cur.set + 1}${e ? ` من ${e.name}` : ''}`);
+        announce(rc.catchUp ? lateText(rc.late) : msg);
       } else paintRest();
     }
   }
   const timer = setInterval(tick, 250);
 
-  // keep the screen awake during the session (released on leave)
-  let lock = null;
-  const wake = async () => { try { if ('wakeLock' in navigator && document.visibilityState === 'visible') lock = await navigator.wakeLock.request('screen'); } catch { lock = null; } };
-  const onVis = () => { if (document.visibilityState === 'visible') { cancelRestNotice(); tick(); wake(); } else { flushSave(); armRestNotice(); } };
+  // keep the screen on during the session (Profile › «خلّي الشاشة منوّرة أثناء التمرين»; re-acquired on return, core/alerts.js)
+  const onVis = () => { if (document.visibilityState === 'visible') { cancelRestNotice(); tick(); } else { flushSave(); armRestNotice(); } };
   document.addEventListener('visibilitychange', onVis);
-  wake();
+  keepAwake(true, 'session');
 
   draw('top');
   return () => {
@@ -1199,7 +1261,7 @@ export async function renderSession(el, ctx) {
     flushCarry();
     vc.destroy();
     document.removeEventListener('visibilitychange', onVis);
-    try { lock && lock.release(); } catch { /* ignore */ }
+    keepAwake(false, 'session');
   };
 }
 
@@ -1221,14 +1283,18 @@ export function showSummary(ctx, record, history, nextDay = '', { coach = null }
   note.value = record.note || '';
   note.addEventListener('change', () => { record.note = note.value.trim().slice(0, 2000) || null; persist(); });
   const type = L.stretchTypeOf(record);
+  // leads with what was done (UX audit #8, principle 2: no guilt); a lower volume is never the headline
+  const up = s.prevVolume && s.deltaPct > 0;
   const body = h('div', { class: 'wk-summary' },
+    h('div', { class: 'wk-sumhead' }, h('b', {}, `خلصت ${record.dayName || 'الجلسة'}`), h('p', {}, effort.join(' · '))),
     s.prs.length ? h('div', { class: 'wk-prcard' }, h('span', { class: 'ic' }, ico('trophy')),
       h('div', {}, h('b', {}, s.prs.length === 1 ? 'رقم شخصي جديد' : `${s.prs.length} أرقام شخصية`), h('span', {}, s.prs.map((p) => p.name).join('، '))),
       h('em', { class: 'num' }, `+${L.fmtW(s.prs[0].delta)}`)) : null,
     h('div', { class: 'wk-sumgrid' },
       h('div', {}, h('small', {}, 'المدة'), h('b', {}, durEl, h('small', {}, ' دقيقة'))),
       h('div', {}, h('small', {}, 'المجموعات'), h('b', {}, setsEl)),
-      h('div', {}, h('small', {}, 'عن المرة اللي فاتت'), h('b', {}, s.prevVolume ? N(`${s.deltaPct > 0 ? '+' : s.deltaPct < 0 ? '−' : ''}${Math.abs(s.deltaPct)}%`) : '—'))),
+      up ? h('div', {}, h('small', {}, 'الحجم عن المرة اللي فاتت'), h('b', { class: 'wk-up' }, N(`+${Math.abs(s.deltaPct)}%`)))
+        : h('div', {}, h('small', {}, 'التمارين'), h('b', {}, N(String((record.exercises || []).filter((x) => (x.sets || []).some((t) => t.done)).length))))),
     ...s.prs.map((p) => h('div', { class: 'wk-tot wk-prline' }, h('span', {}, p.name), h('span', { class: 'pr' }, N(`${L.fmtW(p.w)} × ${p.r}`), ' · ', N(`+${L.fmtW(p.delta)}`)))),
     h('div', { class: 'wk-tot grand rule-open rule-closed' }, h('span', {}, 'الجلسة اتقفلت · الحجم'), h('span', {}, volEl, ' كجم')),
     h('p', { class: 'status ok' }, h('i', {}), `جلسة متسجّلة: ${effort.join('، ')}.`),
@@ -1241,7 +1307,7 @@ export function showSummary(ctx, record, history, nextDay = '', { coach = null }
       coach ? h('button', { type: 'button', class: 'btn ghost sm', onclick: () => { try { coach.openCoachSheet(ctx, { intent: 'session-review', attach: { session: record } }); } catch { ctx.toast('المدرب مش متاح دلوقتي.'); } } }, ico('spark'), 'حلّل الجلسة') : null),
     nextDay ? h('p', { class: 'wk-after' }, 'الجلسة الجاية: ', nextDay, ' · ', nextTrainLabel(ctx.today(), trainingDays)) : null);
   const api = ctx.sheet({ title: record.dayName || 'الجلسة', body, actions: [
-    { label: 'تمام', run: () => ctx.go('workout') },
+    { label: 'احفظ وارجع', run: () => ctx.go('workout') },
     { label: 'سجّل وجبة بعد التمرين', ghost: true, run: () => ctx.go('nutrition') },
   ], onClose: () => { if (location.hash.startsWith('#/workout/session')) ctx.go('workout'); } });
   countUp(volEl, s.volume, { ms: 900 });

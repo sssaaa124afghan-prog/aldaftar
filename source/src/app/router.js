@@ -12,9 +12,9 @@ const mods = new Map();
 export const TABS = [
   { key: 'today', label: 'اليوم', icon: 'home' },
   { key: 'workout', label: 'التمرين', icon: 'dumbbell' },
-  { key: 'nutrition', label: 'التغذية', icon: 'food' },
+  { key: 'nutrition', label: 'الأكل', icon: 'food' },
   { key: 'progress', label: 'التقدّم', icon: 'chart' },
-  { key: 'profile', label: 'الملف', icon: 'user' },
+  { key: 'coach', label: 'المدرب', icon: 'msg' },
 ];
 
 export function parseHash(hash = location.hash) {
@@ -49,7 +49,10 @@ export function renderTabs(nav) {
   for (const t of TABS) nav.appendChild(h('a', { href: href(t.key), dataset: { tab: t.key } }, raw(icon(t.icon)), t.label));
 }
 
+// Profile lives in Today's ⋯ menu (#/profile still works), so it lights the Today tab.
+const TAB_OF = { profile: 'today' };
 function markTab(nav, feature) {
+  feature = TAB_OF[feature] || feature;
   const ti = TABS.findIndex((t) => t.key === feature);
   nav.style.setProperty('--ti', String(Math.max(0, ti)));
   nav.dataset.ti = String(ti);
@@ -120,7 +123,7 @@ export function startRouter({ view, nav, ctx }) {
           view.appendChild(h('p', { class: 'placeholder' }, 'حصلت مشكلة في عرض الشاشة دي. بياناتك محفوظة.'));
         }
       }
-      syncCoachFab(route, ctx);
+      syncChrome(route);
       if (!first) { window.scrollTo(0, 0); view.focus({ preventScroll: true }); }
     };
     if (dir) await transition(view, dir, swap, my);
@@ -156,17 +159,7 @@ async function transition(view, dir, swap) {
   setTimeout(() => { if (n === vtSeq) view.classList.remove('nav-in'); done(); }, 420);
 }
 
-// Floating «اسأل المدرب» button on every main screen (hidden where it would clash: live session, coach, migration).
-let fab = null;
-function syncCoachFab(route, ctx) {
-  const hide = /^(coach|nutrition\/coach|workout\/session|workout\/recovery|workout\/boxing|profile\/migrate|profile\/welcome)/.test(route);
-  if (!fab) {
-    fab = h('button', { type: 'button', class: 'coach-fab', 'aria-label': 'اسأل المدرب', title: 'اسأل المدرب' });
-    fab.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span>المدرب</span>';
-    fab.addEventListener('click', () => import('../features/coach/api.js').then((a) => a.openCoachSheet(fab._ctx, { intent: 'chat' })).catch(() => { location.hash = '#/coach'; }));
-    document.body.appendChild(fab);
-  }
-  fab._ctx = ctx;
-  fab.hidden = hide;
-  document.documentElement.classList.toggle('has-fab', !hide);
+// Live, full-screen routes hide the tab bar (session has its own dock; boxing is gloves-on). The coach is a tab now: no floating button.
+function syncChrome(route) {
+  document.documentElement.classList.toggle('immersive', /^workout\/(session|boxing)/.test(route));
 }

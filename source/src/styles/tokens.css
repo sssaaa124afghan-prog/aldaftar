@@ -61,6 +61,11 @@
   --f-label:var(--f); --f-body:var(--f); --f-fig:var(--f);
   --radius:var(--r-inner); --radius-lg:var(--r-card);
   --lift:var(--glass-hi);
+  /* design-layer hooks (designs.css overrides them for A/B/C; these are the classic values) */
+  --fn:var(--f);                          /* numeral font */
+  --sel:var(--cta); --on-sel:var(--on-accent);   /* selected chip / done day */
+  --now:var(--amber);                     /* «you are here» ring */
+  --on-ok:#0B2A16; --t-hero:40px; --hero-w:700;
   color-scheme:dark;
 }
 html.rm{--d-press:0ms;--d-fast:0ms;--d:0ms;--d-route:0ms;--d-slow:0ms;--d-ring:0ms;--stagger:0ms}

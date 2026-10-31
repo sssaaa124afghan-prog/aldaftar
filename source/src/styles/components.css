@@ -48,7 +48,6 @@ html[data-nav="left"]{--vt-in:calc(var(--vt-x) * -1);--vt-out:calc(var(--vt-x) *
 html[data-nav="right"]{--vt-in:var(--vt-x);--vt-out:calc(var(--vt-x) * -.5)}
 html[data-nav] #view{view-transition-name:view}
 html[data-nav] #tabs{view-transition-name:tabs}
-html[data-nav] .coach-fab{view-transition-name:fab}
 ::view-transition-group(root),::view-transition-group(tabs),::view-transition-group(fab),::view-transition-group(view){animation:none}
 ::view-transition-old(root),::view-transition-old(tabs),::view-transition-old(fab){display:none}
 ::view-transition-new(root),::view-transition-new(tabs),::view-transition-new(fab){animation:none}
@@ -258,14 +257,9 @@ button.list-row:hover,a.list-row:hover{background:rgba(255,255,255,.04)}
 html.rm *,html.rm *::before,html.rm *::after{transition-duration:0ms!important;animation-duration:0ms!important;animation-delay:0ms!important;animation-iteration-count:1!important}
 html.rm::view-transition-group(*),html.rm::view-transition-old(*),html.rm::view-transition-new(*){animation:none!important}
 html.rm .rv{opacity:1;transform:none}
-html.rm :is(.btn,.chip,.repeat,.ibtn,.press,.coach-fab):active{transform:none}
+html.rm :is(.btn,.chip,.repeat,.ibtn,.press):active{transform:none}
 
-/* Floating coach button (router.js) */
-.coach-fab{position:fixed;z-index:40;inset-inline-end:calc(var(--gutter,18px));bottom:calc(96px + env(safe-area-inset-bottom,0px));display:inline-grid;place-items:center;width:56px;height:56px;padding:0;border-radius:50%;border:1px solid var(--edge-strong,rgba(255,255,255,.22));background:linear-gradient(135deg,#6B46E5,#BE185D);color:#fff;font:600 var(--t-14,14px) var(--f);box-shadow:0 12px 28px -10px rgba(124,92,255,.75);transition:transform var(--d-press,150ms) var(--ease)}
-.coach-fab:active{transform:scale(.97)}
-.coach-fab[hidden]{display:none}
-.coach-fab span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-#view{padding-bottom:72px}
-/* FAB visible (router sets html.has-fab): clear the FAB = its bottom 96 + 56 tall + 12 gap + safe area. Routes that hide it keep 72px. */
-.has-fab #view{padding-bottom:calc(96px + 56px + 12px + env(safe-area-inset-bottom,0px))}
-.coach-fab:focus-visible{outline:2px solid var(--tx,#fff);outline-offset:3px}
+/* Tab views clear the tab bar (64 tall + 14 gap + breathing room); live routes (html.immersive) have no tab bar. */
+#view{padding-bottom:calc(64px + 36px + env(safe-area-inset-bottom,0px))}
+html.immersive #tabs{display:none}
+html.immersive #view{padding-bottom:0}

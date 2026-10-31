@@ -60,8 +60,7 @@ function makeSettings(db, app, key) {
 export function applyTheme() {
   delete document.documentElement.dataset.theme;
   try { localStorage.removeItem('ui.theme'); } catch { /* ignore */ }
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = '#0D0B2E';
+  // theme-color follows the design (app/design.js), not a theme
 }
 
 // ───────── toast (one at a time; optional action, e.g. Undo) ─────────
@@ -77,12 +76,28 @@ export function toast(text, { action, ms } = {}) {
   const el = h('div', { class: 'toast' }, h('span', {}, String(text)));
   const close = () => { el.classList.remove('in'); setTimeout(() => el.remove(), 220); };
   if (action && action.label) {
-    el.appendChild(h('button', { type: 'button', onclick: async () => { close(); try { await action.run(); } catch (e) { console.warn(e); } } }, action.label));
+    el.appendChild(h('button', { type: 'button', onclick: async (ev) => { if (ev.currentTarget.dataset.arm === '0') return; close(); try { await action.run(); } catch (e) { console.warn(e); } } }, action.label));
   }
   toastHost.appendChild(el);
+  placeToast();
+  // the action ignores taps for 450 ms so a thumb already on its way to the next control can't hit «تراجع» by accident
+  const btn = el.querySelector('button'); if (btn) { btn.dataset.arm = '0'; setTimeout(() => { btn.dataset.arm = '1'; }, 450); }
   requestAnimationFrame(() => el.classList.add('in'));
   toastTimer = setTimeout(close, ms || (action ? 6000 : 3200));
   return { close };
+}
+
+/** Toasts sit just above whatever chrome is at the bottom (session dock or tab bar), never on top of it. */
+function placeToast() {
+  if (!toastHost) return;
+  let top = window.innerHeight;
+  for (const sel of ['.dock', '#tabs']) {
+    const el = document.querySelector(sel);
+    if (!el) continue;
+    const r = el.getBoundingClientRect();
+    if (r.height && getComputedStyle(el).display !== 'none' && getComputedStyle(el).position === 'fixed') top = Math.min(top, r.top);
+  }
+  toastHost.style.bottom = `${Math.max(12, Math.round(window.innerHeight - top + 10))}px`;
 }
 
 // ───────── bottom sheet (focus trap, Esc, scrim click, restores focus) ─────────

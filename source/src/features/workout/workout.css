@@ -523,3 +523,48 @@
 .wk-item .wk-vidsrc{display:block}
 .hk-art-card{flex-wrap:wrap}
 .hk-art-card>.wk-vidrow{flex-basis:100%;justify-content:center}
+/* one-time «تنبيه نهاية الراحة» note above the rest bar (session.js alertTip) */
+.wk-alert-tip{border-radius:16px;padding:12px 14px;margin-bottom:10px;max-height:46vh;overflow:auto}
+.wk-alert-tip b{display:block;font-size:.95rem;margin-bottom:4px}
+.wk-alert-tip p{margin:0 0 6px;font-size:.85rem;line-height:1.6;color:var(--mu,#C3BEE3)}
+.wk-alert-tip .btn-row{margin-top:8px}
+
+/* ── redesign 31/10 (council round 3): current set in the dock, one rest band, superset strip, «إنهاء» in the header ── */
+.wk-endbtn{flex:none;min-height:48px;min-width:56px;padding:0 12px;border-radius:var(--r-inner,14px);border:1px solid var(--edge,rgba(255,255,255,.13));background:transparent;color:var(--violet-tx,#CAB9FC);font:600 var(--t-16,16px) var(--f,inherit)}
+.wk-endbtn:active{transform:scale(.97)}
+.wk-dock .wk-stepper{margin:0 0 10px;gap:8px}
+.wk-dock .wk-stepl{color:var(--mu,#C3BEE3);font-weight:500}
+.wk-dock .wk-stepper .step{grid-template-columns:56px 1fr 56px;min-height:64px}
+.wk-dock .wk-stepper .step button{height:64px;-webkit-user-select:none;user-select:none}
+.wk-dock .wk-stepper .step button svg{width:22px;height:22px}
+.wk-dock .wk-stepin{font:600 30px/1 var(--fn,var(--f,inherit));min-height:40px}
+.wk-dock .wk-stepper .step small{margin-top:0}
+.wk-logbar .btn.wk-cta{flex:1;width:auto;min-height:64px;padding:0 16px}
+.wk-logbar .meta{flex:0 1 92px}
+.wk-cta-rest{font-size:var(--t-16,16px)}
+/* rest: ONE band (no ring), coloured per design: B signal orange, C ink, A graphite */
+.wk-restbar{min-height:64px;margin:0 0 10px;padding:6px 8px 6px 6px;padding-inline-start:14px;border-radius:var(--r-inner,16px);background:var(--rest-bg,var(--glass-2,rgba(255,255,255,.1)));color:var(--rest-tx,var(--tx,#F7F5FF))}
+.wk-restbar .wk-rb-t small{color:inherit;opacity:.85}
+.wk-restbar .wk-rb-t b{font:600 34px/1 var(--fn,var(--f,inherit));color:inherit}
+.wk-restbar .wk-rb{background:color-mix(in srgb,currentColor 14%,transparent);border-color:transparent;color:inherit;min-height:48px}
+.wk-restbar.paused{opacity:.85}
+html.nd .wk-restbar.paused .wk-rb-t b{color:inherit}
+/* superset A1 / A2 */
+.wk-ssstrip{display:flex;flex-direction:column;gap:4px;margin:0 0 8px}
+.wk-ssrow{display:grid;grid-template-columns:36px 1fr auto;align-items:center;gap:8px;width:100%;min-height:44px;padding:0 10px;border-radius:var(--r-sm,12px);border:1px solid var(--edge-soft,rgba(255,255,255,.08));background:transparent;color:var(--mu,#C3BEE3);font:500 var(--t-14,14px) var(--f,inherit);text-align:start}
+.wk-ssrow span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wk-ssrow b{font:600 var(--t-16,16px) var(--fn,var(--f,inherit));color:inherit}
+.wk-ssrow small{font-size:var(--t-12,12px)}
+.wk-ssrow.on{background:var(--glass-2,rgba(255,255,255,.1));border-color:var(--sel,var(--amber));color:var(--tx,#F7F5FF)}
+.wk-sumhead{margin-bottom:12px}
+.wk-sumhead b{display:block;font:700 var(--t-24,24px)/1.25 var(--f,inherit)}
+.wk-sumhead p{font-size:var(--t-14,14px);color:var(--mu,#C3BEE3);margin-top:2px}
+.wk-session>.wk-hero[hidden]{display:none}
+html.nd .wk-live{color:var(--tx);background:var(--glass-2)}
+html.nd .wk-live::before{background:var(--ok-c);animation:none}
+html.nd .wk-cta{background:var(--cta);color:var(--on-accent);box-shadow:none;border-radius:var(--r-inner)}
+html.nd .wk-cta.ghost,html.nd .wk-cta-w{background:var(--glass-2);color:var(--tx);border:1px solid var(--edge)}
+html.nd .wk-calc-ok{background:var(--cta);color:var(--on-accent)}
+html.nd .wk-calc-ok small{color:var(--on-accent)}
+html.nd .wk-stepl{color:var(--mu)}
+.wk-dock:has(.wk-stepper) .wk-logbar .meta{display:none}

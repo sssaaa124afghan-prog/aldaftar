@@ -104,3 +104,19 @@
 .co-logged .co-err{flex-basis:100%}
 .co-wfail .co-err{margin:0}
 .co-logged > i{display:none}
+
+/* quick prompts: one scrollable row of 48 px chips (UX audit #13), not a wall that pushes the chat away */
+.co-chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;margin-inline:calc(var(--gutter,18px) * -1);padding-inline:var(--gutter,18px)}
+.co-chips::-webkit-scrollbar{display:none}
+.co-chips .chip{flex:none;min-height:48px;padding:0 14px;font-size:var(--t-14,14px)}
+/* inline API key (UX audit #12) */
+.co-key{display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-radius:var(--r-inner,16px);border:1px solid var(--edge,rgba(255,255,255,.13));background:var(--glass,rgba(255,255,255,.065))}
+.co-key label{font:600 var(--t-14,14px) var(--f,system-ui)}
+.co-keyrow{display:flex;gap:8px}
+.co-keyrow input{flex:1;min-width:0;min-height:48px;border:1px solid var(--edge,rgba(255,255,255,.13));border-radius:var(--r-sm,12px);background:var(--well,rgba(0,0,0,.25));color:var(--tx,#F7F5FF);padding:0 12px;font:500 var(--t-16,16px) var(--f,system-ui)}
+.co-keyrow input[aria-invalid="true"]{border-color:var(--danger,#FB7185)}
+.co-keyrow .btn{width:auto;flex:none;min-height:48px}
+.co-keymsg{font-size:var(--t-12,12px);color:var(--mu,#C3BEE3);line-height:1.6}
+.co-key.ok{border-color:var(--ok-c,#4ADE80)}
+.co-keydone{display:flex;align-items:center;gap:8px;font:600 var(--t-14,14px) var(--f,system-ui);color:var(--tx,#F7F5FF)}
+.co-keydone svg{color:var(--ok-c,#4ADE80)}

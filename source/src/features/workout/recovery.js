@@ -1,12 +1,13 @@
 // #/workout/recovery — recovery day (parity R1-R5, W57): Zone 2 cardio 18:00 timer + the guided 6-station stretch
 // circuit from Solo Gym (exact sequence, 690 s). Timers are timestamp based. Finishing writes a {kind:'recovery'} record
 // to the sessions store (never counted as lifting). Tone is opt-in (wk.sound); vibration only after a gesture.
-import { h, N, ico, band, safeWrite, canVibrate } from './view.js';
+import { h, N, ico, band, safeWrite } from './view.js';
 import * as L from './logic.js';
 import { putSession } from './store.js';
 import { STATIONS, STRETCH_PROTOCOLS, REST_PROTOCOLS } from './content.js';
 import { tone, speak } from './kit.js';
 import { reduced } from '../../ui/anim.js';
+import { buzz } from '../../core/alerts.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const STRETCH_TITLE = { push: 'إطالة بعد الدفع (صدر · كتف · تراي)', pull: 'إطالة بعد السحب (ظهر · باي)', leg: 'إطالة بعد الرجل', default: 'إطالة عامة بعد التمرين' };
@@ -105,11 +106,11 @@ export function renderRecovery(el, ctx, params = {}) {
     if (running) c.endsAt = Date.now() + PH[i].dur * 1000; else c.pausedLeft = PH[i].dur;
     paint();
   }
-  function cue() { if (canVibrate()) try { navigator.vibrate(120); } catch { /* optional */ } tone(ctx); }
+  function cue() { buzz(120); tone(ctx, 'phase'); }
   async function finish(mode = 'stretch', seconds = L.RECOVERY_TOTAL) {
     c.finished = true; c.pausedLeft = 0;
-    if (canVibrate()) try { navigator.vibrate([90, 60, 90]); } catch { /* optional */ }
-    tone(ctx); speak(ctx, 'خلصت جلسة التعافي');
+    buzz([200, 100, 200, 100, 300]);
+    tone(ctx, 'done'); speak(ctx, 'خلصت جلسة التعافي');
     const rec = L.recoveryRecord({ mode, seconds });
     if (await safeWrite(ctx, () => putSession(ctx.db, rec))) {
       ctx.emit('session:changed', { id: rec.id, state: 'recovery' });

@@ -1,0 +1,209 @@
+/* Design layer: <html data-design="a|b|c" class="nd"> (src/app/design.js). Council round 3 (/home/claude/council/visual.md).
+   A «Night Session»  near-black, opaque graphite, one electric blue; depth = border + lighter surface, no shadows; denser tables.
+   B «Steel & Signal» steel grey, cobalt for structure/selection, signal orange ONLY for the one thing to do now. (default)
+   C «Daylight Athletic» light ground, white panels, navy ink, huge type, ultramarine for action + live states, volt for records.
+   «classic» (data-design="classic", no .nd) = Electric Glass Pro + palettes.css, untouched by this file.
+   Contrast + macro ΔE: scripts/design-contrast.py. */
+
+/* ───────── A · Night Session ───────── */
+html[data-design="a"]{
+  --g1:#0B0D10; --g2:#0B0D10; --g3:#0B0D10;
+  --glass:#14181D; --glass-2:#1B2027; --glass-3:#252B34;
+  --edge:rgba(255,255,255,.10); --edge-soft:rgba(255,255,255,.07); --edge-strong:rgba(255,255,255,.18);
+  --well:#0F1216; --glass-hi:none; --shadow:none;
+  --sheet-bg:#14181D; --nav-bg:#0B0D10; --paper:#0B0D10;
+  --tx:#F2F5F8; --mu:#A9B2BE; --mu-2:#A9B2BE; --mu-3:#4A535E;
+  --amber:#3D8BFF; --orange:#3D8BFF; --on-accent:#03101F; --cta-glow:none;
+  --violet:#3D8BFF; --violet-tx:#8DBBFF; --pink:#8DBBFF; --pink-tx:#B9D5FF;
+  --ok-c:#2FD27A; --warn:#FFB224; --danger:#FF5A5F; --danger-tx:#FF9A9D; --on-ok:#03170B;
+  --cal:#ECEFF3; --pro:#5C9DFF; --carb:#33C7B8; --fat:#F5A524;
+  --brass:#FFB224;
+  --f:"Plex Ar",system-ui,sans-serif; --fn:"Plex Ar",system-ui,sans-serif;
+  --r-card:14px; --r-inner:10px; --r-sm:8px;
+  --sel:#3D8BFF; --on-sel:#03101F; --now:#3D8BFF;
+  --hero-bg:#14181D; --hero-tx:#F2F5F8; --hero-mu:#A9B2BE; --hero-edge:rgba(255,255,255,.10);
+  --t-hero:56px; --hero-w:600;
+  --ease:cubic-bezier(.16,1,.3,1); --d:240ms; --d-fast:160ms; --d-press:100ms;
+  --live:#3D8BFF; --live-tx:#03101F; --rest-bg:#1B2027; --rest-tx:#F2F5F8;
+  --bx-work:#0B0D10; --bx-work-tx:#F2F5F8; --bx-work-acc:#8DBBFF; --bx-rest:#1B2027; --bx-rest-tx:#F2F5F8; --bx-btn:#3D8BFF; --bx-btn-tx:#03101F;
+}
+
+/* ───────── B · Steel & Signal ───────── */
+html[data-design="b"]{
+  --g1:#1B2128; --g2:#1B2128; --g3:#1B2128;
+  --glass:#242B34; --glass-2:#2D3540; --glass-3:#3A4350;
+  --edge:rgba(255,255,255,.09); --edge-soft:rgba(255,255,255,.06); --edge-strong:rgba(255,255,255,.18);
+  --well:#161B21; --glass-hi:inset 0 1px 0 rgba(255,255,255,.05); --shadow:0 2px 10px -2px rgba(0,0,0,.35);
+  --sheet-bg:#242B34; --nav-bg:#161B21; --paper:#1B2128;
+  --tx:#F3F5F7; --mu:#B2BCC7; --mu-2:#B2BCC7; --mu-3:#5A6573;
+  --amber:#FF6B2C; --orange:#FF6B2C; --on-accent:#1C0800; --cta-glow:0 6px 16px -6px rgba(255,107,44,.45);
+  --violet:#2F62E8; --violet-tx:#A9C1FF; --pink:#A9C1FF; --pink-tx:#C9D8FF;
+  --ok-c:#3DD68C; --warn:#FFC24B; --danger:#FF5C5C; --danger-tx:#FF9E9E; --on-ok:#04200F;
+  --cal:#FFC24B; --pro:#7AA3FF; --carb:#3DD68C; --fat:#E58FB5;
+  --brass:#FFC24B;
+  --fn:"Barlow SC","Readex Pro",system-ui,sans-serif;
+  --r-card:20px; --r-inner:12px; --r-sm:8px;
+  --sel:#2F62E8; --on-sel:#FFFFFF; --now:#FF6B2C;
+  --hero-bg:#2F62E8; --hero-tx:#FFFFFF; --hero-mu:#EEF3FF; --hero-edge:transparent;
+  --t-hero:52px; --hero-w:600;
+  --d:200ms; --d-fast:150ms; --d-press:100ms;
+  --live:#2F62E8; --live-tx:#FFFFFF; --rest-bg:#FF6B2C; --rest-tx:#1C0800;
+  --bx-work:#2F62E8; --bx-work-tx:#FFFFFF; --bx-work-acc:#FFFFFF; --bx-rest:#1B2128; --bx-rest-tx:#F3F5F7; --bx-btn:#FF6B2C; --bx-btn-tx:#1C0800;
+}
+
+/* ───────── C · Daylight Athletic ───────── */
+html[data-design="c"]{
+  --g1:#EDF0F4; --g2:#EDF0F4; --g3:#EDF0F4;
+  --glass:#FFFFFF; --glass-2:#F2F4F7; --glass-3:#E1E6ED;
+  --edge:rgba(11,20,36,.12); --edge-soft:rgba(11,20,36,.08); --edge-strong:rgba(11,20,36,.22);
+  --well:#F2F4F7; --glass-hi:none; --shadow:0 1px 3px rgba(11,20,36,.06);
+  --sheet-bg:#FFFFFF; --nav-bg:#FFFFFF; --paper:#EDF0F4;
+  --tx:#0B1424; --mu:#4D5868; --mu-2:#4D5868; --mu-3:#A6AFBC;
+  --amber:#1D3FE0; --orange:#1D3FE0; --on-accent:#FFFFFF; --cta-glow:none;
+  --violet:#1D3FE0; --violet-tx:#1D3FE0; --pink:#1D3FE0; --pink-tx:#1D3FE0;
+  --ok-c:#0A7A47; --warn:#A35F00; --danger:#C8231A; --danger-tx:#B4201A; --on-ok:#FFFFFF;
+  --cal:#0B1424; --pro:#1D3FE0; --carb:#0A7A4B; --fat:#B5470B;
+  --brass:#D4FF3A;
+  --f:"Alex",system-ui,sans-serif; --fn:"Barlow C","Alex",system-ui,sans-serif;
+  --r-card:22px; --r-inner:14px; --r-sm:10px;
+  --sel:#0B1424; --on-sel:#FFFFFF; --now:#1D3FE0;
+  --hero-bg:#FFFFFF; --hero-tx:#0B1424; --hero-mu:#4D5868; --hero-edge:rgba(11,20,36,.08);
+  --t-hero:104px; --hero-w:700;
+  --d:320ms; --d-fast:150ms; --d-press:100ms;
+  --ink-surface:#0B1424;
+  --live:#1D3FE0; --live-tx:#FFFFFF; --rest-bg:#0B1424; --rest-tx:#FFFFFF;
+  --bx-work:#1D3FE0; --bx-work-tx:#FFFFFF; --bx-work-acc:#D4FF3A; --bx-rest:#0B1424; --bx-rest-tx:#FFFFFF; --bx-btn:#FFFFFF; --bx-btn-tx:#1D3FE0;
+  color-scheme:light;
+}
+
+/* ───────── shared by A/B/C: no glass, no glow, no sweeps, flat ground ───────── */
+html.nd{
+  --ground:var(--g1); --field-a:transparent; --field-b:transparent; --blur:none;
+  --cta:var(--amber); --violet-grad:var(--glass-2); --gold-grad:var(--glass-2);
+  --lift:none; --ease-out:cubic-bezier(.16,1,.3,1);
+}
+html.nd body{background:var(--g1)}
+html.nd body::before{content:none;display:none;animation:none}
+html.nd *,html.nd *::before,html.nd *::after{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+html.nd :is(.btn.sweep,.td-go,.shimmer,.pr,.wk-cta,.nu-cta)::after{content:none!important;animation:none!important}
+html.nd [class*="glow-"] svg.i,html.nd [class*="glow-"].ring-wrap .ring-arc{filter:none}
+html.nd .num,html.nd .count{font-family:var(--fn)}
+html.nd ::selection{background:var(--sel);color:var(--on-sel)}
+html.nd :focus-visible{outline-color:var(--now)}
+:where(html.nd) a:not([class]){color:var(--violet-tx)}
+
+/* surfaces: opaque, a hairline, no blur */
+:where(html.nd) :where(.glass,.sheet-card,.gl){background:var(--glass);box-shadow:var(--glass-hi),var(--shadow)}
+:where(html[data-design="a"]) :where(.glass,.sheet-card,.gl,.td-hero){box-shadow:none}
+
+/* buttons: one solid primary; everything else is a quiet secondary */
+html.nd .btn{background:var(--cta);color:var(--on-accent);box-shadow:var(--cta-glow);border-radius:var(--r-inner);font-weight:600}
+html.nd .btn:active{box-shadow:none}
+html.nd .btn.ghost{background:var(--glass-2);color:var(--tx);border:1px solid var(--edge);box-shadow:none}
+html.nd .btn.violet{background:var(--glass-2);color:var(--tx);border:1px solid var(--edge)}
+html.nd .btn.danger{background:var(--danger);color:#fff;box-shadow:none}
+html.nd .btn.ghost.danger{background:transparent;color:var(--danger-tx);border-color:var(--danger)}
+html.nd .ibtn{background:var(--glass);border-color:var(--edge)}
+html.nd .chip,html.nd .repeat{background:var(--glass);border-color:var(--edge);min-height:44px}
+html.nd .chip[aria-pressed="true"],html.nd .chip[aria-checked="true"],html.nd .chip[aria-selected="true"]{background:var(--sel);color:var(--on-sel)}
+html.nd .pill{color:var(--on-sel);background:var(--sel)}
+html.nd .daytag{background:var(--glass-2);color:var(--tx)}
+html.nd .status.ok i{box-shadow:none}
+html.nd .live-dot{color:var(--tx);background:var(--glass-2)}
+html.nd .live-dot::before{background:var(--ok-c);animation:none}
+html.nd .empty-state>svg.i{background:var(--glass-2)}
+html.nd .list-row>svg.i:first-child{background:var(--glass-2);color:var(--mu)}
+html.nd .menu-item svg.i{color:var(--mu)}
+html.nd .field select{background-color:var(--well)}
+html.nd .field input:focus-visible,html.nd .field select:focus-visible,html.nd .field textarea:focus-visible{border-color:var(--now);box-shadow:0 0 0 3px color-mix(in srgb,var(--now) 30%,transparent)}
+html.nd .signal{color:var(--tx);background:var(--glass-2);border-color:var(--edge)}
+html.nd .signal svg.i{color:var(--ok-c)}
+html.nd .pr{background:var(--glass-2);border-color:var(--brass);color:var(--tx)}
+html[data-design="c"] .pr{background:var(--ink-surface);color:var(--brass);border-color:transparent}
+
+/* tab bar: flat, full width, hairline on top (comps) */
+html.nd .tabs{inset:auto 0 0 0;max-width:560px;height:calc(64px + env(safe-area-inset-bottom,0px));padding:0 4px env(safe-area-inset-bottom,0px);border-radius:0;border:0;border-top:1px solid var(--edge-soft);background:var(--nav-bg);box-shadow:none}
+html.nd .tabs::before{display:none}
+html.nd .tabs a{color:var(--mu);font-size:var(--t-12);height:60px;gap:4px}
+html.nd .tabs a svg.i{width:24px;height:24px}
+html.nd .tabs a[aria-current]{color:var(--tx)}
+html.nd .tabs a[aria-current] svg.i{color:var(--now);filter:none;animation:none}
+html[data-design="b"] .tabs a[aria-current]{color:var(--violet-tx)}
+html[data-design="b"] .tabs a[aria-current] svg.i{color:var(--violet-tx)}
+html[data-design="c"] .tabs a[aria-current]{color:var(--amber);font-weight:600}
+html.nd #view{padding-bottom:calc(64px + 28px + env(safe-area-inset-bottom,0px))}
+html.nd.immersive #view{padding-bottom:0}
+
+/* sheet, scrim, toast, dock: opaque */
+html.nd .scrim{background:rgba(0,0,0,.55)}
+html[data-design="c"] .scrim{background:rgba(11,20,36,.4)}
+html.nd .bsheet{background:var(--sheet-bg);border-color:var(--edge);box-shadow:0 -8px 30px -10px rgba(0,0,0,.4)}
+html.nd .toast{background:var(--glass-3);border-color:var(--edge-strong);color:var(--tx);box-shadow:var(--shadow)}
+html[data-design="c"] .toast{background:var(--ink-surface);color:#fff;border-color:transparent}
+html.nd .toast button{background:transparent;color:var(--tx);text-decoration:underline;text-underline-offset:3px;font-weight:600}
+html[data-design="c"] .toast button{color:#fff}
+html.nd .dock{background:var(--g1);border-top:1px solid var(--edge-soft)}
+html.nd .rest .fill{background:color-mix(in srgb,var(--violet) 22%,transparent)}
+html.nd .rest .skip{background:var(--glass-2);color:var(--tx)}
+
+/* shared workout pieces */
+html.nd .srow{background:var(--glass);border-color:var(--edge-soft)}
+html.nd .srow.cur{background:var(--glass-2);border-color:var(--sel);box-shadow:none}
+html.nd .srow.cur>:first-child{color:var(--violet-tx)}
+html.nd .srow.done{background:var(--glass);border-color:var(--edge-soft)}
+html.nd .srow.done .ck{background:var(--ok-c);color:var(--on-ok)}
+html.nd .srow .ck{border-color:var(--edge-strong)}
+html.nd .step{background:var(--well);border-color:var(--edge)}
+
+/* ───────── A: denser tables, border-only depth ───────── */
+html[data-design="a"] .entry{padding:7px 0}
+html[data-design="a"] .list-row{min-height:52px}
+html[data-design="a"] .srow{min-height:46px;margin-bottom:0;border-radius:0;border-inline:0;border-top:0;background:transparent}
+html[data-design="a"] .srow.cur{background:var(--glass-2);border-radius:var(--r-sm)}
+html[data-design="a"] .srow.done{background:transparent}
+html[data-design="a"] .band h1{font-weight:600;font-size:var(--t-28)}
+html[data-design="a"] .btn{min-height:52px}
+
+/* ───────── B: signal orange only on «do this now»; cobalt carries structure ─────────
+   --amber (decorative icons, highlights, "low" figures all over the feature CSS) maps to cobalt-light; only --cta / --rest-bg are orange. */
+html.nd[data-design="b"]{--amber:#A9C1FF; --cta:#FF6B2C; --bind:#A9C1FF}
+/* selected / closed states that used the CTA fill are selection, not action */
+html.nd :is(.nu-dchip[aria-current],.nu-cal-cell.is-closed,.nu-lg.is-closed,.nu-switch[aria-checked="true"],.nu-bar-col.is-closed .fill){background:var(--sel);color:var(--on-sel)}
+html.nd .nu-msg.me{background:var(--glass-3);color:var(--tx)}
+html[data-design="b"] .band h1{font-weight:600}
+html[data-design="b"] .td-hero .btn{box-shadow:0 8px 18px -8px rgba(0,0,0,.45)}
+
+/* ───────── C: light ground, huge typographic headlines ───────── */
+html[data-design="c"] .band h1,html[data-design="c"] .co-head h1{font:700 40px/1.15 var(--f);letter-spacing:0}
+html[data-design="c"] .td-hd h1{font:700 28px/1.2 var(--f)}
+html[data-design="c"] .td-ht:not(.lat){font-size:40px;font-weight:700}
+html[data-design="c"] .td-ht.lat{line-height:.86;margin:4px 0 8px}
+html[data-design="c"] .td-hero{padding:var(--s4) var(--s4) var(--s4)}
+html[data-design="c"] .td-fx b{font-size:34px}
+html[data-design="c"] .td-week li.now{background:var(--amber);border-color:transparent;outline:0}
+html[data-design="c"] .td-week li.now b,html[data-design="c"] .td-week li.now span{color:#fff}
+html[data-design="c"] .td-week li.done{border-radius:999px}
+
+/* nutrition gauge: the calories arc is the calories colour, flat (no amber→orange gradient, no glow) */
+html.nd #nu-cta-grad stop{stop-color:var(--cal)}
+html.nd .nu-gauge .ring-arc{filter:none}
+html.nd .ring-arc{filter:none}
+html.nd .nu-gauge-mid b{font-family:var(--fn);font-weight:600}
+html.nd .nu-est{color:var(--violet-tx)}
+
+/* tap targets ≥ 44 px (UX audit #15); the visual stays the same size where it is a small pill */
+html .nu-pill{min-height:44px;padding-block:10px;background-clip:content-box;border-radius:999px/22px}
+html .wk-intel-link{display:inline-flex;align-items:center;min-height:44px;min-width:44px}
+@media (max-width:420px){html .nu-cal-btn{display:none}html .nu-days{grid-template-columns:repeat(7,1fr);gap:4px}}/* the calendar stays in ⋯ › التقويم */
+html .pg-info{width:44px;height:44px;background-clip:content-box;padding:8px}
+html .co-seg button{min-height:44px}
+html .nu-link{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+html.nd .co-seg button[aria-selected="true"]{background:var(--sel);color:var(--on-sel)}
+html .chip,html .repeat{min-height:44px}
+/* workout hints: tinted by state, readable on every ground */
+html.nd .wk-hint{background:var(--glass);border-color:var(--edge);color:var(--tx)}
+html.nd .wk-hint svg{color:var(--ok-c)}
+html.nd .wk-hint.warn{border-color:var(--warn)}
+html.nd .wk-hint.warn svg{color:var(--warn)}
+html.nd :is(.wk-recov,.wk-tile) .ic{background:var(--glass-2);border-color:var(--edge);color:var(--tx)}
+html.nd .wk-warn{background:var(--glass);color:var(--tx);border-color:var(--danger)}

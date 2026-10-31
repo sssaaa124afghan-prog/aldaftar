@@ -17,15 +17,18 @@ export function validKg(v) {
 }
 
 /** Saves {day,kg,src:'manual',at}; toast with Undo; emits weight:changed. */
-export async function saveWeight(ctx, kg, day = ctx.today()) {
+export async function saveWeight(ctx, kg, day = ctx.today(), { quiet = false } = {}) {
   const db = ctx.db;
   const prev = await db.get('bodyweight', day).catch(() => undefined);
   await db.put('bodyweight', { ...(prev || {}), day, kg, src: 'manual', at: new Date().toISOString() });
   ctx.emit('weight:changed', { day, kg });
-  ctx.toast(`اتسجل الوزن ${fmt(kg, { dp: 1 })} كجم`, { action: { label: 'تراجع', run: async () => {
+  const undo = async () => {
     if (prev) await db.put('bodyweight', prev); else await db.delete('bodyweight', day);
     ctx.emit('weight:changed', { day });
-  } } });
+  };
+  // quiet: the caller confirms inside its own card (Today's done row) instead of a toast
+  if (!quiet) ctx.toast(`اتسجل الوزن ${fmt(kg, { dp: 1 })} كجم`, { action: { label: 'تراجع', run: undo } });
+  return undo;
 }
 
 export async function openWeightSheet(ctx) {

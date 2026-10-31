@@ -8,6 +8,7 @@ import { fill } from '../../ui/dom.js';
 import { putSession, loadProgram, loadTraining } from './store.js';
 import { prefSwitch, askNotifyPermission, armPhaseNotice, cancelPhaseNotice } from './kit.js';
 import { haptic, reduced } from '../../ui/anim.js';
+import { cue, buzz, unlock, keepAwake, alertEnv } from '../../core/alerts.js';
 import { videoLink } from './exercise-videos.js';
 import { BOX_VIDEO_NAME } from './boxing-videos.js';
 import { runner, ringSvg, loadHealth, patchHealth } from './heart.js';
@@ -23,37 +24,12 @@ const ROUND = new Set(['bag', 'shadow']);
 const BELL_KEY = 'box.bell';
 const bellOn = (ctx) => ctx.settings.get(BELL_KEY) !== false; // on by default: the round bell is the timer itself
 
-// ── sound: boxing bell + clap, synthesised (no audio files) ──
-let actx = null;
-function audio() {
-  try { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; actx = actx || new C(); if (actx.state === 'suspended') actx.resume(); return actx; } catch { return null; }
-}
-function strike(a, t, gain = 0.32) {
-  // metallic bell: inharmonic partials with a fast attack and a ~1.4 s decay
-  for (const [r, g] of [[1, 1], [2.32, 0.5], [3.98, 0.28], [5.4, 0.16]]) {
-    const o = a.createOscillator(), v = a.createGain();
-    o.type = 'sine'; o.frequency.value = 820 * r;
-    v.gain.setValueAtTime(0.0001, t); v.gain.exponentialRampToValueAtTime(gain * g, t + 0.008); v.gain.exponentialRampToValueAtTime(0.0001, t + 1.4 / Math.sqrt(r));
-    o.connect(v); v.connect(a.destination); o.start(t); o.stop(t + 1.5);
-  }
-}
-function clap(a, t) {
-  const len = Math.floor(a.sampleRate * 0.09), buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
-  const src = a.createBufferSource(), bp = a.createBiquadFilter(), v = a.createGain();
-  src.buffer = buf; bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = 0.9; v.gain.value = 0.9;
-  src.connect(bp); bp.connect(v); v.connect(a.destination); src.start(t);
-}
+// ── sound: boxing bell + clap, synthesised by core/alerts.js (no audio files; master «صوت التنبيهات» applies too) ──
+const BELL_CUE = { start: 'bell', end: 'bellEnd', warn: 'clap', soft: 'bellSoft' };
 /** 'start' = one bell, 'end' = three quick bells, 'warn' = two claps (10 s left), 'soft' = one quiet bell (other phases). */
 export function bell(ctx, kind) {
   if (!bellOn(ctx)) return false;
-  const a = audio(); if (!a) return false;
-  const t = a.currentTime + 0.02;
-  if (kind === 'start') strike(a, t);
-  else if (kind === 'end') { strike(a, t); strike(a, t + 0.22); strike(a, t + 0.44); }
-  else if (kind === 'warn') { clap(a, t); clap(a, t + 0.16); }
-  else strike(a, t, 0.12);
-  return true;
+  return !!cue(BELL_CUE[kind] || 'bellSoft');
 }
 
 // ── small pieces ──
@@ -99,7 +75,7 @@ export async function renderBoxing(el, ctx, params = {}) {
   const r = runner(phases, { now });
   const total = P.total;
   const rpe = {};
-  let pendingRpe = null, warned = -1, lastIdx = -1, finished = false, saved = null, lock = null;
+  let pendingRpe = null, warned = -1, lastIdx = -1, finished = false, saved = null, hiddenAt = 0;
 
   const ring = ringSvg(232, 14);
   const tNum = h('b', { class: 'num bx-clock' }, fmtClock(phases[0].dur));
@@ -113,8 +89,8 @@ export async function renderBoxing(el, ctx, params = {}) {
   const rpeBox = h('div', { class: 'bx-rpe', hidden: true });
   const playIco = h('span', { class: 'bx-pi', 'aria-hidden': 'true' }, ico('play'));
   const play = h('button', { type: 'button', class: 'btn bx-play', dataset: { fk: 'bx-play' }, onclick: () => { toggle(); } }, playIco, h('span', {}, 'ابدأ الجولات'));
-  const prev = h('button', { type: 'button', class: 'ibtn glass bx-ctl', 'aria-label': 'المرحلة اللي فاتت', dataset: { fk: 'bx-prev' }, onclick: () => { r.jump(-1); onMove(0); } }, ico('skip'));
-  const skip = h('button', { type: 'button', class: 'ibtn glass wk-flip bx-ctl', 'aria-label': 'تخطّي للمرحلة الجاية', dataset: { fk: 'bx-skip' }, onclick: () => { const leaving = r.s.idx; const res = r.jump(1); if (res === 'finished') done(); else onMove(1, leaving); } }, ico('skip'));
+  const prev = h('button', { type: 'button', class: 'ibtn glass wk-flip bx-ctl', 'aria-label': 'المرحلة اللي فاتت', dataset: { fk: 'bx-prev' }, onclick: () => { r.jump(-1); onMove(0); } }, ico('skip'));
+  const skip = h('button', { type: 'button', class: 'ibtn glass bx-ctl', 'aria-label': 'تخطّي للمرحلة الجاية', dataset: { fk: 'bx-skip' }, onclick: () => { const leaving = r.s.idx; const res = r.jump(1); if (res === 'finished') done(); else onMove(1, leaving); } }, ico('skip'));
   const endBtn = h('button', { type: 'button', class: 'btn ghost sm bx-end', hidden: true, dataset: { fk: 'bx-end' }, onclick: () => finishEarly() }, ico('check'), 'خلّص وسجّل اللي عملته');
   const list = h('ol', { class: 'hk-blocks' });
   const summary = h('div', { class: 'bx-summary', hidden: true, 'aria-live': 'polite' });
@@ -128,20 +104,19 @@ export async function renderBoxing(el, ctx, params = {}) {
     endBtn, summary,
     h('details', { class: 'wk-fold bx-all' }, h('summary', {}, 'كل المراحل', h('small', {}, N(String(phases.length)), ' مرحلة')), list));
   root.appendChild(player);
+  // live view (UX audit #11): the ring is a big tap-anywhere pause target while the rounds run
+  player.querySelector('.bx-stage').addEventListener('click', (ev) => { if (!player.classList.contains('is-live') || ev.target.closest('button,a,input')) return; toggle(); });
+  cleanups.push(() => document.documentElement.classList.remove('bx-live'));
 
-  function cue(kind) { bell(ctx, kind); haptic(kind === 'end' ? 30 : 16, { double: kind === 'end' }); }
-  async function wake(on) {
-    try {
-      if (on && !lock && navigator.wakeLock && document.visibilityState === 'visible') { lock = await navigator.wakeLock.request('screen'); lock.addEventListener?.('release', () => { lock = null; }); }
-      else if (!on && lock) { await lock.release(); lock = null; }
-    } catch { lock = null; }
-  }
+  function signal(kind) { bell(ctx, kind); buzz(kind === 'end' ? [200, 100, 200, 100, 300] : kind === 'warn' ? [40, 60, 40] : 60); }
+  // screen stays on while the rounds run (Profile › «خلّي الشاشة منوّرة أثناء التمرين»), re-taken on return by core/alerts.js
+  function wake(on) { keepAwake(!!on, 'boxing'); }
   function toggle() {
     if (finished) return;
     const wasStarted = r.s.started;
-    audio(); // unlock WebAudio inside the tap
+    unlock(); // unlock WebAudio inside the tap
     r.toggle();
-    if (r.running()) { if (!wasStarted || r.s.idx !== lastIdx) cue(ROUND.has(phases[r.s.idx].kind) ? 'start' : 'soft'); wake(true); }
+    if (r.running()) { if (!wasStarted || r.s.idx !== lastIdx) signal(ROUND.has(phases[r.s.idx].kind) ? 'start' : 'soft'); wake(true); }
     else wake(false);
     endBtn.hidden = !r.s.started;
     paint();
@@ -149,27 +124,33 @@ export async function renderBoxing(el, ctx, params = {}) {
   /** After a phase change. leaving = index of the phase just left (when it ran to its end or was skipped forward). */
   function onMove(dir, leaving = null) {
     const p = leaving !== null ? phases[leaving] : null;
-    if (p && ROUND.has(p.kind) && dir > 0) { pendingRpe = p.id; cue('end'); }
+    if (p && ROUND.has(p.kind) && dir > 0) { pendingRpe = p.id; signal('end'); }
     const cur = phases[r.s.idx];
-    if (r.running()) setTimeout(() => { if (!finished && phases[r.s.idx] === cur) cue(ROUND.has(cur.kind) ? 'start' : 'soft'); }, p && ROUND.has(p.kind) && dir > 0 ? 700 : 0);
+    if (r.running()) setTimeout(() => { if (!finished && phases[r.s.idx] === cur) signal(ROUND.has(cur.kind) ? 'start' : 'soft'); }, p && ROUND.has(p.kind) && dir > 0 ? 700 : 0);
     paint();
   }
   function tick() {
     if (finished) return;
     const before = r.s.idx;
     const res = r.tick();
-    if (res.finished) { if (ROUND.has(phases[before].kind)) pendingRpe = phases[before].id; cue('end'); done(); return; }
+    if (res.finished) { if (ROUND.has(phases[before].kind)) pendingRpe = phases[before].id; signal('end'); done(); return; }
+    const back = document.visibilityState === 'visible';
+    if (res.moved && back && hiddenAt && Date.now() - hiddenAt > 1500) {
+      // back from a locked / hidden screen: say what happened while he was away
+      ctx.toast(`${res.moved === 1 ? 'المرحلة اللي فاتت' : `${res.moved} مراحل`} خلصت والشاشة مقفولة · دلوقتي: ${phases[r.s.idx].label}`);
+    }
+    if (back) hiddenAt = 0;
     if (res.moved) {
       // after a locked screen several phases may have passed: one cue only, and the last finished round asks for RPE
       let lastRound = null; for (let i = before; i < r.s.idx; i++) if (ROUND.has(phases[i].kind)) lastRound = i;
       if (lastRound !== null) pendingRpe = phases[lastRound].id;
       const into = ROUND.has(phases[r.s.idx].kind);
-      if (res.moved > 1) cue('soft');
-      else if (ROUND.has(phases[before].kind)) { cue('end'); if (into) setTimeout(() => { if (!finished) cue('start'); }, 700); }
-      else cue(into ? 'start' : 'soft');
+      if (res.moved > 1) signal('soft');
+      else if (ROUND.has(phases[before].kind)) { signal('end'); if (into) setTimeout(() => { if (!finished) signal('start'); }, 700); }
+      else signal(into ? 'start' : 'soft');
     }
     const left = r.left();
-    if (r.running() && ROUND.has(phases[r.s.idx].kind) && left <= 10 && left > 0 && warned !== r.s.idx && phases[r.s.idx].dur > 20) { warned = r.s.idx; cue('warn'); }
+    if (r.running() && ROUND.has(phases[r.s.idx].kind) && left <= 10 && left > 0 && warned !== r.s.idx && phases[r.s.idx].dur > 20) { warned = r.s.idx; signal('warn'); }
     paint();
   }
   function paintRpe() {
@@ -208,6 +189,9 @@ export async function renderBoxing(el, ctx, params = {}) {
     ring.set(finished ? 1 : (p.dur - left) / p.dur, finished ? 'var(--ok-c)' : warn ? 'var(--amber)' : KIND_COLOR[p.kind]);
     player.classList.toggle('is-warn', warn && !reduced());
     player.dataset.kind = finished ? 'done' : p.kind;
+    player.dataset.flood = finished ? 'done' : ROUND.has(p.kind) ? 'work' : 'rest';
+    const liveNow = s.started && !finished;
+    if (player.classList.contains('is-live') !== liveNow) { player.classList.toggle('is-live', liveNow); document.documentElement.classList.toggle('bx-live', liveNow); }
     const running = r.running();
     play.lastChild.textContent = finished ? 'خلصت' : running ? 'وقّف' : s.started ? 'كمّل' : 'ابدأ الجولات';
     if (playIco.dataset.i !== String(running)) { playIco.dataset.i = String(running); fill(playIco, ico(running ? 'pause' : 'play')); }
@@ -275,6 +259,7 @@ export async function renderBoxing(el, ctx, params = {}) {
   const onVis = () => {
     if (document.visibilityState === 'visible') { cancelPhaseNotice(); tick(); if (r.running()) wake(true); return; }
     if (!r.running() || finished) return;
+    hiddenAt = Date.now();
     const p = phases[r.s.idx], nx = phases[r.s.idx + 1];
     armPhaseNotice(ctx, { at: Date.now() + (r.left() * 1000) / speed, title: ROUND.has(p.kind) ? `${p.kind === 'bag' ? 'جولة' : 'شادو'} ${p.round} خلصت` : `خلص: ${p.label}`,
       body: nx ? `الجاي: ${nx.label}` : 'آخر مرحلة خلصت', url: '#/workout/boxing' });
@@ -322,8 +307,10 @@ export async function renderBoxing(el, ctx, params = {}) {
     h('div', { class: 'hk-fold-body' },
       h('label', { class: 'wk-switch', for: bellId }, h('span', {}, 'جرس بداية ونهاية الجولة + تصقيفة قبل النهاية بـ 10 ثواني'),
         h('input', { type: 'checkbox', id: bellId, role: 'switch', checked: bellOn(ctx) ? true : null, onchange: (e) => { ctx.settings.set(BELL_KEY, e.target.checked); if (e.target.checked) bell(ctx, 'start'); } }), h('i', { 'aria-hidden': 'true' })),
-      prefSwitch(ctx, 'notify', { onChange: async (on) => { if (!on) return true; const p = await askNotifyPermission(); if (p !== 'granted') { ctx.toast('الإشعارات مش مسموحة من المتصفح.'); return false; } return true; } }),
-      h('p', { class: 'wk-muted' }, 'والشاشة مقفولة: إشعار في آخر كل مرحلة. الاهتزاز من «اهتزاز خفيف» في البروفايل.'))));
+      alertEnv().bgAlerts ? prefSwitch(ctx, 'notify', { onChange: async (on) => { if (!on) return true; const p = await askNotifyPermission(); if (p !== 'granted') { ctx.toast('الإشعارات مش مسموحة من المتصفح.'); return false; } return true; } }) : null,
+      h('p', { class: 'wk-muted' }, alertEnv().ios
+        ? 'الشاشة بتفضل منوّرة والجولات شغالة. الآيفون مش بيسمح بتنبيه والشاشة مقفولة: لو قفلتها، العدّاد بيكمّل وبنقولك اللي حصل أول ما تفتحها. مفتاح الصامت بيكتم الجرس.'
+        : 'الشاشة بتفضل منوّرة والجولات شغالة. الصوت والاهتزاز من الملف › الأصوات والتنبيهات.'))));
 
   return () => cleanups.forEach((f) => f());
 }

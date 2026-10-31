@@ -12,14 +12,65 @@ import { exportNow, pickAndImport } from './backup-ui.js';
 import { renderMigrate } from './migration.js';
 import { renderWelcome } from './onboarding.js';
 import { haptic } from '../../ui/anim.js';
+import { cue, say, buzz, unlock, alertEnv, KEYS as AK, volume as alertVolume } from '../../core/alerts.js';
+import { DESIGNS, CLASSIC, designId, preloadDesignFonts } from '../../app/design.js';
 
 const DAYS = [[6, 'السبت'], [0, 'الأحد'], [1, 'الاتنين'], [2, 'التلات'], [3, 'الأربع'], [4, 'الخميس'], [5, 'الجمعة']];
 const AGE_DEFAULT = 27;
 // colour palettes (src/styles/palettes.css); '' = the default Electric Glass Pro look. Applied by main.js on settings:changed.
 // Picker order: current → the 4 newest (owner's blue + grey first) → older ones. Swatch = CTA stops (+ secondary).
-const PALETTES = [['', 'الحالي', '#FCD34D,#FB923C'], ['steel', 'أزرق فولاذي', '#60A5FA,#3B82F6 60%,#A3ABB8'], ['navy', 'كحلي ونحاس', '#EFA06A,#D97B3F 55%,#132042'], ['racing', 'أحمر سباق', '#EA2A33,#FF7A2F 60%,#A7AEBB'], ['tactical', 'زيتي تكتيكي', '#FFC94A,#B5CF3A 60%,#22261A'], ['emerald', 'Midnight Emerald', '#6EE7B7,#10B981'], ['ember', 'Carbon Ember', '#FF9A5C,#F2452E'], ['ocean', 'Ocean Neon', '#22D3EE,#3B82F6'], ['sand', 'رمال ملكية', '#F1DCAE,#C99D5E'], ['aurora', 'شفق فولاذي', '#D9F99D,#A3E635 55%,#C084FC']];
+const PALETTES = [['', 'Electric Glass', '#FCD34D,#FB923C'], ['steel', 'أزرق فولاذي', '#60A5FA,#3B82F6 60%,#A3ABB8'], ['navy', 'كحلي ونحاس', '#EFA06A,#D97B3F 55%,#132042'], ['racing', 'أحمر سباق', '#EA2A33,#FF7A2F 60%,#A7AEBB'], ['tactical', 'زيتي تكتيكي', '#FFC94A,#B5CF3A 60%,#22261A'], ['emerald', 'Midnight Emerald', '#6EE7B7,#10B981'], ['ember', 'Carbon Ember', '#FF9A5C,#F2452E'], ['ocean', 'Ocean Neon', '#22D3EE,#3B82F6'], ['sand', 'رمال ملكية', '#F1DCAE,#C99D5E'], ['aurora', 'شفق فولاذي', '#D9F99D,#A3E635 55%,#C084FC']];
 
-function paletteChips(ctx) {
+// «المظهر» (owner decision 31/10/2026): three council designs as large preview cards, instant + persisted ('design');
+// the old Electric Glass Pro and its palettes stay under a collapsed «تصميمات قديمة». main.js applies it on settings:changed.
+// Each card is a tiny static rendering in that design's own colours and fonts (not a screenshot).
+const PREVIEW = {
+  b: { bg: '#1B2128', card: '#2F62E8', ctx: '#FFFFFF', mu: '#EEF3FF', cta: '#FF6B2C', ctaTx: '#1C0800', f: '"Barlow SC","Readex Pro",sans-serif', bar: ['#FFC24B', '#7AA3FF'] },
+  a: { bg: '#0B0D10', card: '#14181D', ctx: '#F2F5F8', mu: '#A9B2BE', cta: '#3D8BFF', ctaTx: '#03101F', f: '"Plex Ar",sans-serif', bar: ['#ECEFF3', '#5C9DFF'], edge: 'rgba(255,255,255,.1)' },
+  c: { bg: '#EDF0F4', card: '#FFFFFF', ctx: '#0B1424', mu: '#4D5868', cta: '#1D3FE0', ctaTx: '#FFFFFF', f: '"Barlow C","Alex",sans-serif', bar: ['#0B1424', '#1D3FE0'], edge: 'rgba(11,20,36,.08)' },
+  classic: { bg: 'linear-gradient(160deg,#0D0B2E,#1E1257 45%,#3A1B78)', card: 'rgba(255,255,255,.08)', ctx: '#F7F5FF', mu: '#C4BFE3', cta: 'linear-gradient(135deg,#FCD34D,#FB923C)', ctaTx: '#1A1033', f: '"Readex Pro",sans-serif', bar: ['#FDE68A', '#BAE6FD'], edge: 'rgba(255,255,255,.13)' },
+};
+function designCard(d, on, onPick) {
+  const P = PREVIEW[d.id];
+  const mini = h('span', { class: 'dz-mini', 'aria-hidden': 'true', style: `background:${P.bg}` },
+    h('span', { class: 'dz-plate', style: `background:${P.card};color:${P.ctx};${P.edge ? `box-shadow:inset 0 0 0 1px ${P.edge}` : ''}` },
+      h('span', { class: 'dz-t', style: `font-family:${P.f}` }, 'UPPER A'),
+      h('span', { class: 'dz-cta', style: `background:${P.cta};color:${P.ctaTx}` }, 'ابدأ')),
+    h('span', { class: 'dz-bars' }, ...P.bar.map((c, i) => h('i', { style: `background:${c};width:${i ? 56 : 78}%` }))));
+  const b = h('button', { type: 'button', class: 'dz-card', role: 'radio', 'aria-checked': String(on), tabindex: on ? '0' : '-1', dataset: { design: d.id } },
+    mini, h('span', { class: 'dz-tx' }, h('b', {}, d.name, h('small', { dir: 'ltr' }, d.en)), h('span', {}, d.desc)),
+    h('span', { class: 'dz-ck', 'aria-hidden': 'true' }, raw(icon('check', { size: 16 }))));
+  b.addEventListener('click', () => onPick(d.id));
+  return b;
+}
+function designPicker(ctx) {
+  preloadDesignFonts();
+  const cur = () => designId(ctx.settings.get('design'));
+  const list = [...DESIGNS, CLASSIC];
+  const cards = new Map();
+  const pick = (id, focus) => {
+    for (const [k, b] of cards) { const on = k === id; b.setAttribute('aria-checked', String(on)); b.tabIndex = on ? 0 : -1; if (on && focus) b.focus(); }
+    old.classList.toggle('is-on', id === 'classic');
+    if (cur() !== id) ctx.settings.set('design', id);
+  };
+  for (const d of list) cards.set(d.id, designCard(d, d.id === cur(), pick));
+  const group = h('div', { class: 'dz-group', role: 'radiogroup', 'aria-label': 'تصميم البرنامج' }, ...DESIGNS.map((d) => cards.get(d.id)));
+  const pal = paletteChips(ctx, () => pick('classic'));
+  const old = h('details', { class: 'dz-old' + (cur() === 'classic' ? ' is-on' : ''), open: cur() === 'classic' ? true : null },
+    h('summary', {}, h('span', { class: 'grow' }, 'تصميمات قديمة'), raw(icon('chevron', { size: 18 }))),
+    cards.get('classic'), h('p', { class: 'lbl dz-pl' }, 'ألوان الكلاسيكي'), pal);
+  const all = [...cards.values()];
+  for (const el of [group, old]) el.addEventListener('keydown', (e) => {
+    const i = all.indexOf(document.activeElement); if (i < 0) return;
+    const step = { ArrowLeft: 1, ArrowDown: 1, ArrowRight: -1, ArrowUp: -1 }[e.key]; if (!step) return;
+    e.preventDefault(); const n = list[(i + step + list.length) % list.length].id;
+    if (n === 'classic') old.open = true;
+    pick(n, true);
+  });
+  return h('div', { class: 'dz' }, group, old);
+}
+
+function paletteChips(ctx, onPick) {
   const cur = ctx.settings.get('palette') || '';
   const group = h('div', { class: 'chips', role: 'radiogroup', 'aria-labelledby': 's-pal' });
   const btns = PALETTES.map(([id, name, sw]) => {
@@ -32,6 +83,7 @@ function paletteChips(ctx) {
   function pick(id, focus) {
     PALETTES.forEach(([pid], i) => { const on = pid === id; btns[i].setAttribute('aria-checked', String(on)); btns[i].tabIndex = on ? 0 : -1; if (on && focus) btns[i].focus(); });
     if ((ctx.settings.get('palette') || '') !== id) ctx.settings.set('palette', id);
+    if (onPick) onPick(id); // a palette belongs to the classic design: picking one switches to it
   }
   group.addEventListener('keydown', (e) => {
     const i = btns.indexOf(document.activeElement); if (i < 0) return;
@@ -195,6 +247,7 @@ async function renderProfile(el, ctx) {
   const hpSw = h('input', { type: 'checkbox', id: 'p-haptic', role: 'switch', checked: ctx.settings.get('ui.haptics') !== false ? true : null, 'aria-describedby': 'p-haptic-h' });
   const hpHint = h('span', { class: 'hint', id: 'p-haptic-h' }, 'نبضة صغيرة لما تخلّص مجموعة، الراحة تخلص، رقم شخصي، أو أكل يتسجّل');
   hpSw.addEventListener('change', async () => { await ctx.settings.set('ui.haptics', hpSw.checked); if (hpSw.checked) haptic(); });
+  const alertsCard = alertsGroup(ctx, hpSw, hpHint);
 
   // backup
   const exp = h('button', { type: 'button', class: 'list-row' }, raw(icon('download')), h('span', { class: 'grow' }, h('b', {}, 'اعمل نسخة احتياطية'), h('small', {}, meta && meta.lastBackupAt ? `آخر نسخة ${meta.lastBackupAt.slice(0, 10)}` : 'لسه مفيش نسخة — ملف JSON على جهازك')));
@@ -223,17 +276,72 @@ async function renderProfile(el, ctx) {
       section('s-body', 'الجسم', 'scale', h('div', { class: 'sheet-card plist' }, wRow), h('div', { class: 'sheet-card pform' }, h('div', { class: 'fgrid' }, age.el, ht.el))),
       section('s-days', 'التمرين', 'dumbbell', h('div', { class: 'sheet-card pform' }, h('p', { class: 'lbl' }, 'أيام الحديد'), tdChips, tdNote,
         h('label', { class: 'pswitch', for: 'p-reentry' }, h('span', {}, 'راجع بعد انقطاع', reHint), reSw, h('i', { 'aria-hidden': 'true' })))),
+      section('s-alerts', 'الأصوات والتنبيهات', 'bell', alertsCard),
       section('s-targets', 'أهداف الأكل', 'food', h('p', { class: 'hint' }, 'كل نوع يوم ليه هدفه. اضغط «عدّل» لو عايز تغيّر.'),
         h('div', { class: 'sheet-card' }, targetsBlock(ctx, targets, 'training'), targetsBlock(ctx, targets, 'heart'), targetsBlock(ctx, targets, 'rest'))),
       section('s-ai', 'المدرب الذكي', 'spark', h('div', { class: 'sheet-card pform' }, key.el, h('div', { class: 'btn-row wrap' }, saveKey, testKey, showKey), keyMsg,
         h('label', { class: 'pswitch', for: 'p-confirm-food' }, h('span', {}, 'أكّد قبل تسجيل الأكل', cfHint), cfSw, h('i', { 'aria-hidden': 'true' })))),
       section('s-data', 'البيانات', 'download', h('div', { class: 'sheet-card plist' }, ...backupRows)),
-      section('s-pal', 'المظهر', 'spark', h('details', { class: 'sheet-card pform pfold' }, h('summary', {}, h('span', { class: 'grow' }, 'ألوان البرنامج'), h('span', { class: 'tedit' }, 'غيّر')),
-        paletteChips(ctx), h('p', { class: 'hint' }, 'نفس التصميم بألوان مختلفة · بيتغيّر على طول')),
+      section('s-pal', 'المظهر', 'spark', h('p', { class: 'hint' }, 'التصميم بيتغيّر على طول ويفضل محفوظ.'), designPicker(ctx),
         h('div', { class: 'sheet-card pform pfeel' },
-          h('label', { class: 'pswitch', for: 'p-rm' }, h('span', {}, 'قلّل الحركة', rmHint), rmSw, h('i', { 'aria-hidden': 'true' })),
-          h('label', { class: 'pswitch', for: 'p-haptic' }, h('span', {}, 'اهتزاز خفيف', hpHint), hpSw, h('i', { 'aria-hidden': 'true' })))),
+          h('label', { class: 'pswitch', for: 'p-rm' }, h('span', {}, 'قلّل الحركة', rmHint), rmSw, h('i', { 'aria-hidden': 'true' })))),
     ));
+}
+
+/** Profile › «الأصوات والتنبيهات»: sound, volume, voice, vibration, screen on, test, notification status (core/alerts.js). */
+function alertsGroup(ctx, hpSw, hpHint) {
+  const sw = (id, label, hint, checked, onchange) => {
+    const input = h('input', { type: 'checkbox', id, role: 'switch', checked: checked ? true : null, 'aria-describedby': hint ? `${id}-h` : null });
+    input.addEventListener('change', () => onchange(input.checked));
+    return h('label', { class: 'pswitch', for: id }, h('span', {}, label, hint ? h('span', { class: 'hint', id: `${id}-h` }, hint) : null), input, h('i', { 'aria-hidden': 'true' }));
+  };
+  const env = alertEnv();
+  const snd = sw('p-sound', 'صوت التنبيهات', 'نهاية الراحة، آخر 10 ثواني، 3-2-1، الجرس، المجموعة والرقم الشخصي', ctx.settings.get(AK.sound) !== false,
+    async (on) => { await ctx.settings.set(AK.sound, on); volRow.hidden = !on; if (on) { unlock(); cue('restEnd'); } });
+  const vol = h('input', { type: 'range', id: 'p-vol', min: '0', max: '100', step: '10', value: String(Math.round(alertVolume() * 100)), dir: 'ltr', 'aria-valuetext': `${Math.round(alertVolume() * 100)}%` });
+  const volOut = h('output', { for: 'p-vol', class: 'num' }, `${Math.round(alertVolume() * 100)}%`);
+  vol.addEventListener('input', () => { volOut.textContent = `${vol.value}%`; vol.setAttribute('aria-valuetext', `${vol.value}%`); });
+  vol.addEventListener('change', async () => { await ctx.settings.set(AK.volume, Math.max(0, Math.min(1, +vol.value / 100))); unlock(); cue('count'); });
+  const volRow = h('div', { class: 'pfield prange' }, h('label', { for: 'p-vol' }, 'علو الصوت'), h('div', { class: 'prange-row' }, vol, volOut));
+  volRow.hidden = ctx.settings.get(AK.sound) === false;
+  const voice = sw('p-voice', 'تنبيه بالكلام', 'صوت بيقول «الراحة خلصت»', ctx.settings.get(AK.voice) === true,
+    async (on) => { await ctx.settings.set(AK.voice, on); if (on) { unlock(); say('الراحة خلصت', { force: true }); } });
+  hpHint.textContent = env.ios ? 'الآيفون بيهتز بس وانت لسه لامس الشاشة (تسجيل مجموعة، رقم شخصي)، مش لوحده لما الوقت يخلص' : 'نبضة لما تخلّص مجموعة، الراحة تخلص، رقم شخصي، أو أكل يتسجّل';
+  const vib = h('label', { class: 'pswitch', for: 'p-haptic' }, h('span', {}, 'اهتزاز', hpHint), hpSw, h('i', { 'aria-hidden': 'true' }));
+  const wake = sw('p-wake', 'خلّي الشاشة منوّرة أثناء التمرين', env.wakeLock ? 'عشان الصوت والتنبيه يشتغلوا في وقتهم أثناء الراحة والجولات' : 'جهازك مش بيدعم ده: طوّل «القفل التلقائي» من إعدادات الموبايل أثناء التمرين',
+    ctx.settings.get(AK.wake) !== false, async (on) => { await ctx.settings.set(AK.wake, on); });
+  const test = h('button', { type: 'button', class: 'btn ghost sm', dataset: { fk: 'alert-test' } }, raw(icon('bell')), 'جرّب الصوت');
+  test.addEventListener('click', () => {
+    unlock();
+    const via = cue('test', { force: true }); buzz([200, 100, 200]); say('الراحة خلصت');
+    testMsg.textContent = via ? (env.ios ? 'لو ماسمعتش حاجة: شيّل مفتاح الصامت اللي في جنب الآيفون وعلّي الصوت.' : 'لو ماسمعتش حاجة: علّي صوت الجهاز.') : 'الجهاز ده مش بيشغّل أصوات من المتصفح.';
+  });
+  const testMsg = h('p', { class: 'hint', 'aria-live': 'polite' });
+  // notification status: honest per platform
+  const ns = h('p', { class: 'hint', id: 'p-notif-st', 'aria-live': 'polite' });
+  const nBtn = h('button', { type: 'button', class: 'btn ghost sm', dataset: { fk: 'notif-enable' } }, 'فعّل الإشعارات');
+  const paintN = () => {
+    const e = alertEnv();
+    nBtn.hidden = !e.canAsk;
+    if (e.ios) ns.textContent = e.standalone
+      ? 'الآيفون مش بيسمح لتطبيقات الويب تنبّه والشاشة مقفولة أو التطبيق في الخلفية. الشاشة بتفضل منوّرة أثناء التمرين، ولو قفلتها التنبيه بييجي أول ما تفتحها.'
+      : 'في Safari العادي مفيش أي تنبيه والتطبيق في الخلفية. ضيفه للشاشة الرئيسية (زر المشاركة › «إضافة إلى الشاشة الرئيسية») وخلّي الشاشة منوّرة أثناء التمرين؛ لو قفلتها التنبيه بييجي أول ما تفتحها.';
+    else if (!e.notify) ns.textContent = 'المتصفح ده مش بيدعم الإشعارات. الصوت والاهتزاز شغالين والتطبيق مفتوح.';
+    else if (e.permission === 'granted') ns.textContent = ctx.settings.get('wk.notify') === true ? 'الإشعارات شغالة: هيوصلك إشعار لما الراحة أو الجولة تخلص والتطبيق في الخلفية.' : 'الإشعارات مسموحة. فعّلها من إعدادات الجلسة لو عايز إشعار في الخلفية.';
+    else if (e.permission === 'denied') ns.textContent = 'الإشعارات مقفولة من إعدادات المتصفح للموقع ده. افتحها من هناك لو عايزها.';
+    else ns.textContent = 'الإشعارات مقفولة. فعّلها عشان يوصلك تنبيه لما الراحة تخلص والتطبيق في الخلفية.';
+  };
+  nBtn.addEventListener('click', async () => {
+    let p = 'denied';
+    try { p = await Notification.requestPermission(); } catch { /* unsupported */ }
+    if (p === 'granted') await ctx.settings.set('wk.notify', true);
+    await ctx.settings.set('wk.notifyAsked', true);
+    paintN();
+  });
+  paintN();
+  return h('div', { class: 'sheet-card pform palerts' }, snd, volRow, voice, vib, wake,
+    h('div', { class: 'btn-row wrap' }, test), testMsg,
+    h('div', { class: 'pfield' }, h('p', { class: 'lbl' }, 'إشعارات في الخلفية'), ns, h('div', { class: 'btn-row wrap' }, nBtn)));
 }
 
 export const routes = {

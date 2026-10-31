@@ -1,8 +1,8 @@
-// Workout UI kit: sparkline, opt-in cues (tone / TTS / notification), coach loader, coaching-content lookup.
-// Everything audible or system-level is OFF by default and only runs after the user switches it on.
+// Workout UI kit: sparkline, cue shims over core/alerts.js (tone / TTS / background notification), coach loader, content lookup.
 import { h } from './view.js';
 import { TIPS, FORM_PHASES, FORM_PHASES_EN, BREATHING_CUES } from './content.js';
 import { libById, findLib } from './exercises.js';
+import { cue, say, alertEnv } from '../../core/alerts.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const sv = (t, a = {}) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
@@ -22,57 +22,32 @@ export function spark(values, { w = 96, h: ht = 28, label = '', color = 'var(--p
   return svg;
 }
 
-// ── preferences (ctx.settings 'wk.*') ─────────────────────────
+// ── preferences (ctx.settings) ────────────────────────────────
+// sound / voice are the shared alert switches (core/alerts.js, Profile › «الأصوات والتنبيهات»); sound is ON by default.
 export const PREFS = Object.freeze({
-  sound: { key: 'wk.sound', label: 'صوت هادي في نهاية الراحة' },
-  tts: { key: 'wk.tts', label: 'تنبيه صوتي بالكلام (نهاية الراحة، المجموعة الجاية)' },
-  notify: { key: 'wk.notify', label: 'إشعار لما الراحة تخلص والتطبيق في الخلفية' },
+  sound: { key: 'alerts.sound', label: 'صوت التنبيهات (نهاية الراحة، الجولات، المجموعة)', def: true },
+  tts: { key: 'alerts.voice', label: 'تنبيه بالكلام («الراحة خلصت»)' },
+  notify: { key: 'wk.notify', label: 'إشعار لما الوقت يخلص والتطبيق في الخلفية (أندرويد والكمبيوتر بس)' },
   aiTip: { key: 'wk.aiTip', label: 'نصيحة من المدرب بعد آخر مجموعة في التمرين' },
   swipe: { key: 'wk.swipe', label: 'اسحب المجموعة: يمين = تم، شمال = تراجع' },
 });
-export const pref = (ctx, name) => ctx.settings.get(PREFS[name]?.key || name) === true;
+export const pref = (ctx, name) => {
+  const p = PREFS[name]; const v = ctx.settings.get(p?.key || name);
+  return v === undefined || v === null ? !!p?.def : v === true;
+};
 
-let audioCtx = null;
-/** Soft 660 Hz tone (W44). Only when the setting is on; respects reduced motion like Solo Gym. */
-export function tone(ctx) {
-  if (!pref(ctx, 'sound')) return false;
-  try {
-    const C = window.AudioContext || window.webkitAudioContext; if (!C) return false;
-    audioCtx = audioCtx || new C();
-    const a = audioCtx, o = a.createOscillator(), g = a.createGain();
-    o.connect(g); g.connect(a.destination); o.frequency.value = 660;
-    g.gain.setValueAtTime(0.0001, a.currentTime); g.gain.exponentialRampToValueAtTime(0.18, a.currentTime + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + 0.4);
-    o.start(); o.stop(a.currentTime + 0.42);
-    return true;
-  } catch { return false; }
-}
-/** Arabic speech cue (W46). Only when the setting is on. */
-export function speak(ctx, text) {
-  if (!pref(ctx, 'tts') || !text) return false;
-  try {
-    const s = window.speechSynthesis; if (!s || typeof SpeechSynthesisUtterance === 'undefined') return false;
-    const u = new SpeechSynthesisUtterance(String(text)); u.lang = 'ar-EG'; u.rate = 1;
-    s.cancel(); s.speak(u); return true;
-  } catch { return false; }
-}
-/** Local notification at rest end while hidden (W43). Only when on + permission granted. */
-export function notifyRestEnd(ctx, body) {
-  if (!pref(ctx, 'notify') || document.visibilityState === 'visible') return false;
-  try {
-    if (!('Notification' in window) || Notification.permission !== 'granted') return false;
-    const opts = { body, tag: 'wk-rest', renotify: true, silent: !pref(ctx, 'sound') };
-    if (navigator.serviceWorker?.controller) navigator.serviceWorker.ready.then((r) => r.showNotification('الراحة خلصت', opts)).catch(() => {});
-    else new Notification('الراحة خلصت', opts);
-    return true;
-  } catch { return false; }
-}
+/** A cue sound through the shared alert system (default 'phase'). Kept as tone() for the older call sites. */
+export function tone(ctx, kind = 'phase') { void ctx; return !!cue(kind); }
+/** Arabic speech cue, only when «تنبيه بالكلام» is on. */
+export function speak(ctx, text) { void ctx; return say(text); }
 /**
  * Phase-end alert on a locked screen for the guided timers (boxing rounds), on the rest timer's path: the page posts
  * {type:'wk-rest', at, title, options} to the service worker (public/sw.js keeps itself alive until `at`), or arms a page
  * timer when there is no SW. Same tag 'wk-rest', so it never doubles with a rest alert. Opt-in (wk.notify + permission).
  */
 let phaseT = 0;
-export const notifyReady = (ctx) => pref(ctx, 'notify') && typeof Notification !== 'undefined' && Notification.permission === 'granted';
+// Android / desktop only: on iOS a locked or backgrounded PWA (page AND service worker) is frozen, so this path never fires there.
+export const notifyReady = (ctx) => pref(ctx, 'notify') && alertEnv().bgAlerts && Notification.permission === 'granted';
 export async function armPhaseNotice(ctx, { at, title, body = '', url = '#/workout' }) {
   cancelPhaseNotice();
   if (!notifyReady(ctx) || !(at > Date.now() + 500)) return false;

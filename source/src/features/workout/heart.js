@@ -6,6 +6,7 @@ import { h, N, ico, band, safeWrite, canVibrate } from './view.js';
 import { putSession, loadProgram } from './store.js';
 import { tone, prefSwitch } from './kit.js';
 import { reduced } from '../../ui/anim.js';
+import { buzz as alertBuzz, cue as alertCue, unlock, keepAwake } from '../../core/alerts.js';
 import { dayKey, diffDays, weekStart } from '../../core/date.js';
 import { wallSitArt, bikeArt } from './kegel-art.js';
 import { videoLink } from './exercise-videos.js';
@@ -253,9 +254,9 @@ const NS = 'http://www.w3.org/2000/svg';
 const fmtClock = (sec) => { const t = Math.max(0, Math.floor(sec || 0)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
 const KIND_COLOR = { warm: 'var(--cal)', z2: 'var(--carb)', hard: 'var(--orange)', easy: 'var(--pro)', wall: 'var(--violet)', rest: 'var(--mu-3)', pelvic: 'var(--pink)' };
 const KIND_TAG = { warm: 'تسخين', z2: 'Zone 2', hard: 'قوي', easy: 'هادي', wall: 'ثابت', rest: 'راحة', pelvic: 'قاع الحوض' };
-export const VIB_KEY = 'hk.vibrate';
-const vibOn = (ctx) => ctx.settings.get(VIB_KEY) === true;
-export function buzz(ctx, pattern) { if (vibOn(ctx) && canVibrate()) try { navigator.vibrate(pattern); } catch { /* optional */ } }
+// vibration follows the shared «اهتزاز» switch (ui.haptics, default on; core/alerts.js). The old opt-in hk.vibrate is retired.
+export const VIB_KEY = 'ui.haptics';
+export function buzz(ctx, pattern) { void ctx; void canVibrate; return alertBuzz(pattern); }
 
 /** Big ring SVG; returns {svg, set(frac, color)}. */
 export function ringSvg(size = 200, stroke = 14) {
@@ -270,13 +271,11 @@ export function ringSvg(size = 200, stroke = 14) {
   return { svg, set(frac, color) { arc.setAttribute('stroke-dasharray', `${C * clampN(frac, 0, 1)} ${C}`); if (color) arc.setAttribute('stroke', color); } };
 }
 
-/** Opt-in cue switches (sound uses the shared wk.sound pref; vibration is hk.vibrate). */
+/** Cue switches: the shared sound switch here; vibration, volume and voice live in Profile › «الأصوات والتنبيهات». */
 export function cueSwitches(ctx) {
-  const id = 'hk-vib';
-  const vib = h('input', { type: 'checkbox', id, role: 'switch', checked: vibOn(ctx) ? true : null, onchange: (e) => { ctx.settings.set(VIB_KEY, e.target.checked); if (e.target.checked) buzz(ctx, 40); } });
-  return h('details', { class: 'wk-fold hk-cues' }, h('summary', {}, 'صوت واهتزاز', h('small', {}, 'مقفولين لحد ما تفتحهم')),
+  return h('details', { class: 'wk-fold hk-cues' }, h('summary', {}, 'صوت واهتزاز', h('small', {}, 'شغّالين')),
     h('div', { class: 'hk-fold-body' }, prefSwitch(ctx, 'sound'),
-      h('label', { class: 'wk-switch', for: id }, h('span', {}, 'اهتزاز مع كل مرحلة جديدة'), vib, h('i', { 'aria-hidden': 'true' }))));
+      h('p', { class: 'wk-muted' }, 'الاهتزاز وعلو الصوت من الملف › الأصوات والتنبيهات. الشاشة بتفضل منوّرة والعدّاد شغال.')));
 }
 
 /**
@@ -292,7 +291,7 @@ function blockPlayer(ctx, { blocks, title, headId, onBlock, onFinish, startLabel
   const bSub = h('p', { class: 'wk-muted' }, blocks[0].sub);
   const prog = h('p', { class: 'hk-prog' });
   const next = h('p', { class: 'hk-next' });
-  const play = h('button', { type: 'button', class: 'btn', onclick: () => { r.toggle(); paint(); } }, startLabel);
+  const play = h('button', { type: 'button', class: 'btn', onclick: () => { unlock(); r.toggle(); keepAwake(r.running(), 'heart'); if (r.running() && !r.s.done.some(Boolean) && r.left() === blocks[r.s.idx].dur) cue(); paint(); } }, startLabel);
   const list = h('ol', { class: 'hk-blocks' });
   const total = totalSecs(blocks);
   const el = h('section', { class: 'glass wk-card hk-player', 'aria-labelledby': headId },
@@ -306,8 +305,8 @@ function blockPlayer(ctx, { blocks, title, headId, onBlock, onFinish, startLabel
       h('button', { type: 'button', class: 'ibtn glass wk-flip', 'aria-label': 'المرحلة الجاية', onclick: () => { const res = r.jump(1); if (res === 'finished') done(); else { cue(); paint(); } } }, ico('skip'))),
     list);
   let lastIdx = -1, finishedOnce = false;
-  function cue() { buzz(ctx, 120); tone(ctx); }
-  function done() { if (finishedOnce) return; finishedOnce = true; buzz(ctx, [90, 60, 90]); tone(ctx); paint(); onFinish && onFinish(blocks.map((b, i) => ({ ...b, doneS: r.s.done[i] })), r); }
+  function cue() { buzz(ctx, 120); tone(ctx, blocks[r.s.idx]?.kind === 'wall' ? 'hold' : 'phase'); }
+  function done() { if (finishedOnce) return; finishedOnce = true; keepAwake(false, 'heart'); buzz(ctx, [200, 100, 200, 100, 300]); tone(ctx, 'done'); paint(); onFinish && onFinish(blocks.map((b, i) => ({ ...b, doneS: r.s.done[i] })), r); }
   function paint() {
     const s = r.s, b = blocks[s.idx], l = r.left();
     tNum.textContent = s.finished ? 'تم' : fmtClock(l);
@@ -334,10 +333,17 @@ function blockPlayer(ctx, { blocks, title, headId, onBlock, onFinish, startLabel
       if (!s.finished) onBlock && onBlock(b, s.idx);
     }
   }
+  let counted = -1;
   function tick() {
     const res = r.tick();
     if (res.moved) cue();
     if (res.finished) { done(); return; }
+    // 3-2-1 before the end of every block ≥ 20 s (intervals, wall sit): scheduled on the audio clock from the wall-clock end
+    const ms = r.s.endsAt - Date.now();
+    if (r.running() && counted !== r.s.idx && blocks[r.s.idx].dur >= 20 && ms > 0 && ms <= 3200) {
+      counted = r.s.idx;
+      for (let k = 3; k >= 1; k--) { const d = (ms - k * 1000) / 1000; if (d >= -0.15) alertCue('count', { delay: Math.max(0, d) }); }
+    }
     paint();
   }
   paint();
@@ -349,7 +355,7 @@ function drive(tickFn) {
   const t = setInterval(tickFn, 250);
   const onVis = () => { if (document.visibilityState === 'visible') tickFn(); };
   document.addEventListener('visibilitychange', onVis);
-  return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVis); };
+  return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVis); keepAwake(false, 'heart'); };
 }
 
 function numField({ id, label, hint, min, max, value = '' }) {
@@ -452,7 +458,7 @@ function hrrCard(ctx, getRec, setPending) {
   const timerBtn = h('button', { type: 'button', class: 'btn ghost sm', onclick: () => {
     if (t) { clearInterval(t); t = null; ends = null; tNum.textContent = '1:00'; timerBtn.lastChild.textContent = 'ابدأ دقيقة القياس'; return; }
     ends = Date.now() + 60000; timerBtn.lastChild.textContent = 'الغي';
-    t = setInterval(() => { const l = Math.max(0, Math.ceil((ends - Date.now()) / 1000)); tNum.textContent = fmtClock(l); if (!l) { clearInterval(t); t = null; buzz(ctx, [90, 60, 90]); tone(ctx); timerBtn.lastChild.textContent = 'ابدأ دقيقة القياس'; after.input.focus(); } }, 250);
+    t = setInterval(() => { const l = Math.max(0, Math.ceil((ends - Date.now()) / 1000)); tNum.textContent = fmtClock(l); if (!l) { clearInterval(t); t = null; buzz(ctx, [200, 100, 200]); tone(ctx, 'restEnd'); timerBtn.lastChild.textContent = 'ابدأ دقيقة القياس'; after.input.focus(); } }, 250);
   } }, tNum, h('span', {}, 'ابدأ دقيقة القياس'));
   const save = async () => {
     const res = hrrResult(latin(peak.input.value), latin(after.input.value));

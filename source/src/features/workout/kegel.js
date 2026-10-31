@@ -3,6 +3,7 @@
 import { h, N, ico, band, safeWrite } from './view.js';
 import { tone } from './kit.js';
 import { reduced } from '../../ui/anim.js';
+import { unlock, keepAwake } from '../../core/alerts.js';
 import { kegelStage, kegelWeek, kegelSteps, kegelWeekCount, runner, loadHealth, patchHealth, buzz, cueSwitches, KEGEL_STAGES, POS, totalSecs } from './heart.js';
 import { pelvisArt, positionsArt } from './kegel-art.js';
 import { videoLink } from './exercise-videos.js';
@@ -94,7 +95,7 @@ export async function renderKegel(el, ctx) {
   const count = h('p', { class: 'hk-count' });
   const tLeft = h('p', { class: 'hk-tleft' });
   const poses = h('div', { class: 'hk-pose-now' });
-  const play = h('button', { type: 'button', class: 'btn', onclick: () => { r.toggle(); paint(true); } }, 'ابدأ الجلسة');
+  const play = h('button', { type: 'button', class: 'btn', onclick: () => { unlock(); r.toggle(); keepAwake(r.running(), 'kegel'); paint(true); } }, 'ابدأ الجلسة');
   root.appendChild(h('section', { class: 'glass wk-card hk-kplayer', 'aria-labelledby': 'hk-kp-h' },
     h('h3', { id: 'hk-kp-h' }, 'الجلسة', h('small', {}, N(fmt(total)))),
     h('div', { class: 'hk-kstage', role: 'timer', 'aria-live': 'polite' }, circle, h('div', { class: 'hk-cuebox' }, cue, cueSub)),
@@ -130,14 +131,15 @@ export async function renderKegel(el, ctx) {
       if (changed && r.running()) {
         if (step.type === 'hold' || step.type === 'flick') buzz(ctx, step.type === 'flick' ? 30 : 70);
         else if (step.type === 'relax') buzz(ctx, [25, 40, 25]);
-        if (step.type === 'hold' || step.type === 'move') tone(ctx);
+        if (step.type === 'hold' || step.type === 'move') tone(ctx, 'hold');
+        else if (step.type === 'relax') tone(ctx, 'relax');
       }
       if (!poses.dataset.pos || poses.dataset.pos !== step.pos) { poses.dataset.pos = step.pos; poses.textContent = ''; poses.appendChild(positionsArt(st.positions, step.pos)); }
     }
   }
   async function finish() {
     if (saved) return; saved = true;
-    buzz(ctx, [90, 60, 90]); tone(ctx); paint();
+    keepAwake(false, 'kegel'); buzz(ctx, [200, 100, 200, 100, 300]); tone(ctx, 'done'); paint();
     const row = { day: ctx.today(), at: new Date().toISOString(), stage: st.stage, secs: total };
     if (await safeWrite(ctx, () => patchHealth(ctx.db, (c) => {
       const k = c.kegel || {};
@@ -172,5 +174,5 @@ export async function renderKegel(el, ctx) {
       if (await safeWrite(ctx, () => patchHealth(ctx.db, (c) => { const n = { ...c }; delete n.kegel; return n; }))) { ctx.toast('اتمسحت.'); rerender(); }
     } }, 'امسح بيانات التمرين ده')));
 
-  return () => { closed = true; clearInterval(timer); document.removeEventListener('visibilitychange', onVis); document.title = prevTitle; };
+  return () => { closed = true; clearInterval(timer); document.removeEventListener('visibilitychange', onVis); keepAwake(false, 'kegel'); document.title = prevTitle; };
 }

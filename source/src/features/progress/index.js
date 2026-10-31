@@ -21,7 +21,7 @@ const I = (n) => raw(icon(n));
 const N = (v, dp = 0, o = {}) => h('span', { class: 'num' }, fmt(v, { dp, ...o }));
 // counted figure: final value at first paint, counts up from 0 when it comes on screen (ui/anim.js countUp)
 const NC = (v, dp = 0) => { const el = N(v, dp); if (Number.isFinite(+v) && +v > 0) countUp(el, +v, { dp, ms: 800, format: (x) => fmt(x, { dp }) }); return el; };
-const NF = (a, b) => { const el = h('span', { class: 'num' }, `${a}/${b}`); if (+a > 0) countUp(el, +a, { ms: 700, format: (x) => `${Math.round(x)}/${b}` }); return el; };
+const NF = (a, b) => { if (!+b && !+a) return h('span', { class: 'num' }, '—'); const el = h('span', { class: 'num' }, `${a}/${b}`); if (+a > 0) countUp(el, +a, { ms: 700, format: (x) => `${Math.round(x)}/${b}` }); return el; };
 const PERIOD_KEYS = ['m', 'q', 'y'];
 
 async function loadAll(ctx) {
@@ -98,7 +98,8 @@ async function progress(el, ctx, params) {
     const prevAdh = weekAdherence({ anchorDay: addDays(today, -7), weekStartDow: startDow, trainingDays, sessions: st.sessions, foodLog: st.foodLog, targets: st.targets, overrides: st.overrides, heartDow: st.heartDow });
     const wc = M.weekCompareTraining(st.sessions, today, startDow);
     const trend = weeklyTrend(st.weights);
-    const d = (a, b, dp = 0, unit = '') => (a === null || a === undefined || b === null || b === undefined ? null
+    // no bare «0» delta: nothing to compare against (both zero / no baseline) → no delta at all (UX audit #14)
+    const d = (a, b, dp = 0, unit = '') => (a === null || a === undefined || b === null || b === undefined || (!+a && !+b) ? null
       : h('em', { class: `pg-wd ${a > b ? 'up' : a < b ? 'down' : ''}` }, `${fmt(Math.round((a - b) * 10 ** dp) / 10 ** dp, { dp, sign: true })}${unit}`, h('span', { class: 'vh' }, ' عن الأسبوع اللي فات')));
     const fig = (label, val, delta, sub) => h('div', { class: 'pg-fig4' }, h('small', {}, label), h('b', {}, val), delta || (sub ? h('em', {}, sub) : null));
     const ws = weekStart(today, startDow);
@@ -527,8 +528,34 @@ async function progress(el, ctx, params) {
     } }, { label: 'إغلاق', ghost: true }] });
   }
 
+  // ───────── lead: the two numbers that matter, with their trend (UX audit #14: open on meaningful data) ─────────
+  function lead() {
+    const out = [];
+    const avg = movingAvg7(st.weights).filter((w) => w.day >= from);
+    if (avg.length) {
+      const last = avg[avg.length - 1]; const first = avg[0];
+      const dlt = avg.length > 1 ? Math.round((last.avg7 - first.avg7) * 10) / 10 : null;
+      out.push(h('a', { class: 'pg-lead', href: '#pg-body', onclick: (e) => { e.preventDefault(); const t = document.getElementById('pg-body'); t && t._open && t._open(); t && t.scrollIntoView({ block: 'start' }); } },
+        h('div', { class: 'pg-lh' }, h('small', {}, 'الوزن · متوسط 7 أيام'), dlt !== null && dlt !== 0 ? h('em', { class: `pg-ld ${dlt < 0 ? 'down' : 'up'}` }, N(dlt, 1, { sign: true }), ' كجم') : null),
+        h('b', { class: 'pg-lv' }, N(last.avg7, 1), h('small', {}, ' kg')),
+        avg.length > 1 ? lineChart({ points: avg.map((w) => ({ day: w.day, v: w.avg7 })), color: 'var(--pro)', label: `الوزن من ${fmt(first.avg7, { dp: 1 })} لـ ${fmt(last.avg7, { dp: 1 })} كجم`, unit: 'كجم', H: 72 }) : null));
+    }
+    const lift = M.liftsIn(st.sessions).find((l) => l.kind === 'compound');
+    const ser = lift ? M.e1rmSeries(st.sessions, lift.item).filter((p) => p.day >= from) : [];
+    if (ser.length) {
+      const last = ser[ser.length - 1]; const first = ser[0];
+      const dlt = ser.length > 1 ? Math.round((last.e1rm - first.e1rm) * 10) / 10 : null;
+      out.push(h('a', { class: 'pg-lead', href: '#pg-str', onclick: (e) => { e.preventDefault(); const t = document.getElementById('pg-str'); t && t._open && t._open(); t && t.scrollIntoView({ block: 'start' }); } },
+        h('div', { class: 'pg-lh' }, h('small', {}, `${lift.name} · e1RM`), dlt ? h('em', { class: `pg-ld ${dlt > 0 ? 'up' : 'down'}` }, N(dlt, 1, { sign: true }), ' كجم') : null),
+        h('b', { class: 'pg-lv' }, N(Math.round(last.e1rm * 10) / 10, 1), h('small', {}, ' kg')),
+        ser.length > 1 ? lineChart({ points: ser.map((p) => ({ day: p.day, v: p.e1rm })), color: 'var(--violet)', label: `e1RM ${lift.name} من ${fmt(first.e1rm, { dp: 1 })} لـ ${fmt(last.e1rm, { dp: 1 })} كجم`, unit: 'كجم', H: 72 }) : null));
+    }
+    if (!out.length) out.push(h('div', { class: 'pg-lead pg-lead-empty' }, h('b', {}, 'التقدّم بيبدأ من أول وزن وأول جلسة'),
+      h('button', { type: 'button', class: 'btn ghost sm', onclick: () => openWeightSheet(ctx) }, 'سجّل وزنك')));
+    return h('div', { class: 'pg-leads' }, ...out);
+  }
+
   // ───────── paint ─────────
-  const nav = [['str', 'القوة'], ['vol', 'الحجم'], ['body', 'الجسم'], ['rep', 'التقارير'], ['sum', 'الملخص']];
   function paint() {
     if (!alive || !st) return;
     const y = window.scrollY;
@@ -544,10 +571,9 @@ async function progress(el, ctx, params) {
     // one row: section chips (open + jump) and the period control
     fill(el,
       h('header', { class: 'pg-head' }, h('h1', {}, 'التقدّم')),
-      h('nav', { class: 'pg-nav', 'aria-label': 'أقسام التقدّم' }, h('div', { class: 'pg-seg', role: 'group', 'aria-label': 'الفترة' }, ...segBtns), ...nav.map(([id, l]) => h('a', { href: `#pg-${id}`, onclick: (e) => {
-        e.preventDefault(); const t = secs[id]; if (!t) return; t._open && t._open();
-        t.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
-      } }, l))),
+      // the period control only: the section chips duplicated the section headers (UX audit #14)
+      h('nav', { class: 'pg-nav', 'aria-label': 'الفترة' }, h('div', { class: 'pg-seg', role: 'group', 'aria-label': 'الفترة' }, ...segBtns)),
+      lead(),
       h('div', { class: 'pg-body' }, ...Object.values(secs)));
     if (y) window.scrollTo(0, y);
   }
