@@ -1,3 +1,4 @@
+import { initWidgets } from './app/widgets.js';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/components.css';
@@ -21,6 +22,7 @@ async function boot() {
   // Profile › المظهر: «قلّل الحركة» (default off; the OS setting applies on its own) and «اهتزاز خفيف» (default on)
   const applyFeel = () => { setReduceMotion(ctx.settings.get('ui.reduceMotion') === true); setHaptics(ctx.settings.get('ui.haptics') !== false); };
   applyFeel();
+  initWidgets(ctx); // iOS shell: home / lock-screen widgets (app/widgets.js)
   initAlerts(ctx.settings); // first tap anywhere unlocks WebAudio / <audio> (iOS); see core/alerts.js
   initPush(ctx); // lock-screen alert via the push Worker (Profile › «تنبيه والشاشة مقفولة»); no-op until enabled
   // a notification tap while the app is already open: the SW focuses this window and asks it to go to the screen

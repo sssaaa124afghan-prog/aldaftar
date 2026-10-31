@@ -1,7 +1,7 @@
 // Versioned app-shell cache. Bump VERSION on every release.
 // Cache-first for same-origin shell files; network-only for everything else (never caches
 // api.anthropic.com, openfoodfacts or any other cross-origin call).
-const VERSION = 'v6-push-2026-10-31-17b21be9';
+const VERSION = 'v6-push-2026-10-31-b23d162a';
 const CACHE = `shell-${VERSION}`;
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
