@@ -1,5 +1,6 @@
 import { initWidgets } from './app/widgets.js';
 import { initHealth } from './app/health.js';
+import { initAutoBackup } from './app/autobackup.js';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/components.css';
@@ -23,6 +24,7 @@ async function boot() {
   // Profile › المظهر: «قلّل الحركة» (default off; the OS setting applies on its own) and «اهتزاز خفيف» (default on)
   const applyFeel = () => { setReduceMotion(ctx.settings.get('ui.reduceMotion') === true); setHaptics(ctx.settings.get('ui.haptics') !== false); };
   applyFeel();
+  initAutoBackup(ctx); // iOS shell: daily backup file (app/autobackup.js)
   initHealth(ctx); // iOS shell: watch data from the «BD Health» shortcut (app/health.js)
   initWidgets(ctx); // iOS shell: home / lock-screen widgets (app/widgets.js)
   initAlerts(ctx.settings); // first tap anywhere unlocks WebAudio / <audio> (iOS); see core/alerts.js

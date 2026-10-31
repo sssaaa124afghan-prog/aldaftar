@@ -15,7 +15,8 @@ import { haptic } from '../../ui/anim.js';
 import { cue, say, buzz, unlock, alertEnv, KEYS as AK, volume as alertVolume } from '../../core/alerts.js';
 import { pushStatus } from '../../core/push.js';
 import { pushCard } from './push-card.js';
-import { isNative, requestNotificationPermission, notificationDetails, scheduleNotification, NOTE_TEXT, noteId, nowPlayingStatus, runHealthShortcut, HEALTH_SHORTCUT } from '../../core/native.js';
+import { isNative, requestNotificationPermission, notificationDetails, scheduleNotification, NOTE_TEXT, noteId, nowPlayingStatus, runHealthShortcut, HEALTH_SHORTCUT, backupStatus, backupPickFolder } from '../../core/native.js';
+import { runAutoBackup } from '../../app/autobackup.js';
 import { DESIGNS, CLASSIC, designId, preloadDesignFonts } from '../../app/design.js';
 
 const DAYS = [[6, 'السبت'], [0, 'الأحد'], [1, 'الاتنين'], [2, 'التلات'], [3, 'الأربع'], [4, 'الخميس'], [5, 'الجمعة']];
@@ -260,6 +261,7 @@ async function renderProfile(el, ctx) {
   // «استورد أوزانك القديمة»: old GymPro Elite backup → working weights for the plan (#/workout/import, parsed on the device)
   const oldW = h('a', { class: 'list-row', href: '#/workout/import' }, raw(icon('dumbbell')), h('span', { class: 'grow' }, h('b', {}, 'استورد أوزانك القديمة'), h('small', {}, 'من ملف GymPro Elite · أول جلسة تفتح بأوزانك')), raw(icon('chevron')));
   const backupRows = [exp, imp, oldW];
+  if (isNative()) backupRows.unshift(autoBackupCard(ctx));
   if (!meta || !meta.migratedAt) {
     const mig = h('a', { class: 'list-row', href: '#/profile/migrate' }, raw(icon('repeat')), h('span', { class: 'grow' }, h('b', {}, 'انقل بياناتك القديمة'), h('small', {}, 'من Solo Gym و NutriPro على الجهاز ده')), raw(icon('chevron')));
     backupRows.unshift(mig);
@@ -291,6 +293,36 @@ async function renderProfile(el, ctx) {
         h('div', { class: 'sheet-card pform pfeel' },
           h('label', { class: 'pswitch', for: 'p-rm' }, h('span', {}, 'قلّل الحركة', rmHint), rmSw, h('i', { 'aria-hidden': 'true' })))),
     ));
+}
+
+/** Profile › البيانات › «نسخة احتياطية أوتوماتيك» (iOS shell, app/autobackup.js + AutoBackup.swift). */
+function autoBackupCard(ctx) {
+  const on = ctx.settings.get('backup.auto') !== false;
+  const sw = h('input', { type: 'checkbox', id: 'p-autobk', role: 'switch', checked: on ? true : null, 'aria-describedby': 'p-autobk-h' });
+  const hint = h('span', { class: 'hint', id: 'p-autobk-h', 'aria-live': 'polite' });
+  const where = (w) => (!w || w === 'local' ? 'الملفات › على الـiPhone › بار ودمبل' : `فولدر «${w}»`);
+  const paint = async () => {
+    const last = ctx.settings.get('backup.lastAuto');
+    const st = await backupStatus().catch(() => null);
+    const dest = where(st && st.where);
+    hint.textContent = !sw.checked ? 'مقفولة. اعمل نسخة بإيدك من «صدّر نسخة».'
+      : last ? `آخر نسخة: ${last.day} · بتتحفظ في ${dest} (آخر 14 يوم).` : `نسخة كل يوم لما تقفل التطبيق · بتتحفظ في ${dest}.`;
+    pick.textContent = st && st.where && st.where !== 'local' ? 'غيّر الفولدر' : 'احفظها في iCloud Drive أو فولدر تاني';
+  };
+  sw.addEventListener('change', async () => { await ctx.settings.set('backup.auto', sw.checked); if (sw.checked) await runAutoBackup(ctx, { force: true }).catch(() => null); paint(); });
+  const pick = h('button', { type: 'button', class: 'btn ghost sm' }, 'احفظها في iCloud Drive أو فولدر تاني');
+  pick.addEventListener('click', async () => {
+    const name = await backupPickFolder();
+    if (!name) return;
+    const r = await runAutoBackup(ctx, { force: true }).catch(() => null);
+    ctx.toast(r ? `النسخ هتتحفظ في «${name}» ✓` : 'اتختار الفولدر، بس النسخة ماتعملتش. جرّب تاني.');
+    paint();
+  });
+  paint();
+  return h('div', { class: 'pform pautobk' },
+    h('label', { class: 'pswitch', for: 'p-autobk' }, h('span', {}, 'نسخة احتياطية أوتوماتيك', hint), sw, h('i', { 'aria-hidden': 'true' })),
+    h('p', { class: 'hint' }, 'لو مسحت التطبيق، اللي في «على الـiPhone» بيتمسح معاه. اختار فولدر في iCloud Drive عشان النسخ تفضل.'),
+    h('div', { class: 'btn-row wrap' }, pick));
 }
 
 /** Profile › «الساعة و Apple Health» (iOS shell): the watch's data through the «BD Health» shortcut (app/health.js). */

@@ -183,3 +183,11 @@ export async function takeHealth(w) {
   if (!v) return null;
   try { return JSON.parse(v); } catch { return null; }
 }
+
+// ───────── automatic daily backup (AutoBackup.swift) ─────────
+/** Writes the backup file → {ok, where:'local'|<folder>, file} | {ok:false, error} | null. */
+export const autoBackup = (name, json, w) => askJSON('autoBackup', { name: String(name), json: String(json) }, 20000, w);
+/** {ok, where} — where the daily files go ('local' = Files › On My iPhone › بار ودمبل). */
+export const backupStatus = (w) => askJSON('backupStatus', {}, 2500, w);
+/** Folder picker (iCloud Drive / On My iPhone) → the folder name, or '' when cancelled. */
+export const backupPickFolder = (w) => ask('backupPickFolder', {}, { ms: 300000, fallback: '' }, w);

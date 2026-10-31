@@ -118,3 +118,4 @@ html[data-design="b"] .dz-card[aria-checked="true"] .dz-ck{color:#1C0800}
 .phealth-guide summary{cursor:pointer;font-weight:600;min-height:44px;display:flex;align-items:center}
 .phealth-guide ol{margin:6px 0 8px;padding-inline-start:20px;display:grid;gap:8px;font-size:14px;line-height:1.6}
 .phealth-guide code{font-size:12px;padding:1px 6px;border-radius:6px;background:color-mix(in srgb,var(--tx,#fff) 8%,transparent);word-break:break-all}
+.pautobk{padding:12px 14px;border-bottom:1px solid color-mix(in srgb,var(--tx,#fff) 8%,transparent)}
