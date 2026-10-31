@@ -1,7 +1,7 @@
 // Versioned app-shell cache. Bump VERSION on every release.
 // Cache-first for same-origin shell files; network-only for everything else (never caches
 // api.anthropic.com, openfoodfacts or any other cross-origin call).
-const VERSION = 'v5-2026-10-31-dbe7c866';
+const VERSION = 'v6-push-2026-10-31-21ebcbc5';
 const CACHE = `shell-${VERSION}`;
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
@@ -46,12 +46,40 @@ self.addEventListener('message', (e) => {
     }));
   }
 });
+// Lock-screen alert from the push Worker. The payload is encrypted end-to-end (RFC 8291) and always generic:
+// {title, body, tag, url}. iOS REQUIRES a visible notification for every push, or Safari revokes the subscription,
+// so this always shows one, even when the app is open.
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = {}; }
+  const str = (v, max, def) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : def);
+  const title = str(d.title, 80, 'الراحة خلصت');
+  const body = str(d.body, 160, '');
+  const tag = typeof d.tag === 'string' && /^[\w-]{1,32}$/.test(d.tag) ? d.tag : 'wk-rest'; // 'wk-rest' = same tag as the local alerts → never doubles
+  const url = typeof d.url === 'string' && /^#\/[\w/-]*$/.test(d.url) ? d.url : '#/workout';
+  e.waitUntil((async () => {
+    await self.registration.showNotification(title, {
+      body, tag, renotify: true, dir: 'rtl', lang: 'ar', silent: false,
+      vibrate: [200, 100, 200, 100, 300], icon: './icon-192.png', badge: './icon-192.png',
+      timestamp: Date.now(), data: { url },
+    });
+    for (const n of await self.registration.getNotifications({ tag: 'wk-rest-now' })) n.close(); // the «راحة لحد …» ongoing note
+    // app open and on screen: it already rang locally, so close the banner after a moment
+    const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    if (list.some((c) => c.visibilityState === 'visible' && c.focused)) {
+      await new Promise((r) => setTimeout(r, 1500));
+      for (const n of await self.registration.getNotifications({ tag })) n.close();
+    }
+  })());
+});
+
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
-  const url = (e.notification.data && e.notification.data.url) || '#/workout/session';
-  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+  const raw = e.notification.data && e.notification.data.url;
+  const url = typeof raw === 'string' && /^#\/[\w/-]*$/.test(raw) ? raw : '#/workout';
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (list) => {
     const c = list[0];
-    if (c) return c.focus();
+    if (c) { await c.focus(); c.postMessage({ type: 'open', url }); return; }
     return self.clients.openWindow(`./${url}`);
   }));
 });

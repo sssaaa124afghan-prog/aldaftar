@@ -13,6 +13,8 @@ import { renderMigrate } from './migration.js';
 import { renderWelcome } from './onboarding.js';
 import { haptic } from '../../ui/anim.js';
 import { cue, say, buzz, unlock, alertEnv, KEYS as AK, volume as alertVolume } from '../../core/alerts.js';
+import { pushStatus } from '../../core/push.js';
+import { pushCard } from './push-card.js';
 import { DESIGNS, CLASSIC, designId, preloadDesignFonts } from '../../app/design.js';
 
 const DAYS = [[6, 'السبت'], [0, 'الأحد'], [1, 'الاتنين'], [2, 'التلات'], [3, 'الأربع'], [4, 'الخميس'], [5, 'الجمعة']];
@@ -277,6 +279,7 @@ async function renderProfile(el, ctx) {
       section('s-days', 'التمرين', 'dumbbell', h('div', { class: 'sheet-card pform' }, h('p', { class: 'lbl' }, 'أيام الحديد'), tdChips, tdNote,
         h('label', { class: 'pswitch', for: 'p-reentry' }, h('span', {}, 'راجع بعد انقطاع', reHint), reSw, h('i', { 'aria-hidden': 'true' })))),
       section('s-alerts', 'الأصوات والتنبيهات', 'bell', alertsCard),
+      section('s-push', 'تنبيه والشاشة مقفولة', 'bell', pushCard(ctx)),
       section('s-targets', 'أهداف الأكل', 'food', h('p', { class: 'hint' }, 'كل نوع يوم ليه هدفه. اضغط «عدّل» لو عايز تغيّر.'),
         h('div', { class: 'sheet-card' }, targetsBlock(ctx, targets, 'training'), targetsBlock(ctx, targets, 'heart'), targetsBlock(ctx, targets, 'rest'))),
       section('s-ai', 'المدرب الذكي', 'spark', h('div', { class: 'sheet-card pform' }, key.el, h('div', { class: 'btn-row wrap' }, saveKey, testKey, showKey), keyMsg,
@@ -320,12 +323,24 @@ function alertsGroup(ctx, hpSw, hpHint) {
   // notification status: honest per platform
   const ns = h('p', { class: 'hint', id: 'p-notif-st', 'aria-live': 'polite' });
   const nBtn = h('button', { type: 'button', class: 'btn ghost sm', dataset: { fk: 'notif-enable' } }, 'فعّل الإشعارات');
+  let pushOn = false;
+  const pushLink = h('button', { type: 'button', class: 'btn ghost sm', hidden: true, dataset: { fk: 'push-goto' } }, 'روح لـ«تنبيه والشاشة مقفولة»');
+  pushLink.addEventListener('click', () => {
+    const t = document.getElementById('s-push');
+    if (!t) return;
+    t.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    const f = document.getElementById('p-push-url'); if (f) f.focus({ preventScroll: true });
+  });
   const paintN = () => {
     const e = alertEnv();
     nBtn.hidden = !e.canAsk;
-    if (e.ios) ns.textContent = e.standalone
-      ? 'الآيفون مش بيسمح لتطبيقات الويب تنبّه والشاشة مقفولة أو التطبيق في الخلفية. الشاشة بتفضل منوّرة أثناء التمرين، ولو قفلتها التنبيه بييجي أول ما تفتحها.'
-      : 'في Safari العادي مفيش أي تنبيه والتطبيق في الخلفية. ضيفه للشاشة الرئيسية (زر المشاركة › «إضافة إلى الشاشة الرئيسية») وخلّي الشاشة منوّرة أثناء التمرين؛ لو قفلتها التنبيه بييجي أول ما تفتحها.';
+    // iOS: only a Web Push (Profile › «تنبيه والشاشة مقفولة», core/push.js) reaches a locked iPhone
+    pushLink.hidden = !e.ios || pushOn;
+    if (e.ios) ns.textContent = !e.standalone
+      ? 'في Safari العادي مفيش أي تنبيه والتطبيق في الخلفية. ضيفه للشاشة الرئيسية (زر المشاركة › «إضافة إلى الشاشة الرئيسية»)، افتحه من الأيقونة، وبعدين فعّل «تنبيه والشاشة مقفولة» تحت.'
+      : pushOn
+        ? 'التنبيه والشاشة مقفولة متفعّل: لما الراحة أو الجولة تخلص هيوصلك إشعار حتى والشاشة مقفولة. الصوت بيشتغل والتطبيق قدامك بس.'
+        : 'الآيفون مش بيبعت تنبيه والشاشة مقفولة غير لو فعّلت «تنبيه والشاشة مقفولة» تحت. لحد ما تفعّله: الشاشة بتفضل منوّرة أثناء التمرين، ولو قفلتها التنبيه بييجي أول ما تفتحها.';
     else if (!e.notify) ns.textContent = 'المتصفح ده مش بيدعم الإشعارات. الصوت والاهتزاز شغالين والتطبيق مفتوح.';
     else if (e.permission === 'granted') ns.textContent = ctx.settings.get('wk.notify') === true ? 'الإشعارات شغالة: هيوصلك إشعار لما الراحة أو الجولة تخلص والتطبيق في الخلفية.' : 'الإشعارات مسموحة. فعّلها من إعدادات الجلسة لو عايز إشعار في الخلفية.';
     else if (e.permission === 'denied') ns.textContent = 'الإشعارات مقفولة من إعدادات المتصفح للموقع ده. افتحها من هناك لو عايزها.';
@@ -339,9 +354,11 @@ function alertsGroup(ctx, hpSw, hpHint) {
     paintN();
   });
   paintN();
+  pushStatus().then((s) => { pushOn = !!s.on; paintN(); }).catch(() => {});
+  const offPush = ctx.on('push:changed', (s) => { if (!ns.isConnected) { offPush(); return; } pushOn = !!(s && s.on); paintN(); });
   return h('div', { class: 'sheet-card pform palerts' }, snd, volRow, voice, vib, wake,
     h('div', { class: 'btn-row wrap' }, test), testMsg,
-    h('div', { class: 'pfield' }, h('p', { class: 'lbl' }, 'إشعارات في الخلفية'), ns, h('div', { class: 'btn-row wrap' }, nBtn)));
+    h('div', { class: 'pfield' }, h('p', { class: 'lbl' }, 'إشعارات في الخلفية'), ns, h('div', { class: 'btn-row wrap' }, nBtn, pushLink)));
 }
 
 export const routes = {

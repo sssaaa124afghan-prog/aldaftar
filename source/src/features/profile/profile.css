@@ -78,7 +78,7 @@ summary:focus-visible{outline:2px solid var(--amber,#FCD34D);outline-offset:2px;
 .palerts .prange output{flex:none;min-width:3.5ch;text-align:end;color:var(--mu)}
 .palerts>.btn-row{margin-top:var(--s3)}
 .palerts>.pfield{margin-top:var(--s3);padding-top:var(--s3);border-top:1px solid var(--edge-soft)}
-.palerts [hidden]{display:none!important}
+.palerts [hidden],.ppush [hidden]{display:none!important}
 
 /* Profile › المظهر: design picker (large preview cards) + «تصميمات قديمة» */
 .dz{display:flex;flex-direction:column;gap:var(--s3)}

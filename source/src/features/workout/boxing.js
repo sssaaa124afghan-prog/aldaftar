@@ -13,6 +13,8 @@ import { videoLink } from './exercise-videos.js';
 import { BOX_VIDEO_NAME } from './boxing-videos.js';
 import { runner, ringSvg, loadHealth, patchHealth } from './heart.js';
 import * as L from './logic.js';
+import { pushSyncer } from './push-sync.js';
+import { pushStatus } from '../../core/push.js';
 import { boxingToday, boxingPlan, boxingRecord, curriculumFor, boxingWeekStats, roundDone, SAFETY, GEAR_VIDEOS, PHASES, BOX_DEFAULT } from './boxing-plan.js';
 
 const fmtClock = (sec) => { const t = Math.max(0, Math.floor(sec || 0)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
@@ -76,6 +78,9 @@ export async function renderBoxing(el, ctx, params = {}) {
   const total = P.total;
   const rpe = {};
   let pendingRpe = null, warned = -1, lastIdx = -1, finished = false, saved = null, hiddenAt = 0;
+  // lock-screen alert at the end of the running round (bag / shadow). Paused, between rounds or finished → cancelled.
+  const boxPush = pushSyncer('box');
+  const syncBoxPush = () => boxPush.set(!finished && r.running() && ROUND.has(phases[r.s.idx].kind) ? Date.now() + (r.left() * 1000) / speed : null);
 
   const ring = ringSvg(232, 14);
   const tNum = h('b', { class: 'num bx-clock' }, fmtClock(phases[0].dur));
@@ -119,6 +124,7 @@ export async function renderBoxing(el, ctx, params = {}) {
     if (r.running()) { if (!wasStarted || r.s.idx !== lastIdx) signal(ROUND.has(phases[r.s.idx].kind) ? 'start' : 'soft'); wake(true); }
     else wake(false);
     endBtn.hidden = !r.s.started;
+    syncBoxPush();
     paint();
   }
   /** After a phase change. leaving = index of the phase just left (when it ran to its end or was skipped forward). */
@@ -127,6 +133,7 @@ export async function renderBoxing(el, ctx, params = {}) {
     if (p && ROUND.has(p.kind) && dir > 0) { pendingRpe = p.id; signal('end'); }
     const cur = phases[r.s.idx];
     if (r.running()) setTimeout(() => { if (!finished && phases[r.s.idx] === cur) signal(ROUND.has(cur.kind) ? 'start' : 'soft'); }, p && ROUND.has(p.kind) && dir > 0 ? 700 : 0);
+    syncBoxPush();
     paint();
   }
   function tick() {
@@ -134,6 +141,7 @@ export async function renderBoxing(el, ctx, params = {}) {
     const before = r.s.idx;
     const res = r.tick();
     if (res.finished) { if (ROUND.has(phases[before].kind)) pendingRpe = phases[before].id; signal('end'); done(); return; }
+    if (res.moved) syncBoxPush();
     const back = document.visibilityState === 'visible';
     if (res.moved && back && hiddenAt && Date.now() - hiddenAt > 1500) {
       // back from a locked / hidden screen: say what happened while he was away
@@ -235,7 +243,7 @@ export async function renderBoxing(el, ctx, params = {}) {
   }
   async function done() {
     if (finished) return;
-    finished = true; wake(false); cancelPhaseNotice();
+    finished = true; wake(false); cancelPhaseNotice(); boxPush.clear();
     paint();
     const rec = await save(phases.map((b, i) => ({ ...b, doneS: r.s.done[i] })));
     endBtn.hidden = true;
@@ -249,7 +257,7 @@ export async function renderBoxing(el, ctx, params = {}) {
     const left = r.left(); r.s.done[r.s.idx] = Math.max(r.s.done[r.s.idx], phases[r.s.idx].dur - left);
     if (ROUND.has(phases[r.s.idx].kind) && phases[r.s.idx].dur - left >= phases[r.s.idx].dur * 0.5) pendingRpe = phases[r.s.idx].id;
     r.s.finished = true; r.s.pausedLeft = 0;
-    finished = true; wake(false); cancelPhaseNotice(); paint();
+    finished = true; wake(false); cancelPhaseNotice(); boxPush.clear(); paint();
     const rec = await save(phases.map((b, i) => ({ ...b, doneS: r.s.done[i] })), true);
     endBtn.hidden = true; paintSummary(rec);
     if (rec) ctx.toast('اتسجّل اللي عملته.');
@@ -265,7 +273,7 @@ export async function renderBoxing(el, ctx, params = {}) {
       body: nx ? `الجاي: ${nx.label}` : 'آخر مرحلة خلصت', url: '#/workout/boxing' });
   };
   document.addEventListener('visibilitychange', onVis);
-  cleanups.push(() => { clearInterval(iv); document.removeEventListener('visibilitychange', onVis); wake(false); cancelPhaseNotice(); });
+  cleanups.push(() => { clearInterval(iv); document.removeEventListener('visibilitychange', onVis); wake(false); cancelPhaseNotice(); boxPush.clear(); });
 
   // ══ why today is technique-only (BP gate / deload / re-entry) ══
   if (T.tech && T.why) root.appendChild(note('bx-tech-h', T.gate.tech ? 'النهارده تكنيك بس: الضغط' : 'النهارده تكنيك بس', T.why,
@@ -303,14 +311,17 @@ export async function renderBoxing(el, ctx, params = {}) {
 
   // ══ cues ══
   const bellId = 'bx-bell';
+  // iOS: a locked iPhone only gets the round end through Web Push (Profile › «تنبيه والشاشة مقفولة», core/push.js)
+  const IOS_NO_PUSH = 'الشاشة بتفضل منوّرة والجولات شغالة. الآيفون مش بيبعت تنبيه والشاشة مقفولة غير لو فعّلت «تنبيه والشاشة مقفولة» من الملف. من غيره: لو قفلتها، العدّاد بيكمّل وبنقولك اللي حصل أول ما تفتحها. مفتاح الصامت بيكتم الجرس.';
+  const IOS_PUSH = '«تنبيه والشاشة مقفولة» متفعّل: لو قفلت الشاشة، هيوصلك إشعار لما الجولة اللي شغالة تخلص، والعدّاد بيكمّل وبنقولك اللي حصل أول ما تفتحها. مفتاح الصامت بيكتم الجرس.';
+  const cueNote = h('p', { class: 'wk-muted' }, alertEnv().ios ? IOS_NO_PUSH : 'الشاشة بتفضل منوّرة والجولات شغالة. الصوت والاهتزاز من الملف › الأصوات والتنبيهات.');
+  if (alertEnv().ios) pushStatus().then((st) => { if (st.on) cueNote.textContent = IOS_PUSH; }).catch(() => {});
   root.appendChild(h('details', { class: 'wk-fold hk-cues' }, h('summary', {}, 'الجرس والتنبيهات', h('small', {}, 'الجرس شغّال')),
     h('div', { class: 'hk-fold-body' },
       h('label', { class: 'wk-switch', for: bellId }, h('span', {}, 'جرس بداية ونهاية الجولة + تصقيفة قبل النهاية بـ 10 ثواني'),
         h('input', { type: 'checkbox', id: bellId, role: 'switch', checked: bellOn(ctx) ? true : null, onchange: (e) => { ctx.settings.set(BELL_KEY, e.target.checked); if (e.target.checked) bell(ctx, 'start'); } }), h('i', { 'aria-hidden': 'true' })),
       alertEnv().bgAlerts ? prefSwitch(ctx, 'notify', { onChange: async (on) => { if (!on) return true; const p = await askNotifyPermission(); if (p !== 'granted') { ctx.toast('الإشعارات مش مسموحة من المتصفح.'); return false; } return true; } }) : null,
-      h('p', { class: 'wk-muted' }, alertEnv().ios
-        ? 'الشاشة بتفضل منوّرة والجولات شغالة. الآيفون مش بيسمح بتنبيه والشاشة مقفولة: لو قفلتها، العدّاد بيكمّل وبنقولك اللي حصل أول ما تفتحها. مفتاح الصامت بيكتم الجرس.'
-        : 'الشاشة بتفضل منوّرة والجولات شغالة. الصوت والاهتزاز من الملف › الأصوات والتنبيهات.'))));
+      cueNote)));
 
   return () => cleanups.forEach((f) => f());
 }

@@ -1,6 +1,6 @@
 // Profile › «تنبيه والشاشة مقفولة»: Worker URL + App token, «فعّل» (permission → subscribe → test push in 5 s)
 // and «إيقاف ومسح» (cancel + forget on the server, unsubscribe on the phone, wipe the stored values).
-// Uses the same .field / .sheet-card / .btn classes as the rest of the Profile screen; no new CSS.
+// Uses the same .field / .sheet-card / .btn classes as the rest of the Profile screen; .ppush only makes [hidden] win over .btn.
 import { h } from '../../ui/dom.js';
 import { enablePush, disablePush, pushStatus } from '../../core/push.js';
 
@@ -29,6 +29,7 @@ export function pushCard(ctx) {
     const s = await pushStatus();
     state.textContent = s.on ? 'متفعّل على الموبايل ده ✓' : 'مش متفعّل';
     offBtn.hidden = !s.on;
+    if (ctx && ctx.emit) ctx.emit('push:changed', { on: !!s.on }); // «الأصوات والتنبيهات» + the session tip update their iOS copy
     if (s.on && s.url && !urlIn.value) urlIn.value = s.url;
   }
 
@@ -56,11 +57,11 @@ export function pushCard(ctx) {
   });
 
   refresh();
-  return h('div', { class: 'sheet-card pform' },
+  return h('div', { class: 'sheet-card pform ppush' },
     h('p', { class: 'hint' }, 'بيصحّي الآيفون لما الراحة أو الجولة تخلص حتى والشاشة مقفولة. اللي بيطلع من الموبايل: الاشتراك ووقت النهاية بس — مفيش أسماء تمارين ولا أوزان.'),
     state,
-    h('div', { class: 'field' }, h('label', { for: 'p-push-url' }, 'رابط الـWorker'), urlIn, h('p', { class: 'hint', id: 'p-push-url-h' }, 'اللي طلع لك بعد npx.cmd wrangler deploy')),
-    h('div', { class: 'field' }, h('label', { for: 'p-push-token' }, 'App token'), tokIn, h('p', { class: 'hint', id: 'p-push-token-h' }, 'نفس التوكن اللي حطيته بـ wrangler secret put APP_TOKEN. محفوظ على الموبايل ده بس ومش بيدخل في النسخة الاحتياطية.')),
+    h('div', { class: 'field' }, h('label', { for: 'p-push-url' }, 'رابط الـWorker'), urlIn, h('p', { class: 'hint', id: 'p-push-url-h' }, 'اللي طلع لك بعد ', h('bdi', { dir: 'ltr' }, 'npx.cmd wrangler deploy'))),
+    h('div', { class: 'field' }, h('label', { for: 'p-push-token' }, 'App token'), tokIn, h('p', { class: 'hint', id: 'p-push-token-h' }, 'نفس التوكن اللي حطيته بـ ', h('bdi', { dir: 'ltr' }, 'wrangler secret put APP_TOKEN'), '. محفوظ على الموبايل ده بس ومش بيدخل في النسخة الاحتياطية.')),
     h('div', { class: 'btn-row wrap' }, onBtn, offBtn),
     msg);
 }

@@ -10,6 +10,7 @@ import { startRouter, renderTabs, go, parseHash } from './app/router.js';
 import { readMigrationGate } from './features/profile/migration.js';
 import { setReduceMotion, setHaptics } from './ui/anim.js';
 import { initAlerts, refreshWake } from './core/alerts.js';
+import { initPush } from './core/push.js';
 
 async function boot() {
   let db; let memory = false;
@@ -21,6 +22,12 @@ async function boot() {
   const applyFeel = () => { setReduceMotion(ctx.settings.get('ui.reduceMotion') === true); setHaptics(ctx.settings.get('ui.haptics') !== false); };
   applyFeel();
   initAlerts(ctx.settings); // first tap anywhere unlocks WebAudio / <audio> (iOS); see core/alerts.js
+  initPush(ctx); // lock-screen alert via the push Worker (Profile › «تنبيه والشاشة مقفولة»); no-op until enabled
+  // a notification tap while the app is already open: the SW focuses this window and asks it to go to the screen
+  if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('message', (e) => {
+    const d = e.data;
+    if (d && d.type === 'open' && typeof d.url === 'string' && /^#\/[\w/-]*$/.test(d.url) && location.hash !== d.url) location.hash = d.url;
+  });
   ctx.on('settings:changed', ({ key }) => { if (key === 'palette' || key === 'design') applyLook(); if (key === 'ui.reduceMotion' || key === 'ui.haptics') applyFeel(); if (key === 'wk.wakeLock') refreshWake(); });
   window.__ctx = import.meta.env.DEV ? ctx : undefined;
   const view = document.getElementById('view');

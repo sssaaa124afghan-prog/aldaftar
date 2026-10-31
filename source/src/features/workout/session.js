@@ -18,6 +18,8 @@ import { STRETCH_PROTOCOLS } from './content.js';
 import { libById } from './exercises.js';
 import { videoLink } from './exercise-videos.js';
 import * as V from './voice.js';
+import { pushSyncer, restEndAt } from './push-sync.js';
+import { pushStatus } from '../../core/push.js';
 
 const TYPES = [['normal', 'عادية'], ['drop', 'Drop'], ['rp', 'Rest-pause'], ['myo', 'Myo']];
 const TYPE_LABEL = Object.fromEntries(TYPES);
@@ -81,7 +83,10 @@ export async function renderSession(el, ctx) {
   let lastUndo = null; // the latest «تراجع» of a logged set (voice «امسح» runs it)
   const vc = V.createVoiceUI({ h, ico, onInput: (alts) => onVoice(alts) });
 
-  const save = () => { clearTimeout(saveT); saveT = 0; return safeWrite(ctx, () => putSession(ctx.db, live)); };
+  let pushOn = false; // Profile › «تنبيه والشاشة مقفولة» is on → the iOS tip can promise a lock-screen alert
+  pushStatus().then((st) => { pushOn = !!st.on; }).catch(() => {});
+  const restPush = pushSyncer('rest'); // lock-screen alert at the rest end (core/push.js); paused / skipped → cancelled
+  const save = () => { restPush.set(closed ? null : restEndAt(live.rest)); clearTimeout(saveT); saveT = 0; return safeWrite(ctx, () => putSession(ctx.db, live)); };
   const queueSave = () => { clearTimeout(saveT); saveT = setTimeout(() => { saveT = 0; save(); }, 400); };
   const flushSave = () => (saveT ? save() : null);
   const editing = () => { const a = document.activeElement; return !!(a && a.tagName === 'INPUT' && root.contains(a)); };
@@ -645,7 +650,7 @@ export async function renderSession(el, ctx) {
     const ok = await ctx.confirm({ title: 'نلغي الجلسة؟', text: 'المجموعات اللي سجّلتها في الجلسة دي هتتمسح.', confirmLabel: 'الغي الجلسة', danger: true });
     if (!ok) return;
     if (!(await safeWrite(ctx, () => deleteSession(ctx.db, live.id)))) return;
-    closed = true;
+    restPush.clear(); closed = true;
     ctx.emit('session:changed', { id: live.id, state: 'discarded' });
     ctx.go('workout');
   }
@@ -660,7 +665,7 @@ export async function renderSession(el, ctx) {
     if (live.z2 && live.z2.startedAt && !live.z2.doneAt) live.z2.doneAt = Date.now();
     const { record } = L.finalize(live, history, new Date());
     if (!(await safeWrite(ctx, () => putSession(ctx.db, record)))) return;
-    closed = true;
+    restPush.clear(); closed = true;
     ctx.emit('session:changed', { id: record.id, state: 'done' });
     const hist = [...history, record];
     try { await patchTraining(ctx.db, { poJournal: L.journalAfter(tr.poJournal, record, hist) }); } catch { /* journal is best effort */ }
@@ -1128,19 +1133,23 @@ export async function renderSession(el, ctx) {
     else ctx.toast('الإشعارات مقفولة من المتصفح. الصوت والاهتزاز شغالين والتطبيق مفتوح.');
     if (!closed) drawDock();
   }
-  // One-time, honest explanation the first time a rest starts (UX: right moment, from a tap). iOS: no lock-screen alerts
-  // for web apps → keep the screen on + catch-up. Android/desktop: offer the background notification (permission from the tap).
+  // One-time, honest explanation the first time a rest starts (UX: right moment, from a tap). iOS: lock-screen alerts only
+  // through Web Push (Profile › «تنبيه والشاشة مقفولة»); without it → keep the screen on + catch-up. Android/desktop: offer the background notification (permission from the tap).
   const alertTipSeen = () => ctx.settings.get('wk.alertTipSeen') === true;
   function alertTip() {
     const env = alertEnv();
     const close = async () => { tipPending = false; try { await ctx.settings.set('wk.alertTipSeen', true); } catch { /* ignore */ } if (!closed) drawDock(); };
     const lines = [];
-    if (env.ios) {
-      lines.push('الآيفون مش بيسمح لتطبيقات الويب تنبّه والشاشة مقفولة.');
-      lines.push(env.wakeLock && ctx.settings.get('wk.wakeLock') !== false ? 'عشان كده الشاشة هتفضل منوّرة أثناء التمرين، والصوت والاهتزاز هيشتغلوا لما الراحة تخلص. لو قفلتها، التنبيه هييجي أول ما تفتحها.'
-        : 'خلّي الشاشة مفتوحة أثناء الراحة، أو طوّل «القفل التلقائي» من الإعدادات › الشاشة والسطوع. لو قفلتها، التنبيه هييجي أول ما تفتحها.');
+    if (env.ios && pushOn) {
+      // Web Push is set up (core/push.js): the Worker wakes the locked iPhone at the rest end
+      lines.push('«تنبيه والشاشة مقفولة» متفعّل: لو قفلت الشاشة، هيوصلك إشعار «الراحة خلصت» في وقته.');
+      lines.push('والشاشة مفتوحة، الصوت والاهتزاز هيشتغلوا لما الراحة تخلص. مفتاح الصامت في جنب الآيفون بيكتم الصوت.');
+    } else if (env.ios) {
+      lines.push('الآيفون مش بيبعت تنبيه والشاشة مقفولة غير لو فعّلت «تنبيه والشاشة مقفولة» من الملف.');
+      lines.push(env.wakeLock && ctx.settings.get('wk.wakeLock') !== false ? 'لحد ما تفعّله، الشاشة هتفضل منوّرة أثناء التمرين، والصوت والاهتزاز هيشتغلوا لما الراحة تخلص. لو قفلتها، التنبيه هييجي أول ما تفتحها.'
+        : 'لحد ما تفعّله، خلّي الشاشة مفتوحة أثناء الراحة، أو طوّل «القفل التلقائي» من الإعدادات › الشاشة والسطوع. لو قفلتها، التنبيه هييجي أول ما تفتحها.');
       lines.push('مفتاح الصامت في جنب الآيفون بيكتم صوت التنبيه.');
-      if (!env.standalone) lines.push('الأحسن تفتحه من الشاشة الرئيسية: زر المشاركة › «إضافة إلى الشاشة الرئيسية».');
+      if (!env.standalone) lines.push('التنبيه والشاشة مقفولة محتاج تفتحه من الشاشة الرئيسية: زر المشاركة › «إضافة إلى الشاشة الرئيسية».');
     } else if (env.canAsk) {
       lines.push('لو سبت التطبيق في الخلفية، نقدر نبعتلك إشعار لما الراحة تخلص.');
     } else {
@@ -1256,6 +1265,7 @@ export async function renderSession(el, ctx) {
   return () => {
     if (saveT) save();
     closed = true;
+    restPush.clear();
     clearInterval(timer);
     cancelRestNotice();
     flushCarry();
