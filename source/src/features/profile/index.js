@@ -15,7 +15,7 @@ import { haptic } from '../../ui/anim.js';
 import { cue, say, buzz, unlock, alertEnv, KEYS as AK, volume as alertVolume } from '../../core/alerts.js';
 import { pushStatus } from '../../core/push.js';
 import { pushCard } from './push-card.js';
-import { isNative, requestNotificationPermission } from '../../core/native.js';
+import { isNative, requestNotificationPermission, notificationDetails, scheduleNotification, NOTE_TEXT, noteId } from '../../core/native.js';
 import { DESIGNS, CLASSIC, designId, preloadDesignFonts } from '../../app/design.js';
 
 const DAYS = [[6, 'السبت'], [0, 'الأحد'], [1, 'الاتنين'], [2, 'التلات'], [3, 'الأربع'], [4, 'الخميس'], [5, 'الجمعة']];
@@ -334,14 +334,27 @@ function alertsGroup(ctx, hpSw, hpHint) {
   });
   const paintN = () => {
     const e = alertEnv();
-    if (e.native) { // iOS shell «المدرب»: UNUserNotificationCenter local notifications, no server
+    if (e.native) { // iOS shell «بار ودمبل»: UNUserNotificationCenter local notifications, no server
       pushLink.hidden = true;
       nBtn.hidden = !(nativePerm === 'notDetermined' || nativePerm === 'unknown');
-      ns.textContent = pushOn ? 'التطبيق: التنبيهات شغالة والشاشة مقفولة ✓'
-        : nativePerm === 'denied' ? 'التنبيهات مقفولة للتطبيق. افتح الإعدادات › الإشعارات › المدرب وشغّلها.'
+      nTest.hidden = !pushOn;
+      ns.textContent = pushOn ? 'التنبيهات شغالة والشاشة مقفولة ✓ والراحة بتظهر في الـDynamic Island.'
+        : nativePerm === 'denied' ? 'التنبيهات مقفولة للتطبيق. افتح الإعدادات › الإشعارات › بار ودمبل وشغّلها.'
           : 'فعّل التنبيهات عشان يوصلك «الراحة خلصت» حتى والشاشة مقفولة.';
+      // what iOS really allows: a missing banner / Notification Center / a scheduled summary hide the alert even when «allowed»
+      if (pushOn) notificationDetails().then((d) => {
+        if (!d || !ns.isConnected) return;
+        const fix = [];
+        if (d.alert === 'off' || d.banner === 'none') fix.push('شغّل «لافتات» (Banners) واختار «مستمرة»');
+        if (d.center === 'off') fix.push('شغّل «مركز الإشعارات»');
+        if (d.lock === 'off') fix.push('شغّل «شاشة القفل»');
+        if (d.summary === 'on') fix.push('خلّي التسليم «فوري» مش «ملخص مجدول»');
+        if (d.sound === 'off') fix.push('شغّل «الأصوات»');
+        if (fix.length) ns.textContent = `الإشعار مسموح بس iOS مخبّيه. افتح الإعدادات › الإشعارات › بار ودمبل و: ${fix.join('، ')}.`;
+      }).catch(() => {});
       return;
     }
+    nTest.hidden = true;
     nBtn.hidden = !e.canAsk;
     // iOS: only a Web Push (Profile › «تنبيه والشاشة مقفولة», core/push.js) reaches a locked iPhone
     pushLink.hidden = !e.ios || pushOn;
@@ -355,6 +368,11 @@ function alertsGroup(ctx, hpSw, hpHint) {
     else if (e.permission === 'denied') ns.textContent = 'الإشعارات مقفولة من إعدادات المتصفح للموقع ده. افتحها من هناك لو عايزها.';
     else ns.textContent = 'الإشعارات مقفولة. فعّلها عشان يوصلك تنبيه لما الراحة تخلص والتطبيق في الخلفية.';
   };
+  const nTest = h('button', { type: 'button', class: 'btn ghost sm', hidden: true, dataset: { fk: 'notif-test' } }, raw(icon('bell')), 'جرّب إشعار بعد 5 ثواني');
+  nTest.addEventListener('click', () => {
+    const ok = scheduleNotification({ id: noteId('test'), at: Date.now() + 5000, ...NOTE_TEXT.test });
+    testMsg.textContent = ok ? 'اقفل الشاشة دلوقتي: بعد 5 ثواني لازم يظهر «تنبيه تجربة» على شاشة القفل وفي مركز الإشعارات.' : 'مش قادر أبعت الإشعار.';
+  });
   nBtn.addEventListener('click', async () => {
     if (alertEnv().native) { nativePerm = await requestNotificationPermission(); pushOn = nativePerm === 'granted' || nativePerm === 'provisional'; paintN(); return; }
     let p = 'denied';
@@ -368,7 +386,7 @@ function alertsGroup(ctx, hpSw, hpHint) {
   const offPush = ctx.on('push:changed', (s) => { if (!ns.isConnected) { offPush(); return; } pushOn = !!(s && s.on); paintN(); });
   return h('div', { class: 'sheet-card pform palerts' }, snd, volRow, voice, vib, wake,
     h('div', { class: 'btn-row wrap' }, test), testMsg,
-    h('div', { class: 'pfield' }, h('p', { class: 'lbl' }, 'إشعارات في الخلفية'), ns, h('div', { class: 'btn-row wrap' }, nBtn, pushLink)));
+    h('div', { class: 'pfield' }, h('p', { class: 'lbl' }, 'إشعارات في الخلفية'), ns, h('div', { class: 'btn-row wrap' }, nBtn, nTest, pushLink)));
 }
 
 export const routes = {

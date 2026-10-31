@@ -94,3 +94,47 @@ export function utf8ToBase64(str) {
   for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
   return btoa(s);
 }
+
+/** Detailed notification settings from the shell (banner / lock screen / Notification Center / scheduled summary). */
+export async function notificationDetails(w) {
+  const v = await ask('notificationDetails', {}, { ms: 2500, fallback: '' }, w);
+  if (!v) return null;
+  try { return JSON.parse(v); } catch { return null; }
+}
+
+// ───────── Live Activity: Dynamic Island + lock screen (iOS 17+, the shell's widget extension) ─────────
+// state = {kind:'rest'|'work'|'box'|'boxRest', title, subtitle, endsAt(ms), startedAt(ms), total(s), paused, pausedLeft(s), controls, rid}
+// Stays on the phone (ActivityKit is local), so names may show. null = end the activity.
+let lastLive = null;
+const liveKey = (s) => JSON.stringify({ ...s, endsAt: 0 });
+export function liveTimer(state, w) {
+  if (!handler(w)) return false;
+  if (!state) {
+    if (lastLive === 'end') return false;
+    lastLive = 'end';
+    return post('liveTimerEnd', {}, w);
+  }
+  const s = {
+    kind: String(state.kind || 'work'), title: String(state.title || ''), subtitle: String(state.subtitle || ''),
+    endsAt: Math.round(+state.endsAt || 0), startedAt: Math.round(+state.startedAt || Date.now()), total: Math.max(0, +state.total || 0),
+    paused: !!state.paused, pausedLeft: Math.max(0, +state.pausedLeft || 0), controls: !!state.controls, rid: String(state.rid || ''),
+  };
+  // same state with an end time within 1.5 s → nothing to send (callers may call every tick)
+  if (lastLive && lastLive !== 'end' && lastLive.key === liveKey(s) && Math.abs(lastLive.endsAt - s.endsAt) < 1500) return false;
+  lastLive = { key: liveKey(s), endsAt: s.endsAt };
+  return post('liveTimer', { state: s }, w);
+}
+/** Dynamic Island buttons (+30 ث / وقّف / تخطّي) → fn(state) with the new absolute rest state. Returns an unsubscribe. */
+export function onIslandAction(fn, w = win()) {
+  if (!handler(w)) return () => {};
+  const N = helper(w);
+  const f = (json) => { try { const s = typeof json === 'string' ? JSON.parse(json) : json; if (s) fn(s); } catch { /* ignore */ } };
+  N.__island = f;
+  return () => { if (N.__island === f) delete N.__island; };
+}
+/** A button pressed while the app slept: the shell keeps the latest state until the page takes it. */
+export async function takeIslandAction(w) {
+  const v = await ask('timerTake', {}, { ms: 1500, fallback: '' }, w);
+  if (!v) return null;
+  try { return JSON.parse(v); } catch { return null; }
+}

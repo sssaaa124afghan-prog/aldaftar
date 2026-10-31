@@ -15,6 +15,7 @@ import { runner, ringSvg, loadHealth, patchHealth } from './heart.js';
 import * as L from './logic.js';
 import { pushSyncer } from './push-sync.js';
 import { pushStatus } from '../../core/push.js';
+import { liveTimer } from '../../core/native.js';
 import { boxingToday, boxingPlan, boxingRecord, curriculumFor, boxingWeekStats, roundDone, SAFETY, GEAR_VIDEOS, PHASES, BOX_DEFAULT } from './boxing-plan.js';
 
 const fmtClock = (sec) => { const t = Math.max(0, Math.floor(sec || 0)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
@@ -174,7 +175,15 @@ export async function renderBoxing(el, ctx, params = {}) {
           onclick: () => { rpe[p.id] = n; haptic(10); paintRpe(); rpeBox.querySelector(`[data-fk="rpe${n}"]`)?.focus({ preventScroll: true }); } }, N(String(n))))),
       ...(v && P.rpeMax <= 6 && v > 6 ? [h('p', { class: 'wk-hint warn' }, 'النهارده تكنيك: خلّي الجولة الجاية 6 أو أقل.')] : []));
   }
+  // iOS shell: the current phase on the Dynamic Island / lock screen (display only)
+  function syncLive() {
+    if (finished || !r.s.started) { liveTimer(null); return; }
+    const p = phases[r.s.idx], nx = phases[r.s.idx + 1], round = ROUND.has(p.kind), left = r.left();
+    liveTimer({ kind: round ? 'box' : 'boxRest', title: round ? `${p.kind === 'bag' ? 'جولة شوال' : 'شادو'} ${p.round}` : p.label, subtitle: nx ? `الجاي: ${nx.label}` : 'آخر مرحلة',
+      endsAt: Date.now() + (left * 1000) / speed, startedAt: base, total: p.dur / speed, paused: !r.running(), pausedLeft: r.running() ? 0 : left / speed, controls: false });
+  }
   function paint() {
+    syncLive();
     const s = r.s, p = phases[s.idx], left = r.left();
     tNum.textContent = finished ? 'تم' : fmtClock(left);
     tTag.textContent = finished ? 'خلصت' : KIND_TAG[p.kind];
@@ -273,7 +282,7 @@ export async function renderBoxing(el, ctx, params = {}) {
       body: nx ? `الجاي: ${nx.label}` : 'آخر مرحلة خلصت', url: '#/workout/boxing' });
   };
   document.addEventListener('visibilitychange', onVis);
-  cleanups.push(() => { clearInterval(iv); document.removeEventListener('visibilitychange', onVis); wake(false); cancelPhaseNotice(); boxPush.clear(); });
+  cleanups.push(() => { clearInterval(iv); document.removeEventListener('visibilitychange', onVis); wake(false); cancelPhaseNotice(); boxPush.clear(); liveTimer(null); });
 
   // ══ why today is technique-only (BP gate / deload / re-entry) ══
   if (T.tech && T.why) root.appendChild(note('bx-tech-h', T.gate.tech ? 'النهارده تكنيك بس: الضغط' : 'النهارده تكنيك بس', T.why,

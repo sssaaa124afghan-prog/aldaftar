@@ -20,6 +20,7 @@ import { videoLink } from './exercise-videos.js';
 import * as V from './voice.js';
 import { pushSyncer, restEndAt } from './push-sync.js';
 import { pushStatus } from '../../core/push.js';
+import { liveTimer, onIslandAction, takeIslandAction } from '../../core/native.js';
 
 const TYPES = [['normal', 'عادية'], ['drop', 'Drop'], ['rp', 'Rest-pause'], ['myo', 'Myo']];
 const TYPE_LABEL = Object.fromEntries(TYPES);
@@ -86,7 +87,31 @@ export async function renderSession(el, ctx) {
   let pushOn = false; // Profile › «تنبيه والشاشة مقفولة» is on → the iOS tip can promise a lock-screen alert
   pushStatus().then((st) => { pushOn = !!st.on; }).catch(() => {});
   const restPush = pushSyncer('rest'); // lock-screen alert at the rest end (core/push.js); paused / skipped → cancelled
-  const save = () => { restPush.set(closed ? null : restEndAt(live.rest)); clearTimeout(saveT); saveT = 0; return safeWrite(ctx, () => putSession(ctx.db, live)); };
+  // iOS shell: Dynamic Island / lock-screen Live Activity mirrors the rest countdown (or the running workout between rests)
+  const liveState = () => {
+    if (closed) return null;
+    const startedAt = live.startedMs || Date.parse(live.startedAt) || Date.now();
+    const e = curEx();
+    if (live.rest) {
+      const ne = live.exercises.find((x) => x.exId === live.rest.forId) || e;
+      const paused = Number.isFinite(live.rest.pausedLeft);
+      return { kind: 'rest', title: paused ? 'الراحة واقفة' : live.rest.ss ? 'راحة الجولة' : 'راحة', subtitle: ne ? `المجموعة ${(live.rest.forSet ?? live.cur.set) + 1} · ${ne.name}` : '',
+        endsAt: live.rest.endsAt, startedAt, total: live.rest.total || restLeft(), paused, pausedLeft: paused ? live.rest.pausedLeft : 0, controls: true, rid: String(live.rest.startedAt) };
+    }
+    return { kind: 'work', title: e ? e.name : live.dayName || 'التمرين', subtitle: e ? `المجموعة ${Math.min(live.cur.set + 1, e.sets.length)} من ${e.sets.length}` : 'التمرين شغال', endsAt: 0, startedAt, controls: false };
+  };
+  const save = () => { restPush.set(closed ? null : restEndAt(live.rest)); liveTimer(liveState()); clearTimeout(saveT); saveT = 0; return safeWrite(ctx, () => putSession(ctx.db, live)); };
+  /** A Dynamic Island button (+30 ث / وقّف / تخطّي): the shell sends the new absolute rest state; same rest only. */
+  function applyIsland(st) {
+    if (closed || !st || !live.rest || String(st.rid) !== String(live.rest.startedAt)) return;
+    if (st.kind !== 'rest') { skipRest(); return; }
+    if (st.paused) live.rest.pausedLeft = Math.max(0, Math.round(+st.pausedLeft || 0));
+    else { delete live.rest.pausedLeft; if (Number.isFinite(+st.endsAt) && +st.endsAt > 0) live.rest.endsAt = +st.endsAt; }
+    live.rest.total = Math.max(live.rest.total || 0, +st.total || 0);
+    live.rest.fired = {};
+    save(); draw('pause');
+  }
+  const offIsland = onIslandAction(applyIsland);
   const queueSave = () => { clearTimeout(saveT); saveT = setTimeout(() => { saveT = 0; save(); }, 400); };
   const flushSave = () => (saveT ? save() : null);
   const editing = () => { const a = document.activeElement; return !!(a && a.tagName === 'INPUT' && root.contains(a)); };
@@ -650,7 +675,7 @@ export async function renderSession(el, ctx) {
     const ok = await ctx.confirm({ title: 'نلغي الجلسة؟', text: 'المجموعات اللي سجّلتها في الجلسة دي هتتمسح.', confirmLabel: 'الغي الجلسة', danger: true });
     if (!ok) return;
     if (!(await safeWrite(ctx, () => deleteSession(ctx.db, live.id)))) return;
-    restPush.clear(); closed = true;
+    restPush.clear(); closed = true; liveTimer(null);
     ctx.emit('session:changed', { id: live.id, state: 'discarded' });
     ctx.go('workout');
   }
@@ -665,7 +690,7 @@ export async function renderSession(el, ctx) {
     if (live.z2 && live.z2.startedAt && !live.z2.doneAt) live.z2.doneAt = Date.now();
     const { record } = L.finalize(live, history, new Date());
     if (!(await safeWrite(ctx, () => putSession(ctx.db, record)))) return;
-    restPush.clear(); closed = true;
+    restPush.clear(); closed = true; liveTimer(null);
     ctx.emit('session:changed', { id: record.id, state: 'done' });
     const hist = [...history, record];
     try { await patchTraining(ctx.db, { poJournal: L.journalAfter(tr.poJournal, record, hist) }); } catch { /* journal is best effort */ }
@@ -1262,7 +1287,11 @@ export async function renderSession(el, ctx) {
   const timer = setInterval(tick, 250);
 
   // keep the screen on during the session (Profile › «خلّي الشاشة منوّرة أثناء التمرين»; re-acquired on return, core/alerts.js)
-  const onVis = () => { if (document.visibilityState === 'visible') { cancelRestNotice(); tick(); } else { flushSave(); armRestNotice(); } };
+  const onVis = () => {
+    if (document.visibilityState === 'visible') { cancelRestNotice(); takeIslandAction().then((st) => { applyIsland(st); tick(); }).catch(() => tick()); }
+    else { flushSave(); armRestNotice(); }
+  };
+  takeIslandAction().then(applyIsland).catch(() => {});
   document.addEventListener('visibilitychange', onVis);
   keepAwake(true, 'session');
 
@@ -1271,6 +1300,7 @@ export async function renderSession(el, ctx) {
     if (saveT) save();
     closed = true;
     restPush.clear();
+    offIsland(); liveTimer(null);
     clearInterval(timer);
     cancelRestNotice();
     flushCarry();
