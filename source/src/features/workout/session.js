@@ -779,11 +779,11 @@ export async function renderSession(el, ctx) {
       h('div', { class: 'wk-exh-row' },
         imgMod && e.lib ? imgMod.exerciseThumb(e.lib) : null,
         h('h2', { id: 'wk-ex-h' }, e.name),
+        videoLink(e, { name: e.name, variant: 'icon', cls: 'wk-exh-vid' }),
         h('span', { class: 'wk-exh-sr' }, setsReps(e.sets.length, e.reps))),
       h('p', { class: 'wk-meta' }, e.muscle ? [e.muscle, ' · '] : null, 'راحة ', N(L.fmtClock(e.ss ? L.groupRest(live, idx) : L.restFor(e))),
         bestSet.w ? [' · أفضل ', N(`${L.fmtW(bestSet.w)} × ${bestSet.r}`, undefined, 'wk-best')] : null,
         pr0.e1rm ? [' · e1RM ', N(L.fmtW(Math.round(pr0.e1rm)))] : null),
-      e.ss ? null : h('div', { class: 'wk-vidrow' }, videoLink(e, { name: e.name })),
       tops.length >= 2 && !e.ss ? h('div', { class: 'wk-spark-row' }, spark(tops, { label: `أعلى وزن في آخر ${tops.length} جلسات` }), h('small', {}, 'آخر ', N(String(tops.length)), ' جلسات')) : null,
       e.ss ? h('p', { class: 'wk-ss' }, ico('bolt'), 'سوبر سِت ', e.ss, ' مع ', ssPeers.join(' و'), ' · من غير راحة بينهم') : null);
     root.appendChild(head);
