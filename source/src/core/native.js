@@ -138,3 +138,18 @@ export async function takeIslandAction(w) {
   if (!v) return null;
   try { return JSON.parse(v); } catch { return null; }
 }
+
+// ───────── sounds (cues as WAV, cached by key in the shell) ─────────
+/** Plays a cue natively. wav = base64 WAV the first time a key is used (omit after), delay in seconds. */
+export const playSound = (key, wav, delay = 0, w) => post('sound', wav ? { key: String(key), wav: String(wav), delay: +delay || 0 } : { key: String(key), delay: +delay || 0 }, w);
+
+// ───────── in-app video (technique videos) ─────────
+/** {id} → an in-app YouTube player sheet; {url} → an in-app browser sheet. Never leaves the app. */
+export const openVideo = ({ id, url, title, short } = {}, w) => post('openVideo', { id: id ? String(id) : '', url: url ? String(url) : '', title: String(title || ''), short: !!short }, w);
+
+/** Now Playing (Dynamic Island) diagnostics: JSON {active, music, error, liveActivities}. */
+export async function nowPlayingStatus(w) {
+  const v = await ask('nowPlayingStatus', {}, { ms: 2500, fallback: '' }, w);
+  if (!v) return null;
+  try { return JSON.parse(v); } catch { return null; }
+}

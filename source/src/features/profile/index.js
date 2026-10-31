@@ -15,7 +15,7 @@ import { haptic } from '../../ui/anim.js';
 import { cue, say, buzz, unlock, alertEnv, KEYS as AK, volume as alertVolume } from '../../core/alerts.js';
 import { pushStatus } from '../../core/push.js';
 import { pushCard } from './push-card.js';
-import { isNative, requestNotificationPermission, notificationDetails, scheduleNotification, NOTE_TEXT, noteId } from '../../core/native.js';
+import { isNative, requestNotificationPermission, notificationDetails, scheduleNotification, NOTE_TEXT, noteId, nowPlayingStatus } from '../../core/native.js';
 import { DESIGNS, CLASSIC, designId, preloadDesignFonts } from '../../app/design.js';
 
 const DAYS = [[6, 'السبت'], [0, 'الأحد'], [1, 'الاتنين'], [2, 'التلات'], [3, 'الأربع'], [4, 'الخميس'], [5, 'الجمعة']];
@@ -342,6 +342,14 @@ function alertsGroup(ctx, hpSw, hpHint) {
         : nativePerm === 'denied' ? 'التنبيهات مقفولة للتطبيق. افتح الإعدادات › الإشعارات › بار ودمبل وشغّلها.'
           : 'فعّل التنبيهات عشان يوصلك «الراحة خلصت» حتى والشاشة مقفولة.';
       // what iOS really allows: a missing banner / Notification Center / a scheduled summary hide the alert even when «allowed»
+      nowPlayingStatus().then((st) => {
+        if (!st || !npLine.isConnected) return;
+        npLine.hidden = false;
+        npLine.textContent = st.active ? 'الـDynamic Island: الراحة ظاهرة دلوقتي ✓ (اطلع من التطبيق وهتلاقيها)'
+          : st.music ? 'الـDynamic Island: فيه مزيكا شغالة، فالجزيرة سايبينها للمزيكا. وقّف المزيكا وسجّل مجموعة وهتظهر الراحة.'
+            : st.error ? `الـDynamic Island: ماقدرتش أشغّلها (${st.error}).`
+              : 'الـDynamic Island: بتظهر لوحدها لما تبدأ جلسة تمرين وتطلع من التطبيق.';
+      }).catch(() => {});
       if (pushOn) notificationDetails().then((d) => {
         if (!d || !ns.isConnected) return;
         const fix = [];
@@ -368,6 +376,7 @@ function alertsGroup(ctx, hpSw, hpHint) {
     else if (e.permission === 'denied') ns.textContent = 'الإشعارات مقفولة من إعدادات المتصفح للموقع ده. افتحها من هناك لو عايزها.';
     else ns.textContent = 'الإشعارات مقفولة. فعّلها عشان يوصلك تنبيه لما الراحة تخلص والتطبيق في الخلفية.';
   };
+  const npLine = h('p', { class: 'hint', hidden: true, 'aria-live': 'polite' });
   const nTest = h('button', { type: 'button', class: 'btn ghost sm', hidden: true, dataset: { fk: 'notif-test' } }, raw(icon('bell')), 'جرّب إشعار بعد 5 ثواني');
   nTest.addEventListener('click', () => {
     const ok = scheduleNotification({ id: noteId('test'), at: Date.now() + 5000, ...NOTE_TEXT.test });
@@ -386,7 +395,7 @@ function alertsGroup(ctx, hpSw, hpHint) {
   const offPush = ctx.on('push:changed', (s) => { if (!ns.isConnected) { offPush(); return; } pushOn = !!(s && s.on); paintN(); });
   return h('div', { class: 'sheet-card pform palerts' }, snd, volRow, voice, vib, wake,
     h('div', { class: 'btn-row wrap' }, test), testMsg,
-    h('div', { class: 'pfield' }, h('p', { class: 'lbl' }, 'إشعارات في الخلفية'), ns, h('div', { class: 'btn-row wrap' }, nBtn, nTest, pushLink)));
+    h('div', { class: 'pfield' }, h('p', { class: 'lbl' }, 'إشعارات في الخلفية'), ns, h('div', { class: 'btn-row wrap' }, nBtn, nTest, pushLink), npLine));
 }
 
 export const routes = {

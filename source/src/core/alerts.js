@@ -124,7 +124,7 @@ export function renderWav(notes, { rate = 16000, vol = 0.8 } = {}) {
 const b64 = (bytes) => { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); };
 export const wavDataUri = (notes, opts) => `data:audio/wav;base64,${b64(renderWav(notes, opts))}`;
 const SILENT = () => wavDataUri([{ t: 0, d: 0.05, f: 0, g: 0, w: 'sine' }], { rate: 8000 });
-let el = null; const uriCache = new Map();
+let el = null; const uriCache = new Map(); const nativeSent = new Set();
 function fallbackEl() {
   if (el || typeof Audio === 'undefined') return el;
   try { el = new Audio(); el.preload = 'auto'; el.setAttribute('playsinline', ''); } catch { el = null; }
@@ -168,6 +168,10 @@ export function installUnlock() {
 }
 /** Call inside a tap: creates/resumes the AudioContext, plays one silent sample (iOS), primes <audio> and speech. */
 export function unlock() {
+  if (native.isNative()) { // iOS shell: cues play natively (AVAudioPlayer) → WebKit never touches the audio session / Now Playing
+    if (!unlocked) { unlocked = true; try { if (voiceOn() && window.speechSynthesis && typeof SpeechSynthesisUtterance !== 'undefined') { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; window.speechSynthesis.speak(u); } } catch { /* ignore */ } }
+    return true;
+  }
   const a = audioCtx();
   if (a) {
     try { if (a.state !== 'running') { const p = a.resume(); if (p && p.catch) p.catch(() => {}); } } catch { /* ignore */ }
@@ -189,6 +193,14 @@ export function cue(kind, { delay = 0, force = false } = {}) {
   const vol = volume();
   if (vol <= 0) return false;
   let via = false;
+  if (native.isNative()) {
+    const key = `${kind}:${Math.round(vol * 10)}`;
+    let wav;
+    if (!nativeSent.has(key)) { wav = b64(renderWav(CUES[kind], { vol })); nativeSent.add(key); }
+    via = native.playSound(key, wav, Math.max(0, delay)) ? 'native' : false;
+    try { window.dispatchEvent(new CustomEvent('fc:cue', { detail: { kind, delay, via } })); } catch { /* ignore */ }
+    return via;
+  }
   const a = audioCtx();
   if (a && a.state !== 'running') { try { const p = a.resume(); if (p && p.catch) p.catch(() => {}); } catch { /* ignore */ } }
   if (a && a.state === 'running') via = synth(a, CUES[kind], a.currentTime + 0.02 + Math.max(0, delay), vol) ? 'webaudio' : false;

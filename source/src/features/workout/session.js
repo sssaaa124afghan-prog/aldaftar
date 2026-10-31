@@ -1145,7 +1145,7 @@ export async function renderSession(el, ctx) {
     const canNotify = alertEnv().canAsk && !pref(ctx, 'notify') && ctx.settings.get('wk.notifyAsked') !== true && !tipPending;
     restUI = { num };
     return h('div', { class: `wk-restbar${paused ? ' paused' : ''}`, role: 'timer', 'aria-label': 'الراحة' },
-      h('div', { class: 'wk-rb-t' }, h('small', {}, paused ? 'الراحة واقفة' : live.rest.ss ? 'راحة الجولة' : 'راحة', ne && ne.exId !== live.rest.fromId ? [' · ', ne.name] : ''), num),
+      h('button', { type: 'button', class: 'wk-rb-t wk-rb-open', 'aria-label': 'كبّر الراحة', onclick: openRestFocus }, h('small', {}, paused ? 'الراحة واقفة' : live.rest.ss ? 'راحة الجولة' : 'راحة', ne && ne.exId !== live.rest.fromId ? [' · ', ne.name] : ''), num),
       b('num', 'قلّل 15 ثانية', () => shiftRest(-15), h('bdi', { dir: 'ltr' }, '−15')),
       b('num', 'زوّد 15 ثانية', () => shiftRest(15), h('bdi', { dir: 'ltr' }, '+15')),
       canNotify ? b('wk-rb-bell', 'نبّهني بإشعار لما الراحة تخلص والتطبيق في الخلفية', enableNotify, ico('bell')) : null,
@@ -1192,7 +1192,51 @@ export async function renderSession(el, ctx) {
       h('b', { id: 'wk-at-h' }, 'تنبيه نهاية الراحة'), ...lines.map((t) => h('p', {}, t)), h('div', { class: 'btn-row wrap' }, ...acts));
   }
 
+  // ── big rest view (center of the screen): opens with every rest, «صغّر» keeps the dock bar only; tap the bar to reopen ──
+  let restMinFor = null, focusUI = null; // restMinFor = the rest (startedAt) the owner shrank; a new rest opens big again
+  function restFocus() {
+    const want = !!(live.rest && restLeft() > 0 && restMinFor !== live.rest.startedAt && !closed && document.visibilityState !== 'hidden');
+    if (!want) { if (focusUI) { focusUI.el.remove(); document.documentElement.classList.remove('wk-rf-on'); focusUI = null; } return; }
+    const paused = Number.isFinite(live.rest.pausedLeft);
+    const key = `${live.rest.startedAt}|${paused}|${live.rest.forId}|${live.rest.forSet}`;
+    if (focusUI && focusUI.key === key) { paintFocus(); return; }
+    const hadFocus = focusUI && focusUI.el.contains(document.activeElement);
+    focusUI?.el.remove();
+    const SIZE = 260, STROKE = 14;
+    const svg = ring({ value: restLeft(), max: live.rest.total || restLeft() || 1, color: 'var(--cta, var(--orange, #ff6b2c))', size: SIZE, stroke: STROKE, label: 'الوقت الفاضل في الراحة' });
+    const arc = svg.querySelector('.ring-arc'); if (arc) arc.style.transition = 'stroke-dasharray .25s linear';
+    const num = h('b', { class: 'num wk-rf-num' }, L.fmtClock(restLeft()));
+    const ne = live.exercises.find((x) => x.exId === live.rest.forId) || curEx();
+    const b = (cls, label, run, ...kids) => h('button', { type: 'button', class: `wk-rf-b ${cls}`, 'aria-label': label, onclick: run }, ...kids);
+    const el = h('div', { class: `wk-rf${paused ? ' paused' : ''}`, role: 'dialog', 'aria-label': 'الراحة', onclick: (ev) => { if (ev.target === el) minimizeRest(); } },
+      h('div', { class: 'wk-rf-card' },
+        h('p', { class: 'wk-rf-k' }, paused ? 'الراحة واقفة' : live.rest.ss ? 'راحة الجولة' : 'راحة · خُد نفَسك'),
+        h('div', { class: 'wk-rf-ring', role: 'timer', 'aria-live': 'off' }, svg, num),
+        ne ? h('p', { class: 'wk-rf-next' }, live.rest.forId === live.rest.fromId ? ['المجموعة ', N(String((live.rest.forSet ?? 0) + 1)), ' جاية'] : ['الجاي: ', h('b', {}, ne.name)]) : null,
+        h('div', { class: 'wk-rf-row' },
+          b('num', 'قلّل 15 ثانية', () => shiftRest(-15), h('bdi', { dir: 'ltr' }, '−15')),
+          b('pp', paused ? 'كمّل الراحة' : 'وقّف الراحة', togglePause, ico(paused ? 'play' : 'pause'), paused ? 'كمّل' : 'وقّف'),
+          b('num', 'زوّد 30 ثانية', () => shiftRest(30), h('bdi', { dir: 'ltr' }, '+30'))),
+        h('div', { class: 'wk-rf-row' },
+          b('min', 'صغّر الراحة', minimizeRest, 'صغّر'),
+          b('sk', 'تخطّي الراحة', skipRest, ico('skip'), 'تخطّي'))));
+    document.body.appendChild(el);
+    document.documentElement.classList.add('wk-rf-on');
+    focusUI = { el, key, num, arc, C: 2 * Math.PI * ((SIZE - STROKE) / 2) };
+    if (hadFocus) el.querySelector('.wk-rf-b.pp')?.focus({ preventScroll: true });
+  }
+  function paintFocus() {
+    if (!focusUI || !live.rest) return;
+    const left = restLeft();
+    focusUI.num.textContent = L.fmtClock(left);
+    if (focusUI.arc) focusUI.arc.setAttribute('stroke-dasharray', `${focusUI.C * Math.max(0, Math.min(1, left / (live.rest.total || 1)))} ${focusUI.C}`);
+    focusUI.el.classList.toggle('last10', left <= 10 && !Number.isFinite(live.rest.pausedLeft));
+  }
+  function minimizeRest() { if (live.rest) restMinFor = live.rest.startedAt; restFocus(); focusDock(); }
+  function openRestFocus() { restMinFor = null; restFocus(); focusUI?.el.querySelector('.wk-rf-b.pp')?.focus({ preventScroll: true }); }
+
   function paintRest() {
+    restFocus();
     if (live.rest && restUI) restUI.num.textContent = L.fmtClock(restLeft());
     else if (live.rest && dock) drawDock();
     if (!live.rest || !heroNum) { drawHero(); return; }
@@ -1258,6 +1302,7 @@ export async function renderSession(el, ctx) {
 
   function tick() {
     if (closed) return;
+    restFocus();
     if (clockEl) clockEl.textContent = L.fmtClock((Date.now() - (live.startedMs || Date.parse(live.startedAt))) / 1000);
     if (z2On() && live.z2.startedAt && !live.z2.doneAt && heroNum && !L.nextOpen(live)) {
       const left = z2Left();
@@ -1301,6 +1346,7 @@ export async function renderSession(el, ctx) {
     closed = true;
     restPush.clear();
     offIsland(); liveTimer(null);
+    if (focusUI) { focusUI.el.remove(); focusUI = null; document.documentElement.classList.remove('wk-rf-on'); }
     clearInterval(timer);
     cancelRestNotice();
     flushCarry();

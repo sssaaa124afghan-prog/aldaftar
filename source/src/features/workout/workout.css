@@ -568,3 +568,28 @@ html.nd .wk-calc-ok{background:var(--cta);color:var(--on-accent)}
 html.nd .wk-calc-ok small{color:var(--on-accent)}
 html.nd .wk-stepl{color:var(--mu)}
 .wk-dock:has(.wk-stepper) .wk-logbar .meta{display:none}
+
+/* ── big rest view: center of the screen while resting (session.js restFocus) ── */
+.wk-rb-open{background:none;border:0;padding:0;text-align:start;color:inherit;cursor:pointer;min-height:44px}
+.wk-rf{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));
+  background:var(--paper,#0b0d10);animation:wk-rf-in .22s ease-out}
+.wk-rf-card{width:min(100%,380px);display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+.wk-rf-k{margin:0;font-size:var(--t-15,15px);font-weight:600;color:var(--mu,#a8a8b3);letter-spacing:.01em}
+.wk-rf-ring{position:relative;width:260px;height:260px;display:grid;place-items:center}
+.wk-rf-ring .ring{position:absolute;inset:0;width:100%;height:100%}
+.wk-rf-num{position:relative;font:800 76px/1 var(--f-num,var(--f,inherit));font-variant-numeric:tabular-nums;color:var(--tx,#fff);letter-spacing:-.02em}
+.wk-rf.paused .wk-rf-num{color:var(--mu,#a8a8b3)}
+.wk-rf.last10 .wk-rf-num{color:var(--cta,var(--orange,#ff6b2c))}
+.wk-rf-next{margin:0;font-size:var(--t-16,16px);color:var(--tx,#fff)}
+.wk-rf-next b{font-weight:700}
+.wk-rf-row{display:flex;gap:10px;width:100%}
+.wk-rf-b{flex:1;min-height:56px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:16px;border:1px solid color-mix(in srgb,var(--tx,#fff) 14%,transparent);
+  background:var(--sheet-bg,rgba(255,255,255,.06));color:var(--tx,#fff);font:700 17px/1 var(--f,inherit)}
+.wk-rf-b.num{font-variant-numeric:tabular-nums;font-size:19px}
+.wk-rf-b.sk{background:var(--cta,var(--orange,#ff6b2c));color:var(--on-accent,#1c0800);border-color:transparent}
+.wk-rf-b.min{color:var(--mu,#a8a8b3)}
+.wk-rf-b svg{width:20px;height:20px}
+.wk-rf-b:focus-visible{outline:3px solid var(--cta,var(--orange,#ff6b2c));outline-offset:2px}
+@keyframes wk-rf-in{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.wk-rf{animation:none}}
+@media (max-height:620px){.wk-rf-ring{width:210px;height:210px}.wk-rf-num{font-size:60px}}

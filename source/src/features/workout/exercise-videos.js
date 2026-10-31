@@ -7,6 +7,7 @@
 import { h, ico } from './view.js';
 import { libById, findLib } from './exercises.js';
 import { BOX_VIDEOS } from './boxing-videos.js';
+import { isNative, openVideo } from '../../core/native.js';
 
 export const VERIFIED = '2026-10-24';
 const v = (id, channel, title, dur) => Object.freeze({ id, channel, title, dur, verified: VERIFIED });
@@ -89,8 +90,42 @@ export function videoLink(ex, { name = '', variant = 'pill', cls = '' } = {}) {
   const label = `فيديو الأداء: ${nm}${r.kind === 'search' ? ' · دوّر على يوتيوب' : ` · ${r.channel}`}`;
   const a = { class: `wk-vid${variant === 'icon' ? ' is-icon' : ''}${r.kind === 'search' ? ' is-search' : ''}${cls ? ' ' + cls : ''}`, href: r.url,
     target: '_blank', rel: 'noopener', 'aria-label': label, title: r.kind === 'video' ? `${r.title} · ${r.channel}` : null,
-    onclick: (ev) => ev.stopPropagation() };
+    onclick: (ev) => { ev.stopPropagation(); if (playInApp(r, nm)) ev.preventDefault(); } };
   if (variant === 'icon') return h('a', a, ico('play'));
   return h('a', a, ico('play'), h('span', {}, r.kind === 'video' ? 'فيديو الأداء' : 'دوّر على يوتيوب'),
     r.kind === 'video' ? h('small', { dir: 'ltr' }, r.channel) : null);
+}
+
+/**
+ * Plays the video inside the app instead of jumping to YouTube.
+ * iOS shell: a native player sheet (search links: an in-app browser sheet). Web: a youtube-nocookie player over the page.
+ * → true when handled (the caller cancels the link), false = let the link open normally.
+ */
+export function playInApp(r, name = '') {
+  if (!r) return false;
+  if (isNative()) return openVideo(r.kind === 'video' ? { id: r.id, title: r.title || name, short: r.dur === 'short' } : { url: r.url, title: name });
+  if (r.kind !== 'video' || typeof document === 'undefined') return false;
+  const back = document.activeElement;
+  const close = () => { wrap.remove(); document.removeEventListener('keydown', onKey, true); try { back && back.focus({ preventScroll: true }); } catch { /* ignore */ } };
+  const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+  const src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(r.id)}?autoplay=1&playsinline=1&rel=0&modestbranding=1`;
+  const frame = h('iframe', { src, title: r.title || name || 'فيديو الأداء', allow: 'autoplay; encrypted-media; picture-in-picture; fullscreen', allowfullscreen: '', referrerpolicy: 'strict-origin-when-cross-origin' });
+  const x = h('button', { type: 'button', class: 'vid-x', 'aria-label': 'اقفل الفيديو', onclick: close }, '✕');
+  const wrap = h('div', { class: `vid-sheet${r.dur === 'short' ? ' is-short' : ''}`, role: 'dialog', 'aria-modal': 'true', 'aria-label': r.title || name || 'فيديو الأداء', onclick: (e) => { if (e.target === wrap) close(); } },
+    h('div', { class: 'vid-box' }, h('div', { class: 'vid-bar' }, h('b', {}, name || 'فيديو الأداء'), h('small', { dir: 'ltr' }, r.channel || ''), x), h('div', { class: 'vid-frame' }, frame)));
+  if (!document.getElementById('vid-sheet-css')) {
+    const st = document.createElement('style'); st.id = 'vid-sheet-css';
+    st.textContent = `.vid-sheet{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:16px;background:rgb(0 0 0/.78);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.vid-box{width:min(100%,720px);background:#0d0f12;border-radius:18px;overflow:hidden;box-shadow:0 20px 60px rgb(0 0 0/.5)}
+.vid-sheet.is-short .vid-box{width:min(100%,380px)}
+.vid-bar{display:flex;align-items:center;gap:8px;padding:10px 12px;color:#fff}.vid-bar b{flex:1;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.vid-bar small{opacity:.6;font-size:12px}
+.vid-x{min-width:44px;min-height:44px;border:0;border-radius:12px;background:rgb(255 255 255/.12);color:#fff;font-size:18px}
+.vid-frame{position:relative;aspect-ratio:16/9;background:#000}.vid-sheet.is-short .vid-frame{aspect-ratio:9/16;max-height:78vh}
+.vid-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0}`;
+    document.head.appendChild(st);
+  }
+  document.body.appendChild(wrap);
+  document.addEventListener('keydown', onKey, true);
+  x.focus({ preventScroll: true });
+  return true;
 }
