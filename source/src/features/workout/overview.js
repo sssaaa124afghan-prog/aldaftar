@@ -133,7 +133,9 @@ export async function renderOverview(el, ctx, params = {}) {
     }
     // one time question only: «معاك كام دقيقة؟» (30 = the short session); the separate «جلسة سريعة» button is gone (UX #21)
     next.append(
-      h('button', { type: 'button', class: `btn${!isTrainDay && !params.day ? ' ghost' : ''}`, onclick: () => startSession(ctx, { dayId, budget: budgetFor(today) }) }, `ابدأ ${isTrainDay || params.day ? 'التمرين' : day.name}`));
+      isTrainDay || params.day
+        ? h('button', { type: 'button', class: 'btn', onclick: () => startSession(ctx, { dayId, budget: budgetFor(today) }) }, 'ابدأ التمرين')
+        : h('button', { type: 'button', class: 'wk-alt', onclick: () => startSession(ctx, { dayId, budget: budgetFor(today) }) }, 'أو ابدأ ', h('bdi', {}, day.name), ' بدلها'));
   }
   el.appendChild(next);
 
@@ -145,11 +147,12 @@ export async function renderOverview(el, ctx, params = {}) {
   if (pu) el.appendChild(pu);
 
   // ── Heart Day (Saturday on the new plan) ──
-  const hd = !live && !params.day ? heartDayCard(program, today, weekday, box) : null;
+  const boxHero = !live && !doneToday && !isTrainDay && !params.day && !!box; // the hero already is «يوم الملاكمة»
+  const hd = !live && !params.day && !boxHero ? heartDayCard(program, today, weekday, box) : null;
   if (hd) el.appendChild(hd);
 
   // ── recovery day (R1) ──
-  if (!live && !isTrainDay && !params.day && !hd) {
+  if (!live && !isTrainDay && !params.day && !hd && !boxHero) {
     el.appendChild(h('a', { class: 'wk-recov glass', href: '#/workout/recovery' },
       h('span', { class: 'ic' }, ico('heart')),
       h('span', { class: 'grow' }, h('b', {}, 'يوم تعافي'), h('small', {}, 'كارديو Zone 2 · 18 دقيقة + دائرة إطالة موجّهة ~12 دقيقة')), ico('chevron')));
@@ -163,19 +166,20 @@ export async function renderOverview(el, ctx, params = {}) {
   const phase = mw ? { week: mw, type: mw === 6 ? 'deload' : 'meso', of: 6 } : ctx.settings.get('wk.periodization') === true ? L.phaseOf(program.startDay, today) : null;
   const lag = L.laggingMuscle(done);
   const LOAD = { high: 'عالي', normal: 'طبيعي', low: 'خفيف', unknown: 'لسه بنتعلّم' };
-  el.appendChild(h('section', { class: 'wk-intel', 'aria-label': 'ذكاء النهارده' },
+  const intel = h('section', { class: 'wk-intel', 'aria-label': 'ذكاء النهارده' },
     h('div', { class: 'glass' }, h('small', {}, 'الجاهزية'), readiness === null ? h('a', { href: '#/today', class: 'wk-intel-link' }, 'سجّلها') : h('b', { class: readiness < 40 ? 'low' : '' }, h('bdi', { dir: 'ltr' }, N(String(Math.round(readiness))), h('small', {}, '/100'))),
       h('span', {}, readiness === null ? 'من شاشة النهارده' : readiness < 40 ? 'الأوزان أخف 10%' : readiness >= 80 ? 'يوم كويس للأرقام' : 'عادي')),
     h('div', { class: 'glass' }, h('small', {}, 'حمل التدريب'), h('b', { class: load.level === 'high' ? 'low' : '' }, load.ratio === null ? '—' : N(load.ratio.toFixed(2))),
       h('span', {}, LOAD[load.level], ' · 7 أيام / متوسطك')),
     h('div', { class: 'glass' }, h('small', {}, phase ? 'مرحلة الدورة' : 'عضلة متأخرة'),
       phase ? h('b', {}, phase.of ? L.MESO_LABEL[phase.week] : L.PHASES[phase.type]) : h('b', {}, lag || '—'),
-      h('span', {}, phase ? ['أسبوع ', N(String(phase.week)), ' من ', N(String(phase.of || 4))] : lag ? 'أقل حجم آخر 10 جلسات' : 'متوازن'))));
+      h('span', {}, phase ? ['أسبوع ', N(String(phase.week)), ' من ', N(String(phase.of || 4))] : lag ? 'أقل حجم آخر 10 جلسات' : 'متوازن')));
 
-  // ── pinned note (W67) ──
+  // ── pinned note (W67): a written note stays right under the action; the empty «ثبّت ملاحظة» moves to «تفاصيل أكتر» ──
   const pinned = String(ctx.settings.get('pinnedNote') || '').trim();
-  el.appendChild(h('button', { type: 'button', class: `wk-pinned${pinned ? '' : ' empty'}`, onclick: () => editPinned(ctx, () => rerender(el, ctx, params)) },
-    ico('edit'), h('span', {}, pinned || 'ثبّت ملاحظة تظهر فوق التمرين (هدف، تنبيه، إعداد جهاز)')));
+  const pinnedBtn = h('button', { type: 'button', class: `wk-pinned${pinned ? '' : ' empty'}`, onclick: () => editPinned(ctx, () => rerender(el, ctx, params)) },
+    ico('edit'), h('span', {}, pinned || 'ثبّت ملاحظة تظهر فوق التمرين (هدف، تنبيه، إعداد جهاز)'));
+  if (pinned) el.appendChild(pinnedBtn);
 
   // ── deload ──
   if (deloadOn) {
@@ -217,6 +221,11 @@ export async function renderOverview(el, ctx, params = {}) {
       top ? N(`${L.fmtW(top.w)} × ${top.r}`) : h('span', { class: 'num wk-muted' }, '—')));
   }
   el.appendChild(plan);
+
+  // ── one thing in front: readiness / load / phase are context, not the action → folded under the plan ──
+  el.appendChild(h('details', { class: 'wk-more' },
+    h('summary', {}, h('span', {}, 'الجاهزية وحمل التدريب'), ico('chevron')),
+    intel, pinned ? null : pinnedBtn));
 
   // ── links ──
   const link = (route, iconName, title, sub) => h('a', { class: 'wk-tile glass', href: `#/${route}` }, h('span', { class: 'ic' }, ico(iconName)), h('b', {}, title), h('small', {}, sub));

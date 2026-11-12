@@ -97,6 +97,9 @@ function placeToast() {
     const r = el.getBoundingClientRect();
     if (r.height && getComputedStyle(el).display !== 'none' && getComputedStyle(el).position === 'fixed') top = Math.min(top, r.top);
   }
+  // iOS shell: the native tab bar floats over the page (the web bar is display:none there)
+  const rc = document.documentElement.classList;
+  if (rc.contains('native-tabs') && !rc.contains('immersive') && !rc.contains('ob-on')) top = Math.min(top, window.innerHeight - 92);
   toastHost.style.bottom = `${Math.max(12, Math.round(window.innerHeight - top + 10))}px`;
 }
 
@@ -154,6 +157,20 @@ export function sheet({ title = '', body = '', actions = [], onClose } = {}) {
   };
   closeBtn.addEventListener('click', () => api.close());
   scrim.addEventListener('click', (e) => { if (e.target === scrim) api.close(); });
+  // pull down on the grabber or the title to close (follows the finger, snaps back under 90 px unless flicked)
+  {
+    let y0 = null, t0 = 0, dy = 0;
+    const handle = (e) => e.target.closest && e.target.closest('.grab, .bsheet > header') && !e.target.closest('button, a, input');
+    card.addEventListener('pointerdown', (e) => { if (!handle(e) || e.button) return; y0 = e.clientY; t0 = e.timeStamp; dy = 0; card.style.transition = 'none'; try { card.setPointerCapture(e.pointerId); } catch { /* ignore */ } });
+    card.addEventListener('pointermove', (e) => { if (y0 === null) return; dy = Math.max(0, e.clientY - y0); card.style.transform = `translateY(${dy}px)`; });
+    const end = (e) => {
+      if (y0 === null) return;
+      const v = dy / Math.max(1, e.timeStamp - t0); // px / ms
+      y0 = null; card.style.transition = '';
+      if (dy > 90 || (dy > 30 && v > 0.6)) { card.style.transform = 'translateY(100%)'; api.close(); } else card.style.transform = '';
+    };
+    card.addEventListener('pointerup', end); card.addEventListener('pointercancel', end);
+  }
   document.addEventListener('keydown', onKey, true);
   window.addEventListener('app:route-leave', onRoute);
   document.body.appendChild(scrim);

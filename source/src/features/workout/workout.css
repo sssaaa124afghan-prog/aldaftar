@@ -599,3 +599,14 @@ html.nd .wk-stepl{color:var(--mu)}
   background:color-mix(in srgb,var(--cta,#ff6b2c) 14%,transparent);color:var(--cta,#ff6b2c);border:1px solid color-mix(in srgb,var(--cta,#ff6b2c) 35%,transparent)}
 .wk-exh-vid svg,.wk-exh-vid svg.i{width:20px;height:20px;color:var(--cta,#ff6b2c)}
 .wk-exh-vid:focus-visible{outline:3px solid var(--cta,#ff6b2c);outline-offset:2px}
+
+/* ── «حاجة واحدة قدامك»: one primary action in the hero; context folds under the plan (overview.js) ── */
+.wk-alt{display:block;width:100%;margin-top:6px;min-height:44px;background:none;border:0;color:var(--mu,#a8a8b3);font:600 14px/1.4 var(--f,inherit);text-align:center;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.wk-alt:focus-visible{outline:3px solid var(--cta,#ff6b2c);outline-offset:2px;border-radius:10px}
+.wk-more{margin:0 var(--pad,16px)}
+.wk-more>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:48px;padding:0 4px;cursor:pointer;list-style:none;font-weight:600;color:var(--mu,#a8a8b3)}
+.wk-more>summary::-webkit-details-marker{display:none}
+.wk-more>summary svg{width:18px;height:18px;transform:rotate(-90deg);transition:transform .2s ease}
+.wk-more[open]>summary svg{transform:rotate(90deg)}
+.wk-more>.wk-intel,.wk-more>.wk-pinned{margin-inline:0}
+@media (prefers-reduced-motion:reduce){.wk-more>summary svg{transition:none}}

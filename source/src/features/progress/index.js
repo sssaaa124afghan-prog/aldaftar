@@ -16,6 +16,7 @@ import * as M from './metrics.js';
 import { movingAvg7, weeklyTrend, weekAdherence, weeklyReportLines, cleanWeights } from './logic.js';
 import { lineChart, columns, dualChart, scatter, dm, monthOf } from './charts.js';
 import { INFO } from './info.js';
+import { muscleMapCard } from './musclemap.js';
 
 const I = (n) => raw(icon(n));
 const N = (v, dp = 0, o = {}) => h('span', { class: 'num' }, fmt(v, { dp, ...o }));
@@ -574,6 +575,7 @@ async function progress(el, ctx, params) {
       // the period control only: the section chips duplicated the section headers (UX audit #14)
       h('nav', { class: 'pg-nav', 'aria-label': 'الفترة' }, h('div', { class: 'pg-seg', role: 'group', 'aria-label': 'الفترة' }, ...segBtns)),
       lead(),
+      muscleMapCard(st.sessions, ctx.today()),
       h('div', { class: 'pg-body' }, ...Object.values(secs)));
     if (y) window.scrollTo(0, y);
   }

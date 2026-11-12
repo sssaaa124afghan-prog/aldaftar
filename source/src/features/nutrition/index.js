@@ -80,11 +80,11 @@ async function ledger(el, ctx, params) {
       calorieGauge({ eaten: intake.kcal, target: t.kcal, burn, remaining: t.kcal - intake.kcal, over }),
       h('p', { class: `nu-status is-${bal.state}`, role: 'status' }, h('i', { 'aria-hidden': 'true' }), bal.message));
     const split = macroSplit(intake);
-    const tiles = h('div', { class: 'nu-mgrid' },
+    // calories live in the gauge above: the tiles are the three macros only (no second calorie ring)
+    const tiles = h('div', { class: 'nu-mgrid is-3' },
       macroTile('p', intake.p, t.p, R.p, { status: rangeStatus(intake.p, R.p) }),
       macroTile('c', intake.c, t.c, R.c, { status: rangeStatus(intake.c, R.c) }),
-      macroTile('f', intake.f, t.f, R.f, { status: rangeStatus(intake.f, R.f) }),
-      macroTile('kcal', intake.kcal, t.kcal, R.kcal, { status: rangeStatus(intake.kcal, R.kcal) }));
+      macroTile('f', intake.f, t.f, R.f, { status: rangeStatus(intake.f, R.f) }));
     const splitLine = h('p', { class: 'nu-split' },
       split ? ['بروتين ', n0(split.p), '% · كارب ', n0(split.c), '% · دهون ', n0(split.f), '%'] : 'الماكروز هتظهر هنا أول ما تسجّل',
       fiber > 0 ? [' · ألياف ', n0(fiber, 1), ' جم'] : null);
@@ -94,7 +94,7 @@ async function ledger(el, ctx, params) {
       h('a', { class: 'nu-ghost', href: `#/nutrition/meals?${new URLSearchParams({ d: day })}`, 'aria-label': 'وجباتي' }, I('food'), 'وجباتي'),
       h('a', { class: 'nu-ghost', href: '#/nutrition/targets', 'aria-label': 'الأهداف' }, I('target'), 'الأهداف'));
 
-    const blocks = [chips, hero, tiles, splitLine, cta];
+    const blocks = [chips, hero, cta, tiles, splitLine]; // «سجّل أكل» right under the gauge: the action before the detail
 
     // ── one alert (adaptive suggestion first) ──
     let alert = null;

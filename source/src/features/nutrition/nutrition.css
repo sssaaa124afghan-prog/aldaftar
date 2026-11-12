@@ -387,3 +387,4 @@ button.nu-meal:hover{background:var(--glass,rgba(255,255,255,.065))}
   .nu-card,.nu-mgrid,.nu-alert,.nu-bar i,.nu-bar-track .fill,.nu-mic[aria-pressed="true"]{animation:none!important}
   .nu-switch i,.nu-dchip,.nu-quick,.nu-tool,.nu-ghost,.nu-ib{transition:none!important}
 }
+.nu-mgrid.is-3{grid-template-columns:repeat(3,1fr)}

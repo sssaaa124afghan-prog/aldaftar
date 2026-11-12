@@ -264,3 +264,9 @@ html.rm :is(.btn,.chip,.repeat,.ibtn,.press):active{transform:none}
 #view{padding-bottom:calc(64px + 36px + env(safe-area-inset-bottom,0px))}
 html.immersive #tabs{display:none}
 html.immersive #view{padding-bottom:0}
+/* iOS shell: the system tab bar replaces this one (app/native-chrome.js) */
+html.native-tabs #tabs{display:none}
+/* sheets: the grabber is a real handle (drag down to close, ctx.js) */
+.bsheet .grab{touch-action:none;cursor:grab}
+.bsheet>header{touch-action:none}
+.bsheet .grab{position:relative}.bsheet .grab::after{content:"";position:absolute;inset:-14px -70px}

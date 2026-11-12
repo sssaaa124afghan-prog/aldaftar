@@ -207,3 +207,66 @@ html.nd .wk-hint.warn{border-color:var(--warn)}
 html.nd .wk-hint.warn svg{color:var(--warn)}
 html.nd :is(.wk-recov,.wk-tile) .ic{background:var(--glass-2);border-color:var(--edge);color:var(--tx)}
 html.nd .wk-warn{background:var(--glass);color:var(--tx);border-color:var(--danger)}
+
+/* ───────── D · «مدار» Orbit (default) ─────────
+   Deep space ground with one cool light from the top, graphite panels with a lit hairline, ion-cyan for structure and
+   progress, the brand orange ONLY for the one thing to do now. Big condensed numerals, glowing rings, pill buttons. */
+html[data-design="d"]{
+  --g1:#05070C; --g2:#05070C; --g3:#05070C;
+  --glass:#0D121A; --glass-2:#151B26; --glass-3:#1F2836;
+  --edge:rgba(150,195,255,.14); --edge-soft:rgba(150,195,255,.08); --edge-strong:rgba(150,195,255,.30);
+  --well:#080B11; --glass-hi:inset 0 1px 0 rgba(255,255,255,.07); --shadow:0 18px 40px -24px rgba(0,0,0,.9);
+  --sheet-bg:#0D121A; --nav-bg:rgba(13,18,26,.72); --paper:#05070C;
+  --tx:#F4F8FF; --mu:#A3B3C8; --mu-2:#A3B3C8; --mu-3:#4A586C;
+  --amber:#5FE1FF; --orange:#FF6B2C; --on-accent:#1C0800; --cta-glow:0 0 0 1px rgba(255,107,44,.30),0 12px 30px -10px rgba(255,107,44,.65);
+  --violet:#4C7DFF; --violet-tx:#A8C4FF; --pink:#B79CFF; --pink-tx:#D6C8FF;
+  --ok-c:#3DF0A0; --warn:#FFC857; --danger:#FF5A6A; --danger-tx:#FF9AA5; --on-ok:#03170B;
+  --cal:#5FE1FF; --pro:#8CA5FF; --carb:#3DF0A0; --fat:#FF8FB8;
+  --brass:#FFC857;
+  --fn:"Barlow SC","Readex Pro",system-ui,sans-serif;
+  --r-card:26px; --r-inner:16px; --r-sm:10px;
+  --sel:#5FE1FF; --on-sel:#02131B; --now:#FF6B2C;
+  --hero-bg:linear-gradient(155deg,#16223C 0%,#0E1524 55%,#0B1019 100%); --hero-tx:#F4F8FF; --hero-mu:#B7C6DA; --hero-edge:rgba(95,225,255,.30);
+  --t-hero:64px; --hero-w:700;
+  --ease:cubic-bezier(.16,1,.3,1); --d:260ms; --d-fast:160ms; --d-press:100ms; --d-ring:1400ms;
+  --live:#5FE1FF; --live-tx:#02131B; --rest-bg:#FF6B2C; --rest-tx:#1C0800;
+  --bx-work:#0E1524; --bx-work-tx:#F4F8FF; --bx-work-acc:#5FE1FF; --bx-rest:#151B26; --bx-rest-tx:#F4F8FF; --bx-btn:#FF6B2C; --bx-btn-tx:#1C0800;
+  --lit:linear-gradient(160deg,rgba(95,225,255,.42),rgba(255,255,255,.07) 34%,rgba(76,125,255,.10) 70%,rgba(76,125,255,.34));
+}
+html.nd[data-design="d"]{--cta:#FF6B2C; --bind:#5FE1FF}
+/* ground: one cool light from the top, fixed behind the content */
+html.nd[data-design="d"] body{background:radial-gradient(120% 55% at 50% -12%,rgba(76,125,255,.26),transparent 62%),radial-gradient(70% 36% at 96% 0%,rgba(95,225,255,.12),transparent 70%),#05070C;background-attachment:fixed}
+/* panels: graphite with a lit hairline (gradient border) */
+:where(html[data-design="d"]) :where(.glass,.sheet-card,.gl,.nu-card){border:1px solid transparent;background:linear-gradient(var(--glass),var(--glass)) padding-box,var(--lit) border-box;box-shadow:var(--glass-hi),var(--shadow)}
+html[data-design="d"] .td-hero,html[data-design="d"] .wk-next-action{border:1px solid transparent;background:var(--hero-bg) padding-box,var(--lit) border-box;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 24px 50px -28px rgba(76,125,255,.55)}
+html[data-design="d"] .wk-next-action{margin:0 var(--gutter,16px) var(--s3,12px);padding:var(--s5,20px) var(--s4,16px);border-radius:var(--r-card)}
+html[data-design="d"] .wk-next-action h2{font:700 34px/1.15 var(--f);letter-spacing:-.01em}
+/* type: big condensed numerals, tight headlines */
+html[data-design="d"] .band h1,html[data-design="d"] .co-head h1{font:700 34px/1.15 var(--f);letter-spacing:-.01em}
+html[data-design="d"] .td-ht:not(.lat){font-size:34px;font-weight:700;letter-spacing:-.01em}
+html[data-design="d"] .td-fx b{font-size:30px}
+html[data-design="d"] .nu-gauge-mid{inset:62px 0 auto}
+html[data-design="d"] .nu-gauge-mid b{font:700 60px/1 var(--fn);letter-spacing:0}
+html[data-design="d"] .num{font-feature-settings:"tnum" 1}
+/* rings: ion gradient + a soft glow in their own colour */
+html.nd[data-design="d"] .ring-arc{filter:drop-shadow(0 0 5px color-mix(in srgb,var(--k,#5FE1FF) 60%,transparent))}
+html.nd[data-design="d"] .nu-gauge .ring-arc{filter:drop-shadow(0 0 9px rgba(95,225,255,.55))}
+html[data-design="d"] #nu-cta-grad stop:first-child{stop-color:#5FE1FF}
+html[data-design="d"] #nu-cta-grad stop:last-child{stop-color:#4C7DFF}
+html[data-design="d"] .nu-c-cal{color:var(--cal)}
+/* buttons: pills; the primary glows */
+html.nd[data-design="d"] .btn{border-radius:999px;font-weight:700;min-height:54px;letter-spacing:.005em}
+html.nd[data-design="d"] .btn.ghost{background:rgba(255,255,255,.05);border-color:var(--edge)}
+html.nd[data-design="d"] :is(.chip,.repeat,.nu-ghost,.nu-dchip){border-radius:999px}
+html.nd[data-design="d"] .nu-dchip{border-radius:16px}
+html.nd[data-design="d"] .chip[aria-pressed="true"],html.nd[data-design="d"] .chip[aria-checked="true"],html.nd[data-design="d"] .chip[aria-selected="true"]{box-shadow:0 0 0 1px rgba(95,225,255,.5),0 8px 20px -10px rgba(95,225,255,.7)}
+/* tab bar (web): a floating glass pill; the current tab lights up */
+html.nd[data-design="d"] .tabs{inset:auto 14px max(12px,env(safe-area-inset-bottom,0px)) 14px;max-width:520px;height:66px;padding:0 6px;border-radius:999px;border:1px solid var(--edge);background:var(--nav-bg);-webkit-backdrop-filter:blur(22px) saturate(160%)!important;backdrop-filter:blur(22px) saturate(160%)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 18px 40px -16px rgba(0,0,0,.9)}
+html.nd[data-design="d"] .tabs a{height:54px;border-radius:999px;font-size:var(--t-11)}
+html.nd[data-design="d"] .tabs a[aria-current]{color:var(--sel);background:rgba(95,225,255,.10)}
+html.nd[data-design="d"] .tabs a[aria-current] svg.i{color:var(--sel);filter:drop-shadow(0 0 6px rgba(95,225,255,.6))}
+/* rest view + session accents follow the cyan structure */
+html[data-design="d"] .wk-rf{background:radial-gradient(90% 50% at 50% 0%,rgba(76,125,255,.20),transparent 65%),#05070C}
+html[data-design="d"] .wk-rf-num{font-family:var(--fn);font-size:92px}
+html[data-design="d"] .wk-rf-b{border-radius:999px}
+@media (prefers-reduced-motion:reduce){html[data-design="d"]{--d-ring:0ms}}
