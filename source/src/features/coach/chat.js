@@ -214,6 +214,33 @@ export async function mountChat(el, ctx, { intent = 'chat', attach = null, promp
     });
   });
 
+  // meal photo: camera → estimate → the owner checks the items and quantities → logged (same flow as «سجّل أكل › صورة»).
+  // The app writes the «اتسجّل» note itself after the verified write; the photo is not kept.
+  const camIn = h('input', { type: 'file', accept: 'image/jpeg,image/png,image/webp', capture: 'environment', class: 'vh', tabindex: '-1', 'aria-hidden': 'true' });
+  const cam = h('button', { type: 'button', class: 'co-mic co-cam', 'aria-label': 'صوّر وجبتك' }, I('camera'));
+  cam.addEventListener('click', () => {
+    note.textContent = '';
+    if (!hasKey(ctx)) { note.textContent = 'تحليل الصورة محتاج مفتاح المدرب (فوق).'; return; }
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) { note.textContent = 'مفيش نت. تحليل الصورة محتاج إنترنت.'; return; }
+    camIn.click();
+  });
+  camIn.addEventListener('change', async () => {
+    const f = camIn.files && camIn.files[0]; camIn.value = '';
+    if (!f) return;
+    const [{ photoFlow }, { loadCatalog }, { sectionForHour, SECTION_LABEL }] = await Promise.all([
+      import('../nutrition/screens/add.js'), import('../nutrition/data.js'), import('../nutrition/logic.js')]);
+    const section = sectionForHour(new Date().getHours());
+    const um = await addChat(ctx.db, 'user', '📷 صورة وجبة');
+    history.push(um);
+    if (list.querySelector('.co-hint') && history.length === 1) list.textContent = '';
+    list.appendChild(bubble(um)); scroll();
+    photoFlow(ctx, ctx.today(), () => section, f, (await loadCatalog(ctx.db)).list, { onLogged: async (r) => {
+      const names = r.items.map((x) => `${x.name} ${Math.round(x.grams)} جم`).join(' · ');
+      const m = await appNote(`اتسجّل في ${SECTION_LABEL[r.section] || 'النهارده'} من الصورة: ${names}. المجموع ${Math.round(r.kcal)} سعرة و${Math.round(r.p)} جم بروتين (تقدير).`);
+      list.appendChild(bubble(m)); scroll();
+    } });
+  });
+
   const attachNote = attach && Object.keys(attach).length
     ? h('p', { class: 'co-attach' }, I('check'), attach.liveSession ? 'الجلسة الحالية مرفقة' : attach.session ? 'الجلسة مرفقة' : attach.exercise ? 'التمرين مرفق' : 'فيه بيانات مرفقة') : null;
   const keyNote = hasKey(ctx) ? null : keyInline(ctx);
@@ -221,7 +248,7 @@ export async function mountChat(el, ctx, { intent = 'chat', attach = null, promp
   el.textContent = '';
   el.classList.add('co-wrap');
   el.append(...[attachNote, keyNote].filter(Boolean), list, chipsBox,
-    h('div', { class: 'co-compose' }, h('label', { class: 'vh', for: ta.id }, 'رسالتك'), ta, mic, send), vstate, note);
+    h('div', { class: 'co-compose' }, h('label', { class: 'vh', for: ta.id }, 'رسالتك'), ta, cam, mic, send), camIn, vstate, note);
   drawAll(); drawChips();
   list.lastChild && list.lastChild.scrollIntoView({ block: 'nearest' });
   if (prompt) submit(prompt, intent);

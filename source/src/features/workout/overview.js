@@ -102,8 +102,10 @@ export async function renderOverview(el, ctx, params = {}) {
       // Thursday Boxing Day (plan v3): this week's combo, not a lifting day
       const bxDone = all.find((s) => s && s.kind === 'boxing' && s.day === today && s.status === 'done');
       const bxRounds = bxDone ? (bxDone.rounds || []).filter((x) => x.kind === 'bag' && x.doneS >= x.dur * 0.5).length : 0;
-      next.append(h('h2', { id: 'wk-next-h' }, 'يوم الملاكمة'),
-        bxDone ? h('p', {}, 'اتسجّل النهارده: ', N(String(bxRounds)), ' جولة شوال · ', N(String(bxDone.durationMin || 0)), ' دقيقة') : null,
+      // (Element.append prints a null child as the text «null»: only add the «done» line when there is one)
+      next.append(h('h2', { id: 'wk-next-h' }, 'يوم الملاكمة'));
+      if (bxDone) next.append(h('p', {}, 'اتسجّل النهارده: ', N(String(bxRounds)), ' جولة شوال · ', N(String(bxDone.durationMin || 0)), ' دقيقة'));
+      next.append(
         h('p', {}, box.gate.stop ? 'ضغطك عالي جداً: مفيش تمرين النهارده.' : ['كومبو الأسبوع ', h('b', {}, ...bidiRanges(box.cw.combo.code)), ' · ', N(String(box.minutes)), ' دقيقة',
           box.tech ? ' · تكنيك بس' : '', ' · مش جلسة رفع']),
         h('a', { class: 'btn', href: '#/workout/boxing', dataset: { fk: 'box-go' } }, ico('play'), box.gate.stop ? 'افتح التعليمات' : bxDone ? 'جولات تاني' : 'ابدأ يوم الملاكمة'));

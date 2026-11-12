@@ -17,6 +17,8 @@ import { pushStatus } from '../../core/push.js';
 import { pushCard } from './push-card.js';
 import { isNative, requestNotificationPermission, notificationDetails, scheduleNotification, NOTE_TEXT, noteId, nowPlayingStatus, runHealthShortcut, HEALTH_SHORTCUT, backupStatus, backupPickFolder } from '../../core/native.js';
 import { runAutoBackup } from '../../app/autobackup.js';
+import { syncSmartReminders } from '../../app/smart-reminders.js';
+import { smartSettings } from '../../app/smart-reminders-plan.js';
 import { DESIGNS, CLASSIC, designId, preloadDesignFonts } from '../../app/design.js';
 
 const DAYS = [[6, 'السبت'], [0, 'الأحد'], [1, 'الاتنين'], [2, 'التلات'], [3, 'الأربع'], [4, 'الخميس'], [5, 'الجمعة']];
@@ -466,7 +468,22 @@ function alertsGroup(ctx, hpSw, hpHint) {
   paintN();
   pushStatus().then((s) => { pushOn = !!s.on; if (s.native) nativePerm = s.permission; paintN(); }).catch(() => {});
   const offPush = ctx.on('push:changed', (s) => { if (!ns.isConnected) { offPush(); return; } pushOn = !!(s && s.on); paintN(); });
-  return h('div', { class: 'sheet-card pform palerts' }, snd, volRow, voice, vib, wake,
+  // smart reminders (iOS shell): local notifications planned from today's food + plan (app/smart-reminders.js)
+  let smartRows = [];
+  if (env.native) {
+    const cur = () => smartSettings(ctx.settings.get('remind.smart'));
+    const save = async (patch) => { await ctx.settings.set('remind.smart', { ...cur(), ...patch }); syncSmartReminders(ctx).catch(() => {}); };
+    const time = (id, label, key) => {
+      const inp = h('input', { type: 'time', id, value: cur()[key], dir: 'ltr' });
+      inp.addEventListener('change', () => { if (inp.value) save({ [key]: inp.value }); });
+      return h('div', { class: 'pfield ptime' }, h('label', { for: id }, label), inp);
+    };
+    const times = h('div', { class: 'ptimes' }, time('p-smart-p', 'تذكير البروتين', 'proteinAt'), time('p-smart-t', 'تذكير التمرين', 'trainAt'));
+    times.hidden = !cur().on;
+    smartRows = [sw('p-smart', 'تذكير ذكي', 'إشعار بس لو البروتين لسه ناقص، أو يوم تمرين ولسه ماتمرنتش. لو خلّصت مش هيجيلك حاجة.', cur().on,
+      async (on) => { times.hidden = !on; await save({ on }); }), times];
+  }
+  return h('div', { class: 'sheet-card pform palerts' }, snd, volRow, voice, vib, wake, ...smartRows,
     h('div', { class: 'btn-row wrap' }, test), testMsg,
     h('div', { class: 'pfield' }, h('p', { class: 'lbl' }, 'إشعارات في الخلفية'), ns, h('div', { class: 'btn-row wrap' }, nBtn, nTest, pushLink), npLine));
 }

@@ -58,10 +58,13 @@ export const NOTE_TEXT = Object.freeze({
 });
 export const noteId = (tag) => `fc-${tag}`;
 
-export function scheduleNotification({ id, at, title, body } = {}, w) {
+/** route (optional, '#/…'): the screen a tap on the notification opens. */
+export function scheduleNotification({ id, at, title, body, route } = {}, w) {
   const t = Math.round(+at);
   if (!id || !Number.isFinite(t)) return false;
-  return post('scheduleNotification', { id: String(id), at: t, title: String(title || ''), body: String(body || '') }, w);
+  const msg = { id: String(id), at: t, title: String(title || ''), body: String(body || '') };
+  if (route && /^#\/[\w\-/?=&]*$/.test(route)) msg.route = route;
+  return post('scheduleNotification', msg, w);
 }
 export const cancelNotification = (id, w) => (id ? post('cancelNotification', { id: String(id) }, w) : false);
 export const requestNotificationPermission = (w) => ask('requestNotificationPermission', {}, { ms: 60000 }, w);
@@ -191,3 +194,11 @@ export const autoBackup = (name, json, w) => askJSON('autoBackup', { name: Strin
 export const backupStatus = (w) => askJSON('backupStatus', {}, 2500, w);
 /** Folder picker (iCloud Drive / On My iPhone) → the folder name, or '' when cancelled. */
 export const backupPickFolder = (w) => ask('backupPickFolder', {}, { ms: 300000, fallback: '' }, w);
+
+// ───────── widget quick-log taps (QuickLog widget → App Group queue → here) ─────────
+/** [{id:'water'|'m:<mealId>', at:ms}] tapped on the widget since the last call (the shell clears it). */
+export async function takeWidgetQueue(w) {
+  const v = await ask('widgetTake', {}, { ms: 2500, fallback: '' }, w);
+  if (!v) return [];
+  try { const a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch { return []; }
+}

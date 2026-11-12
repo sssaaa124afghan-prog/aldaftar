@@ -315,7 +315,11 @@ function barcodeFlow(ctx, onFood) {
 }
 
 // ── photo → AI items → confirm/edit → log (history kept as text, no images) ──
-async function photoFlow(ctx, day, getSection, file, catalog) {
+/**
+ * Meal photo → AI estimate → editable items → log. Also used by the coach chat (camera button there).
+ * onLogged({items, kcal, p}) runs after the entries are written (not when the sheet is just closed).
+ */
+export async function photoFlow(ctx, day, getSection, file, catalog, { onLogged } = {}) {
   const box = h('div', { class: 'nu-photo' });
   const status = h('p', { class: 'nu-hint', role: 'status' }, 'بنحلّل الصورة…');
   box.append(status);
@@ -333,10 +337,10 @@ async function photoFlow(ctx, day, getSection, file, catalog) {
   if (!items.length) { status.textContent = 'مالقيناش أكل واضح في الصورة. جرّب صورة أقرب أو سجّل يدوي.'; return; }
   kvPatch(ctx.db, 'nutrition', (n) => ({ ...n, photoHistory: pushPhotoHistory(n.photoHistory, items) })).catch(() => {});
   status.textContent = 'راجع الأصناف والكميات قبل التسجيل. الأرقام تقدير.';
-  itemsEditor(ctx, box, items, day, getSection, catalog, () => s.close());
+  itemsEditor(ctx, box, items, day, getSection, catalog, () => s.close(), onLogged);
 }
 
-function itemsEditor(ctx, box, items, day, getSection, catalog, done) {
+function itemsEditor(ctx, box, items, day, getSection, catalog, done, onLogged) {
   const rows = items.map((it, i) => {
     const on = h('input', { type: 'checkbox', checked: true, id: `nu-ph-${i}`, 'aria-label': `سجّل ${it.name}` });
     const name = h('input', { type: 'text', value: it.name, maxlength: '80', 'aria-label': 'اسم الصنف' });
@@ -364,7 +368,10 @@ function itemsEditor(ctx, box, items, day, getSection, catalog, done) {
     if (!chosen.length) { done(); return; }
     const entries = chosen.map((it) => entryFromAIItem(it, getSection(), catalog)).map(({ matched, ...e }) => e);
     go.disabled = true;
-    if (await addEntries(ctx, day, entries, `اتسجّل ${entries.length} صنف`)) done(); else go.disabled = false;
+    if (await addEntries(ctx, day, entries, `اتسجّل ${entries.length} صنف`)) {
+      done();
+      try { onLogged && onLogged({ items: chosen, kcal: chosen.reduce((a, b) => a + (+b.kcal || 0), 0), p: chosen.reduce((a, b) => a + (+b.p || 0), 0), section: getSection() }); } catch { /* the log itself is saved */ }
+    } else go.disabled = false;
   });
   box.append(...rows.map((r) => r.el), go);
 }

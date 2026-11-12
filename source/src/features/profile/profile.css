@@ -119,3 +119,8 @@ html[data-design="b"] .dz-card[aria-checked="true"] .dz-ck{color:#1C0800}
 .phealth-guide ol{margin:6px 0 8px;padding-inline-start:20px;display:grid;gap:8px;font-size:14px;line-height:1.6}
 .phealth-guide code{font-size:12px;padding:1px 6px;border-radius:6px;background:color-mix(in srgb,var(--tx,#fff) 8%,transparent);word-break:break-all}
 .pautobk{padding:12px 14px;border-bottom:1px solid color-mix(in srgb,var(--tx,#fff) 8%,transparent)}
+/* smart reminder times */
+.ptimes{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:4px 0 10px}
+.ptimes .ptime{display:flex;flex-direction:column;gap:4px}
+.ptimes label{font-size:13px;color:var(--mu,#a8a8b3)}
+.ptimes input[type=time]{min-height:44px;border-radius:12px;border:1px solid color-mix(in srgb,var(--tx,#fff) 14%,transparent);background:color-mix(in srgb,var(--tx,#fff) 5%,transparent);color:inherit;padding:0 10px;font:inherit;font-variant-numeric:tabular-nums}
