@@ -12,7 +12,10 @@ export function chromeState(root, nav, { typing = false } = {}) {
   const cur = nav && nav.querySelector('a[aria-current]');
   const cl = root.classList;
   const covered = cl.contains('immersive') || cl.contains('ob-on') || typing || !!root.ownerDocument.querySelector(COVER);
-  return { tab: cur ? cur.dataset.tab || '' : '', bar: !covered, scheme: root.style.colorScheme === 'light' ? 'light' : 'dark', design: root.dataset.design || '' };
+  // tint = the design's selection colour right now (in «ألوان اليوم» it changes with the day's tone)
+  let tint = '';
+  try { tint = String(root.ownerDocument.defaultView.getComputedStyle(root).getPropertyValue('--sel') || '').trim(); } catch { /* not in a browser (tests) */ }
+  return { tab: cur ? cur.dataset.tab || '' : '', bar: !covered, scheme: root.style.colorScheme === 'light' ? 'light' : 'dark', design: root.dataset.design || '', tint: /^#[0-9a-f]{6}$/i.test(tint) ? tint : '' };
 }
 
 export function initNativeChrome() {
@@ -31,7 +34,7 @@ export function initNativeChrome() {
   };
   const soon = () => { if (!queued) { queued = true; requestAnimationFrame(sync); } };
   if (nav) new MutationObserver(soon).observe(nav, { attributes: true, subtree: true, attributeFilter: ['aria-current'] });
-  new MutationObserver(soon).observe(root, { attributes: true, attributeFilter: ['class', 'data-design', 'style'] });
+  new MutationObserver(soon).observe(root, { attributes: true, attributeFilter: ['class', 'data-design', 'data-tone', 'style'] });
   new MutationObserver(soon).observe(document.body, { childList: true }); // sheets and overlays are body children
   const isField = (t) => t && (t.tagName === 'TEXTAREA' || t.isContentEditable || (t.tagName === 'INPUT' && !/^(checkbox|radio|range|button|submit|file|color)$/.test(t.type)));
   document.addEventListener('focusin', (e) => { if (isField(e.target)) { typing = true; soon(); } });

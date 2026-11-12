@@ -9,7 +9,7 @@ const fake = ({ classes = [], cover = false, tab = 'workout', scheme = 'dark' } 
 };
 
 test('chrome: bar shows on tabs, hides for session / onboarding / sheets / typing', () => {
-  assert.deepEqual(chromeState(...fake()), { tab: 'workout', bar: true, scheme: 'dark', design: 'd' });
+  assert.deepEqual(chromeState(...fake()), { tab: 'workout', bar: true, scheme: 'dark', design: 'd', tint: '' });
   assert.equal(chromeState(...fake({ classes: ['immersive'] })).bar, false);
   assert.equal(chromeState(...fake({ classes: ['ob-on'] })).bar, false);
   assert.equal(chromeState(...fake({ cover: true })).bar, false);

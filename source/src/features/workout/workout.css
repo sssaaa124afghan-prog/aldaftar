@@ -610,3 +610,12 @@ html.nd .wk-stepl{color:var(--mu)}
 .wk-more[open]>summary svg{transform:rotate(90deg)}
 .wk-more>.wk-intel,.wk-more>.wk-pinned{margin-inline:0}
 @media (prefers-reduced-motion:reduce){.wk-more>summary svg{transition:none}}
+
+/* «الجهاز مشغول؟» (session.js busySheet): a quiet chip under the exercise title, a short sheet with one clear action */
+.wk-busy-btn{display:inline-flex;align-items:center;gap:6px;margin-top:8px;min-height:36px;padding:0 12px;border-radius:999px;border:1px solid var(--edge);background:var(--glass-2,transparent);color:var(--mu);font:600 13px/1 var(--f,inherit);cursor:pointer;position:relative}
+.wk-busy-btn::after{content:"";position:absolute;inset:-5px 0}
+.wk-busy-btn svg{width:15px;height:15px}
+.wk-busy-btn:focus-visible{outline:3px solid var(--cta,#ff6b2c);outline-offset:2px}
+.wk-busy{display:flex;flex-direction:column;gap:10px}
+.wk-busy .btn{width:100%}
+.wk-busy .wk-muted{margin:0 4px 4px}

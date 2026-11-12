@@ -270,3 +270,115 @@ html[data-design="d"] .wk-rf{background:radial-gradient(90% 50% at 50% 0%,rgba(7
 html[data-design="d"] .wk-rf-num{font-family:var(--fn);font-size:92px}
 html[data-design="d"] .wk-rf-b{border-radius:999px}
 @media (prefers-reduced-motion:reduce){html[data-design="d"]{--d-ring:0ms}}
+
+/* ───────── E · «ألوان اليوم» Day Colours (default from 1.11) ─────────
+   Light and cheerful. The whole palette follows today's plan (html[data-tone], src/app/tone.js):
+   sunrise = Upper A · mint = Lower A · sky = Upper B · berry = Lower B · fire = boxing / cardio · gold = rest.
+   White cards on a tinted ground, one saturated hero card in the day's gradient, the brand orange for «do this now». */
+html[data-design="e"]{
+  --tone-bg:#F6F7FB; --tone-top:#E6EAF5; --tone-soft:#EEF1F8; --tone-soft2:#DFE5F2; --tone-ink:#141B2E; --tone-mu:#566079; --tone-edge:rgba(30,50,110,.12);
+  --tone-sel:#2F5BFF; --tone-hero:linear-gradient(140deg,#3B6BFF,#9B4DFF); --tone-hero-tx:#FFFFFF; --tone-hero-mu:#E4EAFF; --tone-hero-btn:#FF6B2C; --tone-hero-btn-tx:#2A0E00;
+  --tone-shadow:rgba(59,107,255,.45); --tone-g1:#5AA2FF; --tone-g2:#9B4DFF; --tone-cal:#2F5BFF; --tone-pro:#9B4DFF; --tone-carb:#0A8F5B; --tone-fat:#E0407F;
+}
+html[data-design="e"][data-tone="sunrise"]{
+  --tone-bg:#FFF7EE; --tone-top:#FFE6CC; --tone-soft:#FFF0E0; --tone-soft2:#FFE0C4; --tone-ink:#2A1810; --tone-mu:#75584A; --tone-edge:rgba(120,70,30,.13);
+  --tone-sel:#D9400F; --tone-hero:linear-gradient(140deg,#FF7A2F,#FF4D6D); --tone-hero-tx:#FFFFFF; --tone-hero-mu:#FFE9DD; --tone-hero-btn:#FFFFFF; --tone-hero-btn-tx:#C2390C;
+  --tone-shadow:rgba(255,90,31,.5); --tone-g1:#FFB703; --tone-g2:#FF5A1F; --tone-cal:#E86A00; --tone-pro:#DB2F66; --tone-carb:#0E8A55; --tone-fat:#7447F0;
+}
+html[data-design="e"][data-tone="mint"]{
+  --tone-bg:#F1FBF6; --tone-top:#D5F5E5; --tone-soft:#E3F6EC; --tone-soft2:#CDEEDD; --tone-ink:#0E2A22; --tone-mu:#48665B; --tone-edge:rgba(14,90,60,.14);
+  --tone-sel:#087F58; --tone-hero:linear-gradient(140deg,#10C988,#06A6B8); --tone-hero-tx:#FFFFFF; --tone-hero-mu:#DDFBF0; --tone-hero-btn:#FF6B2C; --tone-hero-btn-tx:#2A0E00;
+  --tone-shadow:rgba(10,157,108,.45); --tone-g1:#34E0A1; --tone-g2:#06A6B8; --tone-cal:#087F58; --tone-pro:#2563FF; --tone-carb:#C47A00; --tone-fat:#DB2F66;
+}
+html[data-design="e"][data-tone="sky"]{
+  --tone-bg:#F2F6FF; --tone-top:#D9E6FF; --tone-soft:#E6EEFF; --tone-soft2:#D2E0FF; --tone-ink:#101B3A; --tone-mu:#4E5B85; --tone-edge:rgba(30,60,160,.14);
+  --tone-sel:#2F5BFF; --tone-hero:linear-gradient(140deg,#3B6BFF,#9B4DFF); --tone-hero-tx:#FFFFFF; --tone-hero-mu:#E4EAFF; --tone-hero-btn:#FF6B2C; --tone-hero-btn-tx:#2A0E00;
+  --tone-shadow:rgba(59,107,255,.45); --tone-g1:#5AA2FF; --tone-g2:#9B4DFF; --tone-cal:#2F5BFF; --tone-pro:#9B4DFF; --tone-carb:#0A8F5B; --tone-fat:#E0407F;
+}
+html[data-design="e"][data-tone="berry"]{
+  --tone-bg:#FBF4FF; --tone-top:#EFD9FF; --tone-soft:#F4E7FF; --tone-soft2:#E7D1FF; --tone-ink:#2A1438; --tone-mu:#6A527F; --tone-edge:rgba(110,40,160,.14);
+  --tone-sel:#8B2FE0; --tone-hero:linear-gradient(140deg,#A855F7,#EC4899); --tone-hero-tx:#FFFFFF; --tone-hero-mu:#F8E3FF; --tone-hero-btn:#FFFFFF; --tone-hero-btn-tx:#7E22CE;
+  --tone-shadow:rgba(168,85,247,.45); --tone-g1:#C084FC; --tone-g2:#EC4899; --tone-cal:#8B2FE0; --tone-pro:#2563FF; --tone-carb:#0A8F5B; --tone-fat:#C47A00;
+}
+html[data-design="e"][data-tone="fire"]{
+  --tone-bg:#FFF4F1; --tone-top:#FFD9D0; --tone-soft:#FFE8E2; --tone-soft2:#FFD3C9; --tone-ink:#2B1210; --tone-mu:#79524C; --tone-edge:rgba(160,40,30,.14);
+  --tone-sel:#D4162A; --tone-hero:linear-gradient(140deg,#F43F3F,#FF7A18); --tone-hero-tx:#FFFFFF; --tone-hero-mu:#FFE4DC; --tone-hero-btn:#FFFFFF; --tone-hero-btn-tx:#B91C1C;
+  --tone-shadow:rgba(244,63,63,.45); --tone-g1:#FF9A3D; --tone-g2:#E11D2E; --tone-cal:#D4162A; --tone-pro:#7C3AED; --tone-carb:#0E8A55; --tone-fat:#C47A00;
+}
+html[data-design="e"][data-tone="gold"]{
+  --tone-bg:#FFFBEC; --tone-top:#FFEFB8; --tone-soft:#FFF5D6; --tone-soft2:#FFEAB0; --tone-ink:#2B2206; --tone-mu:#6F6238; --tone-edge:rgba(130,95,0,.16);
+  --tone-sel:#A85A00; --tone-hero:linear-gradient(140deg,#FFD23F,#FFA62B); --tone-hero-tx:#2E2100; --tone-hero-mu:#5A4300; --tone-hero-btn:#2E2100; --tone-hero-btn-tx:#FFFFFF;
+  --tone-shadow:rgba(245,166,35,.5); --tone-g1:#FFD23F; --tone-g2:#F59E0B; --tone-cal:#B86A00; --tone-pro:#2563FF; --tone-carb:#0E8A55; --tone-fat:#DB2F66;
+}
+html[data-design="e"]{
+  --g1:var(--tone-bg); --g2:var(--tone-bg); --g3:var(--tone-bg);
+  --glass:#FFFFFF; --glass-2:var(--tone-soft); --glass-3:var(--tone-soft2);
+  --edge:var(--tone-edge); --edge-soft:var(--tone-edge); --edge-strong:color-mix(in srgb,var(--tone-ink) 26%,transparent);
+  --well:var(--tone-soft); --glass-hi:none; --shadow:0 10px 30px -20px var(--tone-shadow);
+  --sheet-bg:#FFFFFF; --nav-bg:rgba(255,255,255,.86); --paper:var(--tone-bg);
+  --tx:var(--tone-ink); --mu:var(--tone-mu); --mu-2:var(--tone-mu); --mu-3:color-mix(in srgb,var(--tone-ink) 30%,transparent);
+  --amber:var(--tone-sel); --orange:#FF6B2C; --on-accent:#2A0E00; --cta-glow:0 12px 26px -12px rgba(255,107,44,.75);
+  --violet:var(--tone-sel); --violet-tx:var(--tone-sel); --pink:var(--tone-sel); --pink-tx:var(--tone-sel);
+  --ok-c:#0A7A47; --warn:#9A5B00; --danger:#C8231A; --danger-tx:#B4201A; --on-ok:#FFFFFF;
+  --cal:var(--tone-cal); --pro:var(--tone-pro); --carb:var(--tone-carb); --fat:var(--tone-fat);
+  --brass:#B86A00;
+  --fn:"Barlow SC","Readex Pro",system-ui,sans-serif;
+  --r-card:26px; --r-inner:16px; --r-sm:10px;
+  --sel:var(--tone-sel); --on-sel:#FFFFFF; --now:#FF6B2C;
+  --hero-bg:var(--tone-hero); --hero-tx:var(--tone-hero-tx); --hero-mu:var(--tone-hero-mu); --hero-edge:transparent;
+  --t-hero:64px; --hero-w:700;
+  --ease:cubic-bezier(.16,1,.3,1); --d:260ms; --d-fast:160ms; --d-press:100ms; --d-ring:1300ms;
+  --ink-surface:var(--tone-ink);
+  --live:var(--tone-sel); --live-tx:#FFFFFF; --rest-bg:#FF6B2C; --rest-tx:#2A0E00;
+  --bx-work:var(--tone-sel); --bx-work-tx:#FFFFFF; --bx-work-acc:#FFFFFF; --bx-rest:#FFFFFF; --bx-rest-tx:var(--tone-ink); --bx-btn:#FF6B2C; --bx-btn-tx:#2A0E00;
+  color-scheme:light;
+}
+html.nd[data-design="e"]{--cta:#FF6B2C; --bind:var(--tone-sel)}
+/* the colour change between days is a soft cross-fade, not a jump */
+html.nd[data-design="e"] body{background:linear-gradient(180deg,var(--tone-top) 0,var(--tone-bg) 340px) var(--tone-bg);transition:background-color .5s ease}
+/* hero: the day's gradient, white (or ink) type, its own button */
+html[data-design="e"] .td-hero,html[data-design="e"] .wk-next-action{background:var(--tone-hero);color:var(--tone-hero-tx);border:0;box-shadow:0 24px 44px -24px var(--tone-shadow)}
+html[data-design="e"] .wk-next-action{margin:0 var(--gutter,16px) var(--s3,12px);padding:var(--s5,20px) var(--s4,16px);border-radius:var(--r-card)}
+html[data-design="e"] .wk-next-action h2{font:700 34px/1.15 var(--f);letter-spacing:-.01em;color:var(--tone-hero-tx)}
+html[data-design="e"] .wk-next-action :is(p,small,.wk-note,.wk-after){color:var(--tone-hero-mu)}
+html[data-design="e"] .wk-next-action p b{color:var(--tone-hero-tx)}
+html.nd[data-design="e"] :is(.td-hero,.wk-next-action) .btn:not(.ghost){background:var(--tone-hero-btn);color:var(--tone-hero-btn-tx);box-shadow:0 10px 22px -12px rgba(0,0,0,.45)}
+html[data-design="e"] .wk-next-action .wk-alt{color:var(--tone-hero-mu)}
+html[data-design="e"] .wk-next-action :is(.chip,.wk-budget-slot .chip){background:color-mix(in srgb,var(--tone-hero-tx) 16%,transparent);color:var(--tone-hero-tx);border-color:color-mix(in srgb,var(--tone-hero-tx) 30%,transparent)}
+html.nd[data-design="e"] .wk-next-action .chip[aria-pressed="true"]{background:var(--tone-hero-tx);color:var(--tone-sel);box-shadow:none}
+/* type */
+html[data-design="e"] .band h1,html[data-design="e"] .co-head h1{font:700 34px/1.15 var(--f);letter-spacing:-.01em}
+html[data-design="e"] .td-ht:not(.lat){font-size:34px;font-weight:700;letter-spacing:-.01em}
+html[data-design="e"] .td-fx b{font-size:30px}
+html[data-design="e"] .nu-gauge-mid{inset:62px 0 auto}
+html[data-design="e"] .nu-gauge-mid b{font:700 60px/1 var(--fn);letter-spacing:0}
+html[data-design="e"] .pg-lv{font-weight:700}
+/* rings: a visible track on white, the day's gradient on the gauge */
+html[data-design="e"] .ring circle:not(.ring-arc){stroke:color-mix(in srgb,var(--tone-ink) 9%,transparent)}
+html[data-design="e"] #nu-cta-grad stop:first-child{stop-color:var(--tone-g1)}
+html[data-design="e"] #nu-cta-grad stop:last-child{stop-color:var(--tone-g2)}
+html[data-design="e"] .nu-c-cal{color:var(--cal)}
+/* buttons + chips: pills */
+html.nd[data-design="e"] .btn{border-radius:999px;font-weight:700;min-height:54px}
+html.nd[data-design="e"] .btn.ghost{background:var(--tone-soft);border-color:var(--tone-edge);color:var(--tone-ink)}
+html.nd[data-design="e"] :is(.chip,.repeat,.nu-ghost){border-radius:999px}
+html.nd[data-design="e"] .nu-dchip{border-radius:16px}
+/* light-surface fixes (same as the other light design) */
+html[data-design="e"] .pr{background:var(--ink-surface);color:#FFD23F;border-color:transparent}
+html[data-design="e"] .scrim{background:color-mix(in srgb,var(--tone-ink) 42%,transparent)}
+html[data-design="e"] .toast{background:var(--ink-surface);color:#fff;border-color:transparent}
+html[data-design="e"] .toast button{color:#fff}
+html[data-design="e"] .td-week li.now{background:#FF6B2C;border-color:transparent;outline:0}
+html[data-design="e"] .td-week li.now b,html[data-design="e"] .td-week li.now span{color:#2A0E00}
+html[data-design="e"] .td-week li.done{border-radius:999px}
+/* tab bar (web): a floating white pill; the current tab takes the day's colour */
+html.nd[data-design="e"] .tabs{inset:auto 14px max(12px,env(safe-area-inset-bottom,0px)) 14px;max-width:520px;height:66px;padding:0 6px;border-radius:999px;border:1px solid var(--tone-edge);background:var(--nav-bg);-webkit-backdrop-filter:blur(20px) saturate(160%)!important;backdrop-filter:blur(20px) saturate(160%)!important;box-shadow:0 16px 34px -18px var(--tone-shadow)}
+html.nd[data-design="e"] .tabs a{height:54px;border-radius:999px;font-size:var(--t-11)}
+html.nd[data-design="e"] .tabs a[aria-current]{color:var(--tone-sel);background:var(--tone-soft);font-weight:600}
+html.nd[data-design="e"] .tabs a[aria-current] svg.i{color:var(--tone-sel)}
+/* rest view */
+html[data-design="e"] .wk-rf{background:linear-gradient(180deg,var(--tone-top),var(--tone-bg) 60%)}
+html[data-design="e"] .wk-rf-num{font-family:var(--fn);font-size:92px}
+html[data-design="e"] .wk-rf-b{border-radius:999px;background:#FFFFFF}
+html[data-design="e"] .wk-rf-b.sk{background:#FF6B2C;color:#2A0E00}
+@media (prefers-reduced-motion:reduce){html[data-design="e"]{--d-ring:0ms}html.nd[data-design="e"] body{transition:none}}

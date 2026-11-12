@@ -2,6 +2,7 @@ import { initWidgets } from './app/widgets.js';
 import { initHealth } from './app/health.js';
 import { initAutoBackup } from './app/autobackup.js';
 import { initNativeChrome } from './app/native-chrome.js';
+import { initTone } from './app/tone.js';
 import { initSmartReminders } from './app/smart-reminders.js';
 import './styles/tokens.css';
 import './styles/base.css';
@@ -21,15 +22,17 @@ async function boot() {
   let db; let memory = false;
   try { db = await openDB(); } catch (e) { db = createMemoryDB(); memory = true; console.warn('[boot] IndexedDB unavailable, using memory', e && e.code); }
   const ctx = await createCtx(db, { go });
-  // 1.10: the new «مدار» design becomes the look once for everyone; Profile › المظهر still switches back to any other
-  if (ctx.settings.get('design.rev') !== 2) {
-    try { await ctx.settings.set('design', 'd'); await ctx.settings.set('design.rev', 2); } catch { /* keeps the stored look */ }
+  // 1.11: the light «ألوان اليوم» design becomes the look once for everyone (1.10 did the same for «مدار»);
+  // Profile › المظهر still switches back to any other
+  if (ctx.settings.get('design.rev') !== 3) {
+    try { await ctx.settings.set('design', 'e'); await ctx.settings.set('design.rev', 3); } catch { /* keeps the stored look */ }
   }
   const applyLook = () => applyDesign(ctx.settings.get('design'), ctx.settings.get('palette'));
   applyLook();
   // Profile › المظهر: «قلّل الحركة» (default off; the OS setting applies on its own) and «اهتزاز خفيف» (default on)
   const applyFeel = () => { setReduceMotion(ctx.settings.get('ui.reduceMotion') === true); setHaptics(ctx.settings.get('ui.haptics') !== false); };
   applyFeel();
+  initTone(ctx); // «ألوان اليوم»: the palette follows today's plan (app/tone.js)
   initSmartReminders(ctx); // iOS shell: protein / training reminders as local notifications (app/smart-reminders.js)
   initAutoBackup(ctx); // iOS shell: daily backup file (app/autobackup.js)
   initHealth(ctx); // iOS shell: watch data from the «BD Health» shortcut (app/health.js)

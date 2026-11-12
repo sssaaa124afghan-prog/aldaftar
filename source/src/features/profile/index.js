@@ -31,6 +31,7 @@ const PALETTES = [['', 'Electric Glass', '#FCD34D,#FB923C'], ['steel', 'أزرق
 // the old Electric Glass Pro and its palettes stay under a collapsed «تصميمات قديمة». main.js applies it on settings:changed.
 // Each card is a tiny static rendering in that design's own colours and fonts (not a screenshot).
 const PREVIEW = {
+  e: { bg: 'linear-gradient(180deg,#FFE6CC,#FFF7EE 60%)', card: 'linear-gradient(140deg,#FF7A2F,#FF4D6D)', ctx: '#FFFFFF', mu: '#FFE9DD', cta: '#FFFFFF', ctaTx: '#C2390C', f: '"Barlow SC","Readex Pro",sans-serif', bar: ['#10C988', '#3B6BFF'] },
   d: { bg: 'radial-gradient(120% 70% at 50% -10%,rgba(76,125,255,.45),transparent 62%),#05070C', card: 'linear-gradient(155deg,#16223C,#0B1019)', ctx: '#F4F8FF', mu: '#B7C6DA', cta: '#FF6B2C', ctaTx: '#1C0800', f: '"Barlow SC","Readex Pro",sans-serif', bar: ['#5FE1FF', '#8CA5FF'], edge: 'rgba(95,225,255,.35)' },
   b: { bg: '#1B2128', card: '#2F62E8', ctx: '#FFFFFF', mu: '#EEF3FF', cta: '#FF6B2C', ctaTx: '#1C0800', f: '"Barlow SC","Readex Pro",sans-serif', bar: ['#FFC24B', '#7AA3FF'] },
   a: { bg: '#0B0D10', card: '#14181D', ctx: '#F2F5F8', mu: '#A9B2BE', cta: '#3D8BFF', ctaTx: '#03101F', f: '"Plex Ar",sans-serif', bar: ['#ECEFF3', '#5C9DFF'], edge: 'rgba(255,255,255,.1)' },

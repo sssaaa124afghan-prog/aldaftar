@@ -549,6 +549,39 @@ export async function renderSession(el, ctx) {
       !alts.length ? h('p', { class: 'wk-muted' }, 'مفيش بديل لنفس العضلة. جرّب «ضيف تمرين».') : null);
     const api = ctx.sheet({ title: `بدّل ${e.name}`, body });
   }
+  /**
+   * «الجهاز مشغول؟»: one tap to the best same-muscle alternative (the one picked before comes first), or push this
+   * exercise to the end of the session and carry on with the next one. The full list stays one tap away.
+   */
+  function busySheet(i = live.cur.ex) {
+    const e = live.exercises[i];
+    if (!e) return;
+    const doneN = e.sets.filter((t) => t.done).length;
+    const alts = L.swapCandidates(e, { memory: tr.swapHistory || {}, home: !!live.home, exclude: live.exercises.map((x) => x.lib) });
+    const top = alts[0];
+    // a superset moves as one block, so its partner goes to the end with it
+    const grp = L.groupOf(live, i);
+    const rest = live.exercises.filter((_, k) => !grp.includes(k));
+    const canLater = live.exercises.some((x, k) => k > i && !grp.includes(k) && !x.skipped && x.sets.some((t) => !t.done));
+    const later = async () => {
+      api.close();
+      const moved = grp.map((k) => live.exercises[k]);
+      live.exercises = [...rest, ...moved];
+      const ni = live.exercises.findIndex((x, k) => k >= Math.min(...grp) && !moved.includes(x) && !x.skipped && x.sets.some((t) => !t.done));
+      const nx = live.exercises[ni];
+      live.cur = { ex: ni, set: Math.max(0, nx.sets.findIndex((t) => !t.done)) };
+      live.rest = null;
+      await save(); draw();
+      ctx.toast(`${moved.map((x) => x.name).join(' + ')} ${moved.length > 1 ? 'اتأجّلوا' : 'اتأجّل'} لآخر الجلسة · دلوقتي ${nx.name}`);
+    };
+    const body = h('div', { class: 'wk-busy' },
+      top ? h('button', { type: 'button', class: 'btn', onclick: () => { api.close(); doSwap(i, top.id); } }, ico('repeat'), h('span', {}, 'بدّل لـ ', h('bdi', {}, top.ar))) : null,
+      top ? h('p', { class: 'wk-muted' }, `${top.eq} · نفس العضلة${e.muscle ? ` (${e.muscle})` : ''} ونفس عدد المجموعات.`,
+        doneN ? ' المجموعات اللي سجّلتها في التمرين ده هتتشال.' : '') : h('p', { class: 'wk-muted' }, 'مفيش بديل جاهز لنفس العضلة.'),
+      canLater ? h('button', { type: 'button', class: 'btn ghost', onclick: later }, ico('skip'), grp.length > 1 ? 'أجّل السوبر سِت لآخر الجلسة' : 'أجّله لآخر الجلسة') : null,
+      alts.length > 1 ? h('button', { type: 'button', class: 'btn ghost', onclick: () => { api.close(); swapSheet(i); } }, 'اختار بديل تاني', h('small', {}, ` (${Math.min(13, alts.length - 1)})`)) : null);
+    const api = ctx.sheet({ title: 'الجهاز مشغول؟', body });
+  }
   async function doSwap(i, libId) {
     const e = live.exercises[i];
     const it = { ...L.itemFromLib(libId), id: libId, sets: e.sets.length, reps: e.reps };
@@ -784,6 +817,7 @@ export async function renderSession(el, ctx) {
       h('p', { class: 'wk-meta' }, e.muscle ? [e.muscle, ' · '] : null, 'راحة ', N(L.fmtClock(e.ss ? L.groupRest(live, idx) : L.restFor(e))),
         bestSet.w ? [' · أفضل ', N(`${L.fmtW(bestSet.w)} × ${bestSet.r}`, undefined, 'wk-best')] : null,
         pr0.e1rm ? [' · e1RM ', N(L.fmtW(Math.round(pr0.e1rm)))] : null),
+      h('button', { type: 'button', class: 'wk-busy-btn', dataset: { fk: 'busy' }, onclick: () => busySheet() }, ico('repeat'), 'الجهاز مشغول؟'),
       tops.length >= 2 && !e.ss ? h('div', { class: 'wk-spark-row' }, spark(tops, { label: `أعلى وزن في آخر ${tops.length} جلسات` }), h('small', {}, 'آخر ', N(String(tops.length)), ' جلسات')) : null,
       e.ss ? h('p', { class: 'wk-ss' }, ico('bolt'), 'سوبر سِت ', e.ss, ' مع ', ssPeers.join(' و'), ' · من غير راحة بينهم') : null);
     root.appendChild(head);
