@@ -85,12 +85,14 @@ function done(qty, pieces, m, target) {
   return { qty, pieces, macros: m, off, ok: Math.abs(off.kcal) <= 0.1 && off.p >= -0.1 };
 }
 
+const WORD_PLURAL = { 'بيضة': 'بيضات', 'رغيف': 'أرغفة', 'موزة': 'موزات', 'تفاحة': 'تفاحات' };
 /** Readable quantity: «200 جم» / «3 بيضات». */
 export function qtyText(id, q) {
   const g = ING[id];
   if (g.unit === 'g') return `${Math.round(q)} جم`;
   const n = Math.round(q * 100) / 100;
-  return `${n} ${g.word || ''}`.trim();
+  const w = n >= 3 && n <= 10 && WORD_PLURAL[g.word] ? WORD_PLURAL[g.word] : g.word || '';
+  return `${n} ${w}`.trim();
 }
 
 /** Ingredient lines for `servings` plates (or the whole fixed batch × batches). */

@@ -98,7 +98,9 @@ test('remaining target splits over meals and never goes negative', () => {
 
 test('text + tags', () => {
   assert.equal(qtyText('chicken', 200), '200 جم');
-  assert.equal(qtyText('egg', 3), '3 بيضة');
+  assert.equal(qtyText('egg', 3), '3 بيضات');
+  assert.equal(qtyText('egg', 2), '2 بيضة');
+  assert.equal(qtyText('bread', 1), '1 رغيف');
   assert.ok(isQuick(RECIPES.find((x) => x.id === 'sardine-sandwich')));
   assert.ok(!isQuick(RECIPES.find((x) => x.id === 'kabsa')));
 });

@@ -230,7 +230,7 @@ async function recipeScreen(el, ctx, params) {
       fixed ? h('p', { class: 'lead' }, `طلعت ${count(total, r.unit)}. كل واحدة تتسجل بضغطة.`)
         : [h('p', { class: 'lead' }, `طبخت ${count(times, 'حصة')}. هتقسّمها على كام علبة؟`), h('div', { class: 'kt-step' }, h('span', {}, 'عدد العلب'), mk(-1, 'minus', 'قلّل العلب'), nEl, mk(1, 'plus', 'زوّد العلب'))],
       info,
-      fixed ? null : h('p', { class: 'nu-fine' }, 'وزّع الفراخ على العلب بالميزان أولاً، وبعدين الرز أو المكرونة. لو قسّمت الحلة كلها بالعين، البروتين مش هيطلع متساوي.'),
+      fixed ? null : h('p', { class: 'nu-fine' }, 'وزّع البروتين (الفراخ أو اللحمة) على العلب بالميزان أولاً، وبعدين الرز أو المكرونة. لو قسّمت كله بالعين، البروتين مش هيطلع متساوي.'),
       fz,
       h('p', { class: 'nu-fine' }, `في التلاجة ${fmt(FRIDGE_DAYS)} أيام بس. اللي هتاكله بعد كده حطه في الفريزر من أول يوم.`));
     upd();
@@ -284,7 +284,7 @@ async function cookScreen(el, ctx, params) {
   const pages = [{ kind: 'prep' }, ...r.steps.map((text, i) => ({ kind: 'step', text, i }))];
   let at = 0;
   const stage = h('div', { class: 'kt-stage', 'aria-live': 'polite' });
-  const prev = h('button', { type: 'button', class: 'btn ghost', onclick: () => { if (at > 0) { at--; paint(); } } }, 'اللي قبله');
+  const prev = h('button', { type: 'button', class: 'btn ghost', onclick: () => { if (at > 0) { at--; paint(); } } }, 'السابق');
   const next = h('button', { type: 'button', class: 'btn', onclick: () => { if (at < pages.length - 1) { at++; paint(); } else ctx.go('kitchen/r', { id: r.id }); } });
   const prog = h('p', { class: 'kt-prog' });
 
@@ -300,7 +300,7 @@ async function cookScreen(el, ctx, params) {
     }
     prog.textContent = `${fmt(at + 1)} / ${fmt(pages.length)}`;
     prev.disabled = at === 0;
-    next.textContent = at === pages.length - 1 ? 'خلصت' : 'اللي بعده';
+    next.textContent = at === pages.length - 1 ? 'خلصت' : 'التالي';
     stage.scrollTop = 0;
   }
 
