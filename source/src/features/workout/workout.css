@@ -619,3 +619,4 @@ html.nd .wk-stepl{color:var(--mu)}
 .wk-busy{display:flex;flex-direction:column;gap:10px}
 .wk-busy .btn{width:100%}
 .wk-busy .wk-muted{margin:0 4px 4px}
+@media (max-width:359px){.wk-row4{grid-template-columns:minmax(0,1fr) 40px 50px minmax(0,84px);column-gap:8px}.wk-row4 .wk-st{white-space:normal;text-align:center}}

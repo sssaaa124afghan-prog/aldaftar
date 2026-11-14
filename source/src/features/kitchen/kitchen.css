@@ -77,3 +77,19 @@
 .kt-meta svg.i{width:14px;height:14px;flex:none}
 .kt-tool>span{min-width:0}
 .kt-good{display:flex;align-items:center;gap:6px}.kt-good svg.i{flex:none}
+/* خطة الأسبوع */
+.kt-weeklink>svg.i:first-child{color:var(--cta)}
+.kt-pane{display:flex;flex-direction:column;gap:var(--s3,12px)}
+.kt-done{display:inline-flex;align-items:center;gap:4px;font:600 var(--t-12,12px)/1 var(--f);color:var(--mu);white-space:nowrap}
+.kt-daytotal{margin-top:10px;padding-top:10px;border-top:1px solid var(--edge-soft);font-size:var(--t-12,12px);color:var(--mu);line-height:1.7}
+.kt-daytotal .num{font-weight:700;color:var(--tx)}
+.kt-daytotal.is-off{color:var(--danger-tx,#b42318)}
+.kt-today{border-color:var(--cta)}
+.kt-buy{display:flex;align-items:center;gap:12px;min-height:52px;padding:6px 0;border-bottom:1px solid var(--edge-soft);cursor:pointer}
+.kt-buy:last-of-type{border-bottom:0}
+.kt-buy input{width:24px;height:24px;flex:none;accent-color:var(--cta)}
+.kt-buy .grow{flex:1;min-width:0;font:500 var(--t-16,16px)/1.4 var(--f)}
+.kt-buy .grow small{display:block;font-size:var(--t-12,12px);color:var(--mu)}
+.kt-buy b{font:800 var(--t-16,16px)/1 var(--f);white-space:nowrap}
+.kt-buy:has(input:checked) .grow,.kt-buy:has(input:checked) b{opacity:.5;text-decoration:line-through}
+.kt-good>span{flex:1}

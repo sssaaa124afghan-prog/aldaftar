@@ -382,3 +382,13 @@ html[data-design="e"] .wk-rf-num{font-family:var(--fn);font-size:92px}
 html[data-design="e"] .wk-rf-b{border-radius:999px;background:#FFFFFF}
 html[data-design="e"] .wk-rf-b.sk{background:#FF6B2C;color:#2A0E00}
 @media (prefers-reduced-motion:reduce){html[data-design="e"]{--d-ring:0ms}html.nd[data-design="e"] body{transition:none}}
+
+/* E fixes (review 14/11): a white panel inside the coloured hero keeps the page's ink, not the hero's light text;
+   the day-type pill is a soft tint with dark ink instead of a saturated block. */
+html[data-design="e"] .wk-next-action .wk-diff{background:#fff;border-color:transparent;color:var(--tone-ink,#2A1A10)}
+html[data-design="e"] .wk-next-action .wk-diff>p{color:var(--tone-mu,#6B5A4E)}
+html[data-design="e"] .wk-next-action .wk-diff ul{color:var(--tone-ink,#2A1A10)}
+html[data-design="e"] .wk-next-action .wk-diff li.c-balance,html[data-design="e"] .wk-next-action .wk-diff li.c-carry{color:#0B6B43}
+html[data-design="e"] .wk-next-action .wk-diff li.c-carried{color:#1D4FB8}
+html[data-design="e"] .nu-pill{background-color:var(--tone-soft2,#FFE3D3);color:var(--tone-ink,#2A1A10)}
+html[data-design="e"] .wk-next-action .wk-diff{margin-bottom:12px}

@@ -8,28 +8,15 @@ import { fmt } from '../../ui/num.js';
 import { addDays } from '../../core/date.js';
 import { sumEntries } from '../../core/targets.js';
 import { keepAwake } from '../../core/alerts.js';
-import { sectionForHour, newId } from '../nutrition/logic.js';
+import { newId } from '../nutrition/logic.js';
 import { kvGet, kvPatch, getEntries, addEntries, dayTarget, shortDay } from '../nutrition/data.js';
 import { I, n0, topBar, card, field, segChips } from '../nutrition/ui.js';
 import { INGREDIENTS, ING, ING_GROUPS } from './ingredients.js';
 import { RECIPES, CATS, TOOL_LABEL } from './recipes.js';
 import { fit, servingMacros, lines, matchPantry, remainingTarget, isFixed, isQuick, isCheap, totalMin, FRIDGE_DAYS } from './logic.js';
+import { KV, byId, macroLine, count, timeText, entryOf } from './shared.js';
+import { weekScreen, todayPlanCard } from './week-ui.js';
 
-const KV = 'kitchen';
-const byId = (id) => RECIPES.find((r) => r.id === id) || null;
-const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-const macroLine = (m) => h('span', { class: 'kt-macros' }, n0(m.kcal), ' سعرة · ', n0(m.p), ' بروتين · ', n0(m.c), ' كارب · ', n0(m.f), ' دهون');
-const PLURAL = { 'علبة': 'علب', 'كرة': 'كرات', 'كوب': 'أكواب', 'قطعة': 'قطع', 'مربع': 'مربعات', 'طبق': 'أطباق', 'حصة': 'حصص' };
-/** «3 علب» / «1 علبة» / «12 علبة» (Arabic counts 3-10 take the plural). */
-const count = (n, unit) => `${fmt(n)} ${n >= 3 && n <= 10 && PLURAL[unit] ? PLURAL[unit] : unit}`;
-const timeText = (r) => (r.wait ? `${fmt(r.active)} د شغل + ${fmt(r.wait)} د انتظار` : `${fmt(r.active)} د`);
-
-/** One log entry carrying its own macro snapshot (editing an ingredient later never rewrites the past). */
-function entryOf(name, unit, m, qty = 1) {
-  const now = new Date();
-  return { id: newId('e', now.getTime()), foodId: null, name: String(name).slice(0, 120), qty, unit, kcal: Math.round(m.kcal * qty), p: Math.round(m.p * qty * 10) / 10,
-    c: Math.round(m.c * qty * 10) / 10, f: Math.round(m.f * qty * 10) / 10, section: sectionForHour(now.getHours()), time: hhmm(now), src: 'kitchen' };
-}
 
 // ═════════════════════════ #/kitchen ═════════════════════════
 async function homeScreen(el, ctx, params) {
@@ -38,6 +25,7 @@ async function homeScreen(el, ctx, params) {
   const on = { quick: false, cheap: false, prep: false };
   const list = h('div', { class: 'kt-list' });
   const boxesHost = h('div', {});
+  const planHost = h('div', {});
   const pantryBtn = h('button', { type: 'button', class: 'kt-tool', onclick: pantrySheet });
 
   function paintPantryBtn() {
@@ -120,13 +108,16 @@ async function homeScreen(el, ctx, params) {
   el.append(
     topBar(ctx, { title: 'المطبخ', sub: 'وصفات على قد ماكروزك، بسخان عين واحدة وايرفراير', backTo: ['nutrition'] }),
     h('div', { class: 'kt-wrap' },
+      planHost,
       boxesHost,
+      h('a', { class: 'nu-kitchen kt-weeklink', href: '#/kitchen/week' }, I('calendar'), h('span', { class: 'grow' }, h('b', {}, 'خطة الأسبوع'), h('small', {}, st.week ? 'الأيام، المشتريات، وورقة التحضير' : 'اختار وصفتين ويطلعلك الأسبوع والمشتريات')), I('chevron')),
       h('div', { class: 'kt-tools' }, pantryBtn,
         h('a', { class: 'kt-tool', href: '#/nutrition/recipes' }, I('edit'), h('span', {}, h('b', {}, 'وصفاتي'), h('small', {}, 'اكتب وصفتك من مكوّناتك')))),
       segChips(CATS, cat, (v) => { cat = v; paint(); }, 'نوع الوصفة'),
       h('div', { class: 'chips', role: 'group', 'aria-label': 'فلاتر' }, toggle('quick', 'سريعة'), toggle('cheap', 'رخيصة'), toggle('prep', 'تحضير أسبوعي')),
       list));
   paintPantryBtn(); paintBoxes(); paint();
+  todayPlanCard(ctx, planHost).catch(() => {});
 }
 
 // ═════════════════════════ #/kitchen/r?id= ═════════════════════════
@@ -313,4 +304,4 @@ async function cookScreen(el, ctx, params) {
   return () => { keepAwake(false, 'kitchen'); };
 }
 
-export const routes = { kitchen: homeScreen, 'kitchen/r': recipeScreen, 'kitchen/cook': cookScreen };
+export const routes = { kitchen: homeScreen, 'kitchen/week': weekScreen, 'kitchen/r': recipeScreen, 'kitchen/cook': cookScreen };

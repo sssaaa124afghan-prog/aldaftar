@@ -104,3 +104,48 @@ test('text + tags', () => {
   assert.ok(isQuick(RECIPES.find((x) => x.id === 'sardine-sandwich')));
   assert.ok(!isQuick(RECIPES.find((x) => x.id === 'kabsa')));
 });
+
+// ───────── خطة الأسبوع ─────────
+import { planWeek } from '../src/features/kitchen/week.js';
+const T = { training: { kcal: 2850, p: 155, c: 400, f: 70 }, heart: { kcal: 2550, p: 155, c: 325, f: 70 }, rest: { kcal: 2350, p: 155, c: 275, f: 70 } };
+const week = (types) => types.map((type, i) => ({ day: `2026-11-${15 + i}`, type, target: T[type] }));
+
+test('week: every day gets breakfast + rotating meals, and lands near its own target', () => {
+  const w = planWeek({ days: week(['training', 'training', 'rest', 'training', 'training', 'heart']), breakfast: 'std-breakfast', meals: ['chicken-rice', 'kabsa'], perDay: 2 });
+  assert.equal(w.days.length, 6);
+  for (const d of w.days) {
+    assert.deepEqual(d.slots.map((s) => s.kind), ['breakfast', 'meal', 'meal']);
+    assert.deepEqual(d.slots.slice(1).map((s) => s.rid), ['chicken-rice', 'kabsa']);
+    assert.ok(Math.abs(d.off.kcal) <= 0.1, `${d.type} kcal ${d.total.kcal} vs ${d.target.kcal}`);
+    assert.ok(d.off.p >= -0.1, `${d.type} protein ${d.total.p}`);
+  }
+  const tr = w.days[0].slots[1].qty.rice; const re = w.days[2].slots[1].qty.rice;
+  assert.ok(tr > re, 'training box carries more rice than the rest box');
+});
+
+test('week: shopping list is the exact sum of what the days use', () => {
+  const days = week(['training', 'rest', 'heart']);
+  const w = planWeek({ days, breakfast: 'std-breakfast', meals: ['chicken-rice'], perDay: 2 });
+  const chicken = w.days.reduce((s, d) => s + d.slots.filter((x) => x.kind === 'meal').reduce((a, x) => a + x.qty.chicken, 0), 0);
+  assert.equal(w.shopping.find((x) => x.id === 'chicken').qty, chicken);
+  assert.equal(w.shopping.find((x) => x.id === 'egg').qty, 12);
+  assert.equal(w.shopping.find((x) => x.id === 'whey').qty, 3);
+  const prep = w.prep.find((x) => x.rid === 'chicken-rice');
+  assert.equal(prep.boxes, 6);
+  assert.equal(prep.sizes.reduce((s, x) => s + x.count, 0), 6);
+  assert.equal(prep.sizes.length, 3, 'one box size per day type');
+});
+
+test('week: dessert is whole batches, one piece a day', () => {
+  const w = planWeek({ days: week(['training', 'training', 'rest']), breakfast: null, meals: ['chicken-rice'], dessert: 'date-balls', perDay: 2 });
+  assert.equal(w.days[0].slots.at(-1).kind, 'dessert');
+  assert.equal(w.shopping.find((x) => x.id === 'dates').qty, 120, '3 balls → one batch of 8');
+  assert.equal(w.prep.find((x) => x.rid === 'date-balls').batches, 1);
+});
+
+test('week: an empty or impossible plan does not throw and says it is not ok', () => {
+  assert.deepEqual(planWeek({}).days, []);
+  const w = planWeek({ days: week(['training']), meals: ['sardine-sandwich'], perDay: 1 });
+  assert.equal(w.ok, false);
+  assert.equal(planWeek({ days: week(['rest']), meals: ['nope'] }).days[0].slots.length, 0);
+});
