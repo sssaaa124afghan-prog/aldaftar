@@ -20,5 +20,8 @@
     "vite-plugin-singlefile": "^2.3.4"
   },
   "private": true,
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "three": "^0.170.0"
+  }
 }

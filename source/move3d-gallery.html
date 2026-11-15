@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>move3d gallery (dev)</title>
+<style>body{margin:0;font:12px system-ui;background:#F6F7FB;color:#141B2E}#g{display:grid;grid-template-columns:repeat(var(--cols,6),1fr);gap:6px;padding:6px}figure{margin:0;background:#fff;border-radius:10px;overflow:hidden}figure div{display:flex}canvas{width:50%;aspect-ratio:1}figcaption{padding:3px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}</style></head>
+<body><div id="g"></div>
+<script type="module">
+// Dev-only contact sheet of every 3D movement (start | end). Open through `npx vite` → /move3d-gallery.html?ids=ex1,ex2&yaw=90
+import { createViewer } from './src/features/workout/move3d/scene.js';
+import { MOVES, moveFor, padsFor } from './src/features/workout/move3d/moves.js';
+import { LIBRARY, fineOf } from './src/features/workout/exercises.js';
+const q = new URLSearchParams(location.search);
+const ids = q.get('ids') ? q.get('ids').split(',') : Object.keys(MOVES);
+const size = Number(q.get('size')) || 260;
+document.getElementById('g').style.setProperty('--cols', q.get('cols') || 6);
+for (const id of ids) {
+  const L = LIBRARY.find((e) => e.id === id); const move = moveFor(id);
+  if (q.get('yaw')) move.view = { ...move.view, yaw: Number(q.get('yaw')) };
+  const pads = padsFor(fineOf({ lib: id, ...L }));
+  const off = document.createElement('canvas'); off.style.cssText = `width:${size}px;height:${size}px;position:fixed;left:-9999px`; document.body.appendChild(off);
+  const v = createViewer(off, { move, primary: pads.primary, secondary: pads.secondary, scheme: q.get('scheme') || 'light' });
+  const fig = document.createElement('figure'); const row = document.createElement('div');
+  for (const t of (q.get('t') ? q.get('t').split(',').map(Number) : [0, 1])) { v.setT(t); v.render(); const c = document.createElement('canvas'); c.width = c.height = size; c.getContext('2d').drawImage(off, 0, 0, size, size); row.appendChild(c); }
+  v.dispose(); off.remove();
+  const cap = document.createElement('figcaption'); cap.textContent = `${id} · ${L.ar}`; fig.append(row, cap); document.getElementById('g').appendChild(fig);
+}
+document.title = 'ready';
+</script></body></html>

@@ -620,3 +620,7 @@ html.nd .wk-stepl{color:var(--mu)}
 .wk-busy .btn{width:100%}
 .wk-busy .wk-muted{margin:0 4px 4px}
 @media (max-width:359px){.wk-row4{grid-template-columns:minmax(0,1fr) 40px 50px minmax(0,84px);column-gap:8px}.wk-row4 .wk-st{white-space:normal;text-align:center}}
+/* 3D movement button (move3d/sheet.js): same pill as the video link, outlined cube instead of the filled ▶ */
+button.wk-vid{font:inherit;cursor:pointer}
+.wk-vid.is-3d svg.i{fill:none;stroke:currentColor;width:20px;height:20px;color:var(--cta,#FF6B2C)}
+.wk-vid.is-3d span{font-weight:700}

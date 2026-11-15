@@ -8,6 +8,7 @@ import { h, ico } from './view.js';
 import { libById, findLib } from './exercises.js';
 import { BOX_VIDEOS } from './boxing-videos.js';
 import { isNative, openVideo } from '../../core/native.js';
+import { openMove, hasMove } from './move3d/sheet.js';
 
 export const VERIFIED = '2026-10-24';
 const v = (id, channel, title, dur) => Object.freeze({ id, channel, title, dur, verified: VERIFIED });
@@ -84,6 +85,18 @@ export const videoSource = (ex) => { const r = videoFor(ex); return !r ? '' : r.
  *  variant 'icon': ▶ only (rows); show videoSource() next to it as the small text.
  */
 export function videoLink(ex, { name = '', variant = 'pill', cls = '' } = {}) {
+  // exercises with a 3D movement open the mannequin instead (instant, offline); the video sits inside that sheet
+  const L = typeof ex === 'string' && VIDEOS[ex] ? null : libOf(ex);
+  if (L && hasMove(L.id)) {
+    const nm = name || (typeof ex === 'object' && ex && (ex.ar || ex.name)) || L.ar;
+    const b = { type: 'button', class: `wk-vid is-3d${variant === 'icon' ? ' is-icon' : ''}${cls ? ' ' + cls : ''}`, 'aria-label': `شوف الحركة 3D: ${nm}`,
+      onclick: (ev) => { ev.stopPropagation(); ev.preventDefault(); openMove(L, { name: nm, extra: videoOnly(ex, { name: nm }) }); } };
+    return variant === 'icon' ? h('button', b, ico('cube')) : h('button', b, ico('cube'), h('span', {}, 'الحركة 3D'));
+  }
+  return videoOnly(ex, { name, variant, cls });
+}
+/** The plain video link (see videoLink for the variants). */
+export function videoOnly(ex, { name = '', variant = 'pill', cls = '' } = {}) {
   const r = videoFor(ex);
   if (!r) return null;
   const nm = name || (typeof ex === 'object' && ex && (ex.ar || ex.name)) || '';
