@@ -17,12 +17,12 @@ test('new default program: compact Upper/Lower from review.md §3 with supersets
   assert.equal(PROGRAMS.ul4c.heartDow, 4);
   assert.deepEqual(L.programFlags(p), { z2: true, meso: true, heartDow: 4, cardio: 'boxing', boxing: true });
   const row = (d) => p.days[d].items.map((x) => `${x.lib}:${x.sets}x${x.reps}${x.ss ? ':' + x.ss : ''}${x.restS ? '@' + x.restS : ''}${x.fill ? 'f' : ''}`);
-  assert.deepEqual(row('upperA'), ['ex1:4x5-8:A@110', 'ex14:4x6-10:A@110', 'ex2:3x8-12:B@90', 'exCSTB:3x8-12:B@90', 'ex27:3x12-20:C@45', 'exOCT:3x10-15:C@45',
-    'ex31:3x10-15:D@60', 'exRPD:3x12-20:D@60', 'ex64:3x8-15:D@60']);
+  assert.deepEqual(row('upperA'), ['ex1:4x5-8:A@110', 'ex14:5x6-10:A@110', 'ex2:3x8-12:B@90', 'exCSTB:3x8-12:B@90', 'ex27:2x12-20:C@45', 'exOCT:3x10-15:C@45',
+    'ex31:3x10-15:D@60', 'exRPD:3x12-20:D@60', 'ex64:2x8-15:D@60']);
   assert.deepEqual(row('lowerA'), ['ex41:4x5-8:A@110', 'ex23:4x12-20:A@110', 'ex48:4x8-12:B@60', 'ex44:4x10-15:B@60', 'exMHT:3x8-12:C@75', 'ex65:3x10-15:C@75',
     'ex51:5x8-15:D@60', 'ex81:3x15-20:D@60f', 'exRWC:2x15-20:D@60f']);
-  assert.deepEqual(row('upperB'), ['exLID:4x6-10:A@90', 'ex14:4x8-12:A@90', 'ex22:3x8-12:B@75', 'ex15:3x8-12:B@75', 'ex27:3x12-20:C@45', 'ex24:3x12-20:C@45',
-    'exWCH:3x10-12/جنب:C@45', 'ex32:3x10-15:D@45', 'exROE:3x10-15:D@45']);
+  assert.deepEqual(row('upperB'), ['exLID:4x6-10:A@90', 'ex14:5x8-12:A@90', 'ex22:3x8-12:B@75', 'ex15:3x8-12:B@75', 'ex27:3x12-20:C@45', 'ex24:3x12-20:C@45',
+    'exWCH:2x10-12/جنب:C@45', 'ex32:3x10-15:D@45', 'exROE:3x10-15:D@45']);
   assert.deepEqual(row('lowerB'), ['ex47:3x6-10:A@120', 'ex27:3x12-20:A@120', 'ex45b:3x8-12:B@90', 'ex48:3x10-15:B@90', 'ex42:3x8-12/رجل:C@75', 'ex62:3x10-15:C@75',
     'ex51:5x10-20:D@60', 'exADD:3x12-20:D@60f', 'ex72:2x10-15:D@60f']);
   // Arabic + English names come from the library; legacy ids kept where the exercise is the same
@@ -30,7 +30,7 @@ test('new default program: compact Upper/Lower from review.md §3 with supersets
   assert.equal(p.days.upperA.items[0].ar, 'بنش بريس بالبار');
   assert.equal(p.days.upperB.items[7].en, 'Preacher Curl');
   // plan v2 swaps (exercise-selection.md §3): new item ids so history does not mix; notes + meso-1 reps survive a round trip
-  assert.equal(p.tv, 3);
+  assert.equal(p.tv, 4);
   assert.deepEqual(['upperA', 'lowerA', 'upperB', 'lowerB'].map((d) => p.days[d].items.filter((x) => ['uaLPD', 'lbSC', 'lbSLC', 'ubPRC', 'ubOCT', 'ubLID'].includes(x.id)).map((x) => x.id)),
     [['uaLPD'], [], ['ubLID', 'ubPRC', 'ubOCT'], ['lbSLC', 'lbSC']]);
   assert.match(p.days.upperA.items[1].note, /3×8 عقلة بوزن جسمك عند RIR 2 ارجع للعقلة/);
@@ -48,7 +48,7 @@ test('new default program: compact Upper/Lower from review.md §3 with supersets
   assert.equal(back.days.upperA.items[0].rir, '1-2');
   assert.deepEqual(back.days.upperA.warm, [[0, 8], [60, 5], [80, 2]]);
   assert.deepEqual(back.schedule, p.schedule);
-  assert.equal(back.tv, 3); assert.equal(back.days.upperA.items[0].r1, '6-10'); assert.equal(back.days.upperA.items[1].note, p.days.upperA.items[1].note);
+  assert.equal(back.tv, 4); assert.equal(back.days.upperA.items[0].r1, '6-10'); assert.equal(back.days.upperA.items[1].note, p.days.upperA.items[1].note);
 });
 
 test('new library entries carry muscles and synergists', () => {
@@ -92,7 +92,7 @@ test('hard sets: RIR ≤ 3 counts, synergists get 0.5, group view never double-c
   const p = P();
   const all = {};
   for (const d of p.order) for (const [k, v] of Object.entries(L.plannedByMuscle(p.days[d].items))) all[k] = (all[k] || 0) + v;
-  assert.equal(all['كتف جانبي'], 14.5);
+  assert.equal(all['كتف جانبي'], 13.5); // v4: one lateral set of Upper A went to the lats
   assert.equal(all['كوادز'], 14);
   assert.equal(all['هامسترينج'], 10);
   assert.equal(all['سمانة'], 10);
@@ -102,7 +102,7 @@ test('hard sets: RIR ≤ 3 counts, synergists get 0.5, group view never double-c
 test('estimateMinutes models supersets, tri-sets, fills, transitions and the 4:30 warm-up', () => {
   const p = P();
   const near = (d, target) => { const m = L.estimateSeconds(p.days[d].items) / 60; assert.ok(Math.abs(m - target) <= 1.25, `${d} ${m.toFixed(2)} vs ${target}`); };
-  near('upperA', 48.08); near('lowerA', 47.58); near('upperB', 47.17); near('lowerB', 46);
+  near('upperA', 48.33); near('lowerA', 47.58); near('upperB', 48); near('lowerB', 46);
   // the same items as straight sets take longer than as supersets
   const straight = p.days.upperA.items.map(({ ss, fill, ...x }) => x);
   assert.ok(L.estimateMinutes(straight) > L.estimateMinutes(p.days.upperA.items) + 10);
@@ -238,7 +238,7 @@ test('weekly balance: under-MEV muscle gets +1–2 sets on its next session, nev
   assert.deepEqual(capped.consumed, { 'كتف خلفي': 2 });
   // projection reads finished sessions + remaining scheduled days
   const wp = L.weekProjection({ program: p, sessions: [], today: '2026-10-19', items: p.days.upperA.items, todayId: 'upperA' });
-  assert.equal(wp.projection['كتف جانبي'], 14.5);
+  assert.equal(wp.projection['كتف جانبي'], 13.5);
   assert.deepEqual(L.remainingDays(p, [], '2026-10-20'), ['lowerB', 'upperA', 'lowerA']); // Tue → Wed, Sat, Sun (week from Monday)
   assert.deepEqual(L.remainingDays(p, [ses('x', '2026-10-20', [], { dayKey: 'upperA' }), ses('y', '2026-10-21', [], { dayKey: 'lowerA' })], '2026-10-22'), []); // Sat/Sun already done this week
 });
@@ -321,7 +321,7 @@ test('core moves keep their own RIR 1–2 floor: never to failure, not even in w
 test('dayEstimate is the one time source: planSession minutes + the Zone 2 finisher (Today = overview)', () => {
   const p = { ...P(), startDay: '2026-10-19' };
   const e = L.dayEstimate({ program: p, sessions: [], today: '2026-10-19', dayId: 'upperA', training: {} });
-  const r = L.planSession({ program: p, sessions: [], today: '2026-10-19', dayId: 'upperA', budgetMin: 60 });
+  const r = L.planSession({ program: L.withBlockReps(p, 'upperA'), sessions: [], today: '2026-10-19', dayId: 'upperA', budgetMin: 60 }); // block 1 runs the 6–10 ranges, as dayEstimate does
   assert.equal(e.lift, r.minutes);
   assert.equal(e.z2, L.z2Minutes(r.minutes));
   assert.equal(e.total, e.lift + e.z2);
@@ -345,17 +345,18 @@ test('plan update: users already on ul4c get a diff card; apply swaps in place, 
   assert.equal(L.planUpdate(P()), null, 'fresh template is current');
   const v1 = V1();
   const u = L.planUpdate(v1);
-  assert.equal(u.from, 1); assert.equal(u.to, 3);
+  assert.equal(u.from, 1); assert.equal(u.to, 4);
   assert.equal(u.applicable, 9); // 8 swaps + the schedule move (offered even when his days were edited; the tap is his yes)
   assert.ok(u.changes.some((c) => /سمانة جالس ← سمانة واقف/.test(c.text)), u.changes.map((c) => c.text).join('\n'));
   // the user removed the Bayesian curl himself → that change is skipped, the rest apply
   v1.days.upperB.items = v1.days.upperB.items.filter((x) => x.id !== 'ubBAY');
   v1.days.lowerB.items.find((x) => x.id === 'la4').sets = 4; // his own edit on a swapped slot is replaced by the template row
   const r = L.applyPlanUpdate(v1);
-  assert.equal(r.skipped.length, 1); assert.equal(r.applied.length, 8); // only the Bayesian he removed is skipped; the schedule move applies on his tap
-  assert.deepEqual(r.skipped.map((c) => c.kind), ['swap']);
+  // (the v4 set changes are no-ops here: this fixture is built from the current template rows)
+  assert.equal(r.skipped.filter((c) => c.v < 4).length, 1); assert.equal(r.applied.filter((c) => c.v < 4).length, 8); // only the Bayesian he removed is skipped; the schedule move applies on his tap
+  assert.deepEqual(r.skipped.filter((c) => c.v < 4).map((c) => c.kind), ['swap']);
   assert.equal(r.program.schedule['4'], undefined); assert.equal(r.program.schedule['6'], 'upperA'); // Thursday is free for boxing
-  assert.equal(r.program.tv, 3);
+  assert.equal(r.program.tv, 4);
   assert.equal(L.planUpdate(r.program), null);
   const row = (d) => r.program.days[d].items.map((x) => x.id);
   assert.deepEqual(row('lowerB'), ['la2', 'lbLR', 'lbHACK', 'lbSLC', 'lb2', 'lb7a', 'lbSC', 'lbADD', 'lbSH']);
@@ -420,13 +421,13 @@ test('re-entry: info, sets ~55% / ~75%, RIR 4/3 then 3/2, loads 80% / 90%, heade
   const e = L.dayEstimate({ program: p, sessions: [], today: '2026-10-19', dayId: 'upperA', reentry: w1 });
   assert.equal(e.week, null); assert.equal(e.deload, false);
   const total = (items) => items.reduce((n, x) => n + x.sets, 0);
-  assert.equal(total(p.days.upperA.items), 29);
-  assert.equal(total(e.plan.items), 18); // ≈ 55–62 %
+  assert.equal(total(p.days.upperA.items), 28);
+  assert.equal(total(e.plan.items), 17); // ≈ 55–62 %
   assert.ok(e.plan.minutes < 40, `${e.plan.minutes}`);
   assert.equal(e.plan.changes[0].code, 'reentry'); assert.match(e.plan.changes[0].text, /رجوع · الأسبوع 1 من 2/);
   assert.equal(e.plan.items[0].reps, '6-10');
   const e2 = L.dayEstimate({ program: p, sessions: [], today: '2026-10-26', dayId: 'upperA', reentry: w2 });
-  assert.equal(total(e2.plan.items), 20);
+  assert.equal(total(e2.plan.items), 21); // ≈ 75 % of 28
   // live session: loads from the last session × 0.8, header line, no double set cut, no 7-day "lighter" on top
   const hist = [ses('h1', '2026-07-20', [ex('ex1', [[80, 8, 2], [80, 8, 2], [80, 7, 2], [80, 6, 2]], { exId: 'uaFB' })], { dayKey: 'upperA' })];
   const live = L.buildLive({ items: e.plan.items, dayId: 'upperA', dayName: 'Upper A', sessions: hist, lighter: true, week: 1, reentry: w1 });
@@ -454,4 +455,23 @@ test('pull-up gate: 3×8 body-weight pull-ups at RIR ≥ 2 → back to the weigh
   const p = L.backToPullup(P());
   assert.equal(p.days.upperA.items[1].lib, 'exWPU'); assert.equal(p.days.upperA.items[1].id, 'ub1'); assert.equal(p.days.upperA.items[1].ss, 'A');
   assert.equal(P().days.upperA.items[1].lib, 'ex14');
+});
+
+test('plan v4: a v3 user gets +2 lat sets, the grip note and the top-set guidance; lifting stays under 50 min with Zone 2 ≥ 8', () => {
+  const p = P();
+  const v3 = JSON.parse(JSON.stringify({ ...p, tv: 3 }));
+  for (const [d, id, n] of [['upperA', 'uaLPD', 4], ['upperB', 'ua4', 4], ['upperA', 'ua5a', 3], ['upperA', 'uaAW', 3], ['upperB', 'ubWC', 3]]) v3.days[d].items.find((x) => x.id === id).sets = n;
+  delete v3.days.upperB.items.find((x) => x.id === 'ua4').note; delete v3.days.lowerA.items[0].note; v3.days.upperA.items[0].note = 'سيفتي البار في كل جلسة';
+  const u = L.planUpdate(v3);
+  assert.equal(u.from, 3); assert.equal(u.to, 4); assert.equal(u.applicable, 7);
+  assert.ok(u.changes.every((c) => c.ok && c.text && !/· $/.test(c.text)), u.changes.map((c) => c.text).join('\n'));
+  const r = L.applyPlanUpdate(v3);
+  assert.equal(r.skipped.length, 0); assert.equal(r.program.tv, 4);
+  const sets = (d, id) => r.program.days[d].items.find((x) => x.id === id).sets;
+  assert.deepEqual([sets('upperA', 'uaLPD'), sets('upperB', 'ua4'), sets('upperA', 'ua5a'), sets('upperA', 'uaAW'), sets('upperB', 'ubWC')], [5, 5, 2, 2, 2]);
+  assert.match(r.program.days.upperB.items.find((x) => x.id === 'ua4').note, /قبضة/);
+  assert.match(r.program.days.lowerA.items[0].note, /4-6/);
+  for (const d of p.order) assert.deepEqual(r.program.days[d].items.map((x) => `${x.id}:${x.sets}`), p.days[d].items.map((x) => `${x.id}:${x.sets}`), `${d} matches the template`);
+  const lats = p.order.flatMap((d) => p.days[d].items).filter((x) => x.lib === 'ex14').reduce((n, x) => n + x.sets, 0);
+  assert.equal(lats, 10);
 });

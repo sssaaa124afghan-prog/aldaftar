@@ -1291,8 +1291,10 @@ export function planUpdate(program) {
       const day = program.days[c.day];
       const dayName = day?.name || t.days[c.day]?.name || c.day;
       if (c.set) {
-        const it = day?.items.find((x) => x.id === c.id);
-        const r = c.set.r1 ? `${String(c.set.r1).replace('-', '–')} عدّات أول 6 أسابيع (بدل ${String(it?.reps || '').replace('-', '–')})` : '';
+        // the row may be one that an earlier swap of this same update brings in (a v1 user jumping several versions)
+        const it = day?.items.find((x) => x.id === c.id) || (changes.some((x) => x.kind === 'swap' && x.ok && x.day === c.day && x.to === c.id) ? t.days[c.day]?.items.find((x) => x.id === c.id) : null);
+        const r = c.set.r1 ? `${String(c.set.r1).replace('-', '–')} عدّات أول 6 أسابيع (بدل ${String(it?.reps || '').replace('-', '–')})`
+          : c.set.sets ? `${c.set.sets === 2 ? 'مجموعتين' : `${c.set.sets} مجموعات`} (بدل ${it?.sets ?? ''})` : c.set.note ? 'ملاحظة أداء جديدة' : '';
         changes.push({ v, day: c.day, dayName, kind: 'set', id: c.id, set: c.set, fromName: it?.ar || '', toName: it?.ar || '', ok: !!it && Object.entries(c.set).some(([k, val]) => it[k] !== val), why: c.why || '', text: `${dayName}: ${it?.ar || c.id} · ${r}` });
       } else {
         const it = day?.items.find((x) => x.id === c.from);
@@ -1342,7 +1344,7 @@ export function applyPlanUpdate(program) {
     }
     const day = next.days[c.day];
     if (!c.ok || !day) { skipped.push(c); continue; }
-    if (c.kind === 'set') { const it = day.items.find((x) => x.id === c.id); Object.assign(it, c.set); applied.push(c); continue; }
+    if (c.kind === 'set') { const it = day.items.find((x) => x.id === c.id); if (!it) { skipped.push(c); continue; } Object.assign(it, c.set); applied.push(c); continue; }
     const i = day.items.findIndex((x) => x.id === c.from);
     const tpl = t.days[c.day].items.find((x) => x.id === c.to);
     const old = day.items[i];

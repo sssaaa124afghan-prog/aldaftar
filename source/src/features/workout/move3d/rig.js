@@ -19,7 +19,7 @@ const rad = (d) => (d * Math.PI) / 180;
 
 export const DEFAULT_POSE = Object.freeze({
   pelvis: [0, 1, 0], pr: 0, yaw: 0, spine: 0, shrug: 0,
-  hand: [0.27, 0.92, 0.03], ep: [0.3, 0, -1],
+  hand: [0.27, 0.92, 0.03], ep: [0.3, 0, -1], grip: [0, 0, 0], // grip = where the fist sits relative to the wrist (wrist curls)
   foot: [0.11, 0.07, 0], kp: [0, 0, 1], toe: [0, 0, 1],
 });
 /** Fill a partial pose with the standing defaults. */
@@ -79,7 +79,8 @@ export function solve(p0) {
     const toe = p[`toe${k}`] || (s === 1 ? p.toe : V.mx(p.toe));
     const arm = ik(sh, hand, DIM.UA, DIM.FA, ep);
     const leg = ik(hip, foot, DIM.TH, DIM.SH, kp);
-    J[`sh${k}`] = sh; J[`el${k}`] = arm.mid; J[`ha${k}`] = arm.end;
+    const grip = p[`grip${k}`] || (s === 1 ? p.grip : V.mx(p.grip));
+    J[`sh${k}`] = sh; J[`el${k}`] = arm.mid; J[`wr${k}`] = arm.end; J[`ha${k}`] = V.add(arm.end, grip);
     J[`hip${k}`] = hip; J[`kn${k}`] = leg.mid; J[`an${k}`] = leg.end;
     J[`toe${k}`] = V.add(leg.end, V.mul(V.norm(toe), DIM.FOOT));
     B[`arm${k}`] = arm.bend; B[`leg${k}`] = leg.bend;

@@ -55,7 +55,7 @@ export function createViewer(canvas, { move, primary = new Set(), secondary = ne
   const inFrame = (o, fr, c) => V.add(o, V.add(V.mul(fr.r, c[0]), V.add(V.mul(fr.u, c[1]), V.mul(fr.f, c[2]))));
 
   // ───── body ─────
-  const BONES = [['shL', 'elL', 0.05], ['elL', 'haL', 0.041], ['shR', 'elR', 0.05], ['elR', 'haR', 0.041], ['hipL', 'knL', 0.074], ['knL', 'anL', 0.054], ['hipR', 'knR', 0.074], ['knR', 'anR', 0.054],
+  const BONES = [['shL', 'elL', 0.05], ['elL', 'wrL', 0.041], ['shR', 'elR', 0.05], ['elR', 'wrR', 0.041], ['wrL', 'haL', 0.036], ['wrR', 'haR', 0.036], ['hipL', 'knL', 0.074], ['knL', 'anL', 0.054], ['hipR', 'knR', 0.074], ['knR', 'anR', 0.054],
     ['anL', 'toeL', 0.04], ['anR', 'toeR', 0.04], ['shL', 'shR', 0.055], ['hipL', 'hipR', 0.07]];
   const bones = BONES.map(([a, b, r]) => ({ a, b, r, mesh: mk(G.cyl, M.body) }));
   const neck = mk(G.cyl, M.body);
@@ -150,7 +150,7 @@ export function createViewer(canvas, { move, primary = new Set(), secondary = ne
     for (const p of torsoPads) placeBlob(p.mesh, inFrame(p.fr === 'c' ? J.waist : J.pelvis, p.fr === 'c' ? cf : pf, p.c), p.fr === 'c' ? cf : pf, p.s);
     for (const d of delts) placeBlob(d.mesh, inFrame(J[d.side === 1 ? 'shL' : 'shR'], cf, d.c), cf, d.s);
     for (const lp of limbPads) {
-      const k = lp.k; const sh = J[`sh${k}`]; const el = J[`el${k}`]; const ha = J[`ha${k}`]; const hip = J[`hip${k}`]; const kn = J[`kn${k}`]; const an = J[`an${k}`];
+      const k = lp.k; const sh = J[`sh${k}`]; const el = J[`el${k}`]; const ha = J[`wr${k}`]; const hip = J[`hip${k}`]; const kn = J[`kn${k}`]; const an = J[`an${k}`];
       if (lp.kind === 'bi' || lp.kind === 'tri') {
         const axis = V.norm(V.sub(el, sh));
         const inner = unitOr(perp(V.sub(ha, el), axis), V.mul(B[`arm${k}`], -1));

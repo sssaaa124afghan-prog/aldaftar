@@ -250,8 +250,11 @@ PROGRAMS.fb3 = {
  * Legacy item ids are kept where the exercise is the same, so session history lines up.
  */
 export const PULLUP_NOTE = 'لما تعمل 3×8 عقلة بوزن جسمك عند RIR 2 ارجع للعقلة';
+// v4 (15/11/2026): strength guidance on the two barbell lifts and +2 weekly lat sets, paid for with 2 ab sets so the lift stays ≤ 49.5 min
+export const TOP_SET_NOTE = 'بعد أول 6 أسابيع: أول مجموعة هي التقيلة (4-6 عدّات)، وبعدها نزّل الوزن حوالي 10% وكمّل 6-8';
+export const GRIP_NOTE = 'قبضة ضيقة أو محايدة (ماسكة V) عشان تختلف عن سحب Upper A العريض';
 PROGRAMS.ul4c = {
-  id: 'ul4c', name: 'أعلى/أسفل', version: 3, perWeek: 4, note: 'كل عضلة مرتين · سوبر سِت · رفع ~48 د + Zone 2 · أقل من 60 دقيقة · الخميس ملاكمة',
+  id: 'ul4c', name: 'أعلى/أسفل', version: 4, perWeek: 4, note: 'كل عضلة مرتين · سوبر سِت · رفع ~48 د + Zone 2 · أقل من 60 دقيقة · الخميس ملاكمة',
   order: ['upperA', 'lowerA', 'upperB', 'lowerB'],
   schedule: { 6: 'upperA', 0: 'lowerA', 2: 'upperB', 3: 'lowerB' }, heartDow: HEART_DOW.ul4c, z2: true, meso: true,
   trainingDays: UL4C_TRAINING_DAYS, boxing: true,
@@ -260,21 +263,21 @@ PROGRAMS.ul4c = {
   days: {
     upperA: { name: 'Upper A', warm: [[0, 8], [60, 5], [80, 2]], warmNote: 'دقيقة تسخين عام + مجموعات البنش التمهيدية + سحب أمامي خفيف ×8',
       items: P([
-        ['uaFB', 'ex1', 4, '5-8', 'A', 110, '1-2', false, { r1: '6-10', note: 'سيفتي البار في كل جلسة' }], ['uaLPD', 'ex14', 4, '6-10', 'A', 110, '1-2', false, { note: PULLUP_NOTE }],
+        ['uaFB', 'ex1', 4, '5-8', 'A', 110, '1-2', false, { r1: '6-10', note: TOP_SET_NOTE + ' · سيفتي البار في كل جلسة' }], ['uaLPD', 'ex14', 5, '6-10', 'A', 110, '1-2', false, { note: PULLUP_NOTE }],
         ['uaID', 'ex2', 3, '8-12', 'B', 90, '1-2'], ['uaTBR', 'exCSTB', 3, '8-12', 'B', 90, '1-2'],
-        ['ua5a', 'ex27', 3, '12-20', 'C', 45, '0-1'], ['ua6a', 'exOCT', 3, '10-15', 'C', 45, '0-1'],
-        ['ua6b', 'ex31', 3, '10-15', 'D', 60, '0-1'], ['ua5b', 'exRPD', 3, '12-20', 'D', 60, '0-1'], ['uaAW', 'ex64', 3, '8-15', 'D', 60, '1-2']]) },
+        ['ua5a', 'ex27', 2, '12-20', 'C', 45, '0-1'], ['ua6a', 'exOCT', 3, '10-15', 'C', 45, '0-1'],
+        ['ua6b', 'ex31', 3, '10-15', 'D', 60, '0-1'], ['ua5b', 'exRPD', 3, '12-20', 'D', 60, '0-1'], ['uaAW', 'ex64', 2, '8-15', 'D', 60, '1-2']]) },
     lowerA: { name: 'Lower A', warm: [[0, 8], [50, 5], [70, 3], [85, 1]], warmNote: 'دقيقة تسخين عام + مجموعات السكوات التمهيدية',
       items: P([
-        ['la1', 'ex41', 4, '5-8', 'A', 110, '1-2', false, { r1: '6-10' }], ['laLR', 'ex23', 4, '12-20', 'A', 110, '0-1'],
+        ['la1', 'ex41', 4, '5-8', 'A', 110, '1-2', false, { r1: '6-10', note: TOP_SET_NOTE }], ['laLR', 'ex23', 4, '12-20', 'A', 110, '0-1'],
         ['la7b', 'ex48', 4, '8-12', 'B', 60, '0-1'], ['la7a', 'ex44', 4, '10-15', 'B', 60, '0-1'],
         ['la3', 'exMHT', 3, '8-12', 'C', 75, '1-2'], ['la6a', 'ex65', 3, '10-15', 'C', 75, '1-2'],
         ['la5a', 'ex51', 5, '8-15', 'D', 60, '0-1'], ['laWC', 'ex81', 3, '15-20', 'D', 60, '0-1', true], ['laRWC', 'exRWC', 2, '15-20', 'D', 60, '0-1', true]]) },
     upperB: { name: 'Upper B', warm: [[50, 8], [75, 4]], warmNote: 'دقيقة تسخين عام + مجموعات تمهيدية للدمبل والسحب',
       items: P([
-        ['ubLID', 'exLID', 4, '6-10', 'A', 90, '1-2', false, { note: 'نفس البنش، زاوية 15° بس (أول ثقب أو اتنين)' }], ['ua4', 'ex14', 4, '8-12', 'A', 90, '1-2'],
+        ['ubLID', 'exLID', 4, '6-10', 'A', 90, '1-2', false, { note: 'نفس البنش، زاوية 15° بس (أول ثقب أو اتنين)' }], ['ua4', 'ex14', 5, '8-12', 'A', 90, '1-2', false, { note: GRIP_NOTE }],
         ['ubSP', 'ex22', 3, '8-12', 'B', 75, '1-2'], ['ubCR', 'ex15', 3, '8-12', 'B', 75, '1-2'],
-        ['ub5a', 'ex27', 3, '12-20', 'C', 45, '0-1'], ['ub5b', 'ex24', 3, '12-20', 'C', 45, '0-1'], ['ubWC', 'exWCH', 3, '10-12/جنب', 'C', 45, '1-2'],
+        ['ub5a', 'ex27', 3, '12-20', 'C', 45, '0-1'], ['ub5b', 'ex24', 3, '12-20', 'C', 45, '0-1'], ['ubWC', 'exWCH', 2, '10-12/جنب', 'C', 45, '1-2'],
         ['ubPRC', 'ex32', 3, '10-15', 'D', 45, '0-1', false, { note: 'جهاز أو بار EZ على المسند · ركّز على النص اللي تحت' }],
         ['ubOCT', 'exROE', 3, '10-15', 'D', 45, '0-1', false, { note: 'لو كوعك وجعك تاني يوم ارجع لترايسبس بالحبل (pushdown)' }]]) },
     lowerB: { name: 'Lower B', warm: [[0, 8], [50, 5], [75, 3]], warmNote: 'دقيقة تسخين عام + مجموعات الروماني التمهيدية',
@@ -316,6 +319,18 @@ export const PLAN_UPDATES = Object.freeze({
         trainingDays: { from: UL4C_LEGACY_TRAINING_DAYS, to: UL4C_TRAINING_DAYS },
         why: 'الملاكمة بعد يوم رجل بـ 24 ساعة، ويوم راحة قبل Upper A' },
       boxing: { why: 'جولات شوال + تكنيك 35 د، ومعاها بلوك الضغط الثابت وقاع الحوض زي يوم القلب' },
+    },
+    4: {
+      title: 'ضهر أكتر · مجموعة تقيلة للقوة · نفس الـ 60 دقيقة',
+      changes: [
+        { day: 'upperA', id: 'uaLPD', set: { sets: 5 }, why: 'اللات كانت 8 مجموعات في الأسبوع (الحد الأدنى): بقت 10' },
+        { day: 'upperB', id: 'ua4', set: { sets: 5, note: GRIP_NOTE }, why: 'قبضة مختلفة عن Upper A + مجموعة زيادة للات' },
+        { day: 'upperA', id: 'uaAW', set: { sets: 2 }, why: 'البطن متغطية في 3 أيام تانية، والدقيقتين راحوا لمجموعة اللات' },
+        { day: 'upperB', id: 'ubWC', set: { sets: 2 }, why: 'نفس السبب: الوقت راح لمجموعة اللات' },
+        { day: 'upperA', id: 'ua5a', set: { sets: 2 }, why: 'الكتف الجانبي من 13 لـ 12 مجموعة، عشان الرفع يفضل تحت 50 دقيقة والـ Zone 2 مايقصرش' },
+        { day: 'upperA', id: 'uaFB', set: { note: TOP_SET_NOTE + ' · سيفتي البار في كل جلسة' }, why: 'مجموعة تقيلة 4-6 بتبني القوة، والباقي للتضخيم' },
+        { day: 'lowerA', id: 'la1', set: { note: TOP_SET_NOTE }, why: 'مجموعة تقيلة 4-6 بتبني القوة، والباقي للتضخيم' },
+      ],
     },
   },
 });

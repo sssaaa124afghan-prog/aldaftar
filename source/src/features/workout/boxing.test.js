@@ -180,7 +180,7 @@ test('volume engine: boxing week takes 1–2 side-delt sets off (Lower A / Lower
 
 test('schedule migration: ul4c v2 on Mon/Tue/Thu/Fri → plan-update card moves to Sat/Sun/Tue/Wed + Thursday boxing; keep = boxing Saturday', () => {
   const t = PROGRAMS.ul4c;
-  assert.equal(t.version, 3);
+  assert.equal(t.version, 4);
   assert.deepEqual(t.schedule, { 6: 'upperA', 0: 'lowerA', 2: 'upperB', 3: 'lowerB' });
   assert.deepEqual([...t.trainingDays], [0, 2, 3, 6]);
   // a user on v2 with the old weekday layout
@@ -188,7 +188,7 @@ test('schedule migration: ul4c v2 on Mon/Tue/Thu/Fri → plan-update card moves 
   const norm = L.normalizeProgram({ ...v2, v: 2 });
   assert.deepEqual(L.programFlags(norm), { z2: true, meso: true, heartDow: 6, cardio: 'heart', boxing: false }, 'still the Saturday Heart Day until he answers');
   const u = L.planUpdate(norm);
-  assert.equal(u.from, 2); assert.equal(u.to, 3);
+  assert.equal(u.from, 2); assert.equal(u.to, 4);
   const sc = u.changes.find((c) => c.kind === 'schedule');
   assert.equal(sc.ok, true); assert.match(sc.text, /السبت Upper A · الحد Lower A · التلات Upper B · الأربع Lower B/);
   assert.ok(u.changes.some((c) => c.kind === 'info' && /الملاكمة/.test(c.text)));
@@ -196,7 +196,7 @@ test('schedule migration: ul4c v2 on Mon/Tue/Thu/Fri → plan-update card moves 
   const r = L.applyPlanUpdate(norm);
   assert.deepEqual(r.program.schedule, { 6: 'upperA', 0: 'lowerA', 2: 'upperB', 3: 'lowerB' });
   assert.deepEqual(r.trainingDays, [0, 2, 3, 6]);
-  assert.equal(r.program.tv, 3);
+  assert.equal(r.program.tv, 4);
   assert.equal(L.planUpdate(r.program), null);
   assert.deepEqual(L.programFlags(r.program), { z2: true, meso: true, heartDow: 4, cardio: 'boxing', boxing: true });
   assert.equal(heartDowOf({ ...r.program, v: 2 }), 4, 'core/targets agrees with programFlags');

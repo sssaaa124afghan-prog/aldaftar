@@ -229,6 +229,18 @@ function adduction() {
   return { keys: [{ ...c, foot: [0.45, 0.2, 0.42], kp: [1, 0.8, 0.6] }, { ...c, foot: [0.13, 0.2, 0.5], kp: [0.1, 1, 0.5] }], props: [...seat(0.5, 0.05), torsoPad(c, -1, 0.7, 0.3)], view: view(20, 0.65, 3.3, 18) };
 }
 
+function wristCurl(reverse = false) {
+  // seated, forearms resting on the thighs, only the fist moves around the wrist
+  const base = { ...SEATED, pelvis: [0, 0.55, 0], pr: 32, hand: [0.13, 0.63, 0.5], ep: [0.4, 0.3, -1] };
+  const down = { ...base, grip: [0, -0.07, 0.045] }; const up = { ...base, grip: [0, 0.06, 0.055] };
+  return { keys: [down, up], props: [...seat(0.45), bar(1.1)], view: view(reverse ? 40 : 55, 0.7, 2.9, 20), period: 2200 };
+}
+function farmers() {
+  // a carry: the walk itself is not animated, the figure marches on the spot under load
+  const c = { hand: [0.3, 0.9, 0.02], shrug: 0.01 };
+  return { keys: [{ ...c, foot: [0.11, 0.07, 0.12], footR: [-0.11, 0.2, -0.12], kpR: [0, 0, 1] }, { ...c, foot: [0.11, 0.2, -0.12], footR: [-0.11, 0.07, 0.12] }], props: [{ t: 'db', axis: 'z' }], view: view(55, 1.0, 3.8), period: 1400 };
+}
+
 /** library id → movement builder */
 export const MOVES = Object.freeze({
   ex1: () => press({ eq: 'bar' }), ex3: () => press({ incl: -15, eq: 'bar' }), exFDP: () => press({ eq: 'db' }), ex2: () => press({ incl: 30, eq: 'db' }), exLID: () => press({ incl: 15, eq: 'db' }),
@@ -242,6 +254,7 @@ export const MOVES = Object.freeze({
   ex36: () => pushdown(true), ex40: () => pushdown(false), ex37: () => overheadExt(), exOCT: () => overheadExt({ cable: true }), exROE: () => overheadExt({ cable: true }), ex38: skull,
   ex41: () => squat(), ex41b: () => squat({ front: true }), ex45b: () => squat({ machine: true }), ex43: legPress, ex42: splitSquat, ex44: () => legMachine(false), ex48: () => legMachine(true), ex45: lyingCurl, ex49: nordic, ex50: nordic,
   ex46: hipThrust, exMHT: hipThrust, ex46b: kickback, ex46d: donkey, ex51: () => calf(false), ex53: () => calf(false), ex52: () => calf(true),
+  ex81: () => wristCurl(false), exRWC: () => wristCurl(true), exFW: farmers,
   ex61: plank, exWPL: plank, ex62: cableCrunch, ex63: () => legRaise(false), ex65: () => legRaise(true), ex64: abWheel, exADD: adduction,
 });
 
@@ -269,7 +282,7 @@ export { DIM };
 const FAM = {
   press: 'ex1 ex3 exFDP ex2 exLID ex35 exMDP', pushup: 'ex6', dips: 'ex7 ex39', fly: 'ex5 ex8 ex4', rear: 'exRPD ex25 ex24', ohp: 'ex21 ex22 ex26', lateral: 'ex23 ex27', upright: 'ex28', shrug: 'ex71 ex72',
   row: 'ex13 ex16 exCSTB ex17 ex15', pull: 'ex14 ex12 exWPU', sarm: 'ex18', dead: 'ex11 ex46c', rdl: 'ex47', hyper: 'ex20', curl: 'ex29 ex34b ex82 ex30 ex33 exBAY ex31 ex32 exSPC', push: 'ex36 ex40', oext: 'ex37 exOCT exROE ex38',
-  squat: 'ex41 ex41b ex45b', legpress: 'ex43', split: 'ex42', legext: 'ex44', legcurl: 'ex48 ex45', nordic: 'ex49 ex50', thrust: 'ex46 exMHT', kick: 'ex46b ex46d', calf: 'ex51 ex53 ex52', plank: 'ex61 exWPL', crunch: 'ex62', legraise: 'ex63 ex65', wheel: 'ex64', add: 'exADD',
+  wrist: 'ex81 exRWC', carry: 'exFW', squat: 'ex41 ex41b ex45b', legpress: 'ex43', split: 'ex42', legext: 'ex44', legcurl: 'ex48 ex45', nordic: 'ex49 ex50', thrust: 'ex46 exMHT', kick: 'ex46b ex46d', calf: 'ex51 ex53 ex52', plank: 'ex61 exWPL', crunch: 'ex62', legraise: 'ex63 ex65', wheel: 'ex64', add: 'exADD',
 };
 const MISTAKES = {
   press: ['الكوع مفتوح 90° على الجنب: خليه حوالي 45° من جسمك', 'الوزن بيرتد من على الصدر بدل ما ينزل بتحكم', 'الكتف بيطلع لقدام في آخر الدفعة: ثبّت لوح الكتف في البنش', 'المؤخرة بتتشال من على البنش'],
@@ -303,6 +316,8 @@ const MISTAKES = {
   crunch: ['الشد بالدراع بدل البطن', 'الحركة من الورك (المؤخرة لورا) بدل لف الضهر', 'وزن تقيل بيشيلك'],
   legraise: ['تقويس الضهر السفلي', 'مرجحة', 'الحركة من عضلة الورك بس من غير لف الحوض في الآخر'],
   wheel: ['الوسط بيهبط والضهر بيتقوّس', 'مدى أبعد من اللي بطنك يتحكم فيه', 'الرجوع بالدراع بدل البطن'],
+  wrist: ['الساعد بيتشال من على الفخذ: ثبّته والحركة من الرسغ بس', 'مدى قصير: انزل لآخر الرسغ واطلع لآخره', 'وزن تقيل بيخلي الكوع يشارك'],
+  carry: ['ميل بالجسم على جنب', 'الكتف واقع لقدام: صدرك مفتوح وكتفك لورا', 'خطوات طويلة سريعة: خطوات قصيرة ثابتة'],
   add: ['حدف الوزن وارتداده', 'المؤخرة بتتشال من الكرسي', 'مدى أوسع من مرونتك'],
 };
 const FAM_OF = Object.fromEntries(Object.entries(FAM).flatMap(([f, ids]) => ids.split(' ').map((id) => [id, f])));
