@@ -388,12 +388,3 @@ button.nu-meal:hover{background:var(--glass,rgba(255,255,255,.065))}
   .nu-switch i,.nu-dchip,.nu-quick,.nu-tool,.nu-ghost,.nu-ib{transition:none!important}
 }
 .nu-mgrid.is-3{grid-template-columns:repeat(3,1fr)}
-
-/* entry to «المطبخ» (features/kitchen) */
-.nu-kitchen{display:flex;align-items:center;gap:12px;min-height:60px;padding:10px 14px;border:1px solid var(--edge);border-radius:20px;background:var(--glass);color:var(--tx);text-decoration:none}
-.nu-kitchen:active{transform:scale(.99)}
-.nu-kitchen .grow{flex:1;min-width:0}
-.nu-kitchen b{display:block;font:700 var(--t-16,16px)/1.3 var(--f)}
-.nu-kitchen small{display:block;font-size:var(--t-12,12px);color:var(--mu);line-height:1.5}
-.nu-kitchen>svg.i:first-child{width:24px;height:24px;color:var(--cta);flex:none}
-.nu-kitchen>svg.i:last-child{width:18px;height:18px;color:var(--mu);flex:none;transform:scaleX(-1)}

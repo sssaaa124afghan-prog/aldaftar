@@ -94,8 +94,7 @@ async function ledger(el, ctx, params) {
       h('a', { class: 'nu-ghost', href: `#/nutrition/meals?${new URLSearchParams({ d: day })}`, 'aria-label': 'وجباتي' }, I('food'), 'وجباتي'),
       h('a', { class: 'nu-ghost', href: '#/nutrition/targets', 'aria-label': 'الأهداف' }, I('target'), 'الأهداف'));
 
-    const kitchen = h('a', { class: 'nu-kitchen', href: '#/kitchen' }, I('flame'), h('span', { class: 'grow' }, h('b', {}, 'المطبخ'), h('small', {}, 'وصفات مظبوطة على الباقي من يومك، وعلب تتسجل بضغطة')), I('chevron'));
-    const blocks = [chips, hero, cta, kitchen, tiles, splitLine]; // «سجّل أكل» right under the gauge: the action before the detail
+    const blocks = [chips, hero, cta, tiles, splitLine]; // «سجّل أكل» right under the gauge: the action before the detail
 
     // ── one alert (adaptive suggestion first) ──
     let alert = null;

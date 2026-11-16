@@ -50,7 +50,7 @@ export function renderTabs(nav) {
 }
 
 // Profile lives in Today's ⋯ menu (#/profile still works), so it lights the Today tab.
-const TAB_OF = { profile: 'today', kitchen: 'nutrition' }; // «المطبخ» is a section of الأكل
+const TAB_OF = { profile: 'today' };
 function markTab(nav, feature) {
   feature = TAB_OF[feature] || feature;
   const ti = TABS.findIndex((t) => t.key === feature);
@@ -161,5 +161,5 @@ async function transition(view, dir, swap) {
 
 // Live, full-screen routes hide the tab bar (session has its own dock; boxing is gloves-on). The coach is a tab now: no floating button.
 function syncChrome(route) {
-  document.documentElement.classList.toggle('immersive', /^(workout\/(session|boxing)|kitchen\/cook)/.test(route));
+  document.documentElement.classList.toggle('immersive', /^workout\/(session|boxing)/.test(route));
 }
